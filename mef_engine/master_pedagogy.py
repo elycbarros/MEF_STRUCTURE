@@ -778,3 +778,89 @@ def build_radier_audit_trail(config: Any, memorial: dict[str, Any]) -> dict[str,
         },
         "steps": steps
     }
+
+
+def build_vigacross_blackboard(results: dict[str, Any], input_data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Cria um roteiro didatico para o motor Hardy Cross (Viga Cross).
+    
+    Este blackboard foca no processo de Hardy Cross e na verificacao de flechas.
+    """
+    spans = results.get("spans", [])
+    reactions = results.get("reactions", [])
+    max_deflection = results.get("maxDeflection", 0.0)
+    audit = results.get("normativeAudit", [])
+    
+    # Metadados de entrada
+    e_gpa = input_data.get("eGPa", 25)
+    
+    steps = []
+    
+    # Passo 1: Metodo de Hardy Cross (Sintese)
+    steps.append(_step(MathStep(
+        id="cross-method-summary",
+        title="Distribuicao de Momentos (Hardy Cross)",
+        formula_latex=r"M_{final} = M_{engastamento} + \sum (\text{Distribuicao} + \text{Transporte})",
+        substitution_latex=rf"\text{{Iteracoes Realizadas: }} {len(results.get('iterations', []))}",
+        result_latex=rf"M_{{max,abs}} = {_fmt(max([abs(s.get('moments', {}).get('left', 0)) for s in spans] + [abs(s.get('moments', {}).get('right', 0)) for s in spans]), 2)}\,kNm",
+        norm_ref="Metodo de Hardy Cross para Estruturas Hiperestaticas",
+        explanation="O metodo de Hardy Cross distribui os momentos de engastamento perfeito atraves de sucessivas iteracoes de equilibrio nos nos.",
+        status="OK"
+    )))
+    
+    # Passo 2: Reacoes de Apoio
+    reaction_str = ", ".join([f"R{i+1}={_fmt(r.get('value', 0), 2)}kN" for i, r in enumerate(reactions)])
+    steps.append(_step(MathStep(
+        id="cross-reactions",
+        title="Reacoes de Apoio",
+        formula_latex=r"\sum V = 0",
+        substitution_latex=rf"\text{{Total de Reacoes: }} {len(reactions)}",
+        result_latex=rf"\text{{{reaction_str}}}",
+        norm_ref="Equilibrio Estatico Global",
+        explanation="As reacoes sao obtidas apos a convergencia dos momentos nos apoios.",
+        status="OK"
+    )))
+    
+    # Passo 3: Verificacao de Flechas (NBR 6118)
+    reasons = []
+    for i, span_audit in enumerate(audit):
+        l_span = span_audit.get("spanLength", 0)
+        f_max = span_audit.get("maxDeflection", 0)
+        f_lim = span_audit.get("limit", 0)
+        status = span_audit.get("status", "OK")
+        
+        if status != "OK":
+            reasons.append(f"Vao {i+1}: Flecha ({_fmt(f_max, 2)}mm) > Limite ({_fmt(f_lim, 2)}mm)")
+            
+        steps.append(_step(MathStep(
+            id=f"cross-deflection-span-{i+1}",
+            title=f"Verificacao de Flecha - Vao {i+1} ({span_audit.get('spanId')})",
+            formula_latex=rf"f_{{max}} \leq L/250",
+            substitution_latex=rf"{_fmt(f_max, 2)}\,mm \leq {_fmt(l_span * 1000, 0)}/250 = {_fmt(f_lim, 2)}\,mm",
+            result_latex=rf"\text{{{status}}}",
+            norm_ref="NBR 6118, Item 13.3 - Limites de Deslocamento",
+            explanation=f"A flecha maxima no vao de {_fmt(l_span, 1)}m deve respeitar o limite visual/estrutural de L/250.",
+            status="OK" if status == "OK" else "ALERTA"
+        )))
+
+    # Passo Final: Parecer
+    opinion = (
+        "Parecer final: A estrutura atende aos criterios de equilibrio e deformacao (NBR 6118)."
+        if not reasons else
+        f"PARECER DE REVISÃO: A viga apresenta deformacoes excessivas em alguns vãos: \n• " + "\n• ".join(reasons) + "\n\nSugestão: Aumentar a inércia da seção ou reduzir os vãos."
+    )
+
+    return {
+        "mode": "VIGA_CROSS",
+        "element": "beam_continuous",
+        "title": "Memorial de Calculo - Viga Continua (Hardy Cross)",
+        "summary": {
+            "metodo": "Hardy Cross (Iterativo)",
+            "vaos": len(spans),
+            "E_GPa": e_gpa,
+            "flecha_max_mm": max_deflection,
+            "status_geral": "OK" if not reasons else "REVISAR",
+            "opinion": opinion
+        },
+        "steps": steps
+    }

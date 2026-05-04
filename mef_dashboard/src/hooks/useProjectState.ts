@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
-import { Gauge, ShieldCheck, Building2, StretchHorizontal, FileText, Wind, Box, Database, Search, Cpu, ClipboardCheck } from "lucide-react";
+import { Gauge, ShieldCheck, Building2, StretchHorizontal, FileText, Wind, Box, Database, Search, Cpu, ClipboardCheck, Share2, Activity, Zap } from "lucide-react";
 
-export type AcademicTabId = "dashboard" | "geometria" | "pilares_isolados" | "vigas" | "especiais" | "forensic" | "backlog";
+export type AcademicTabId = "dashboard" | "geometria" | "pilares_isolados" | "vigas" | "especiais" | "vigacross" | "backlog";
 export type TabId = AcademicTabId | "pilares" | "armadura" | "resultado" | "integracao" | "vento";
 type LogEntry = {
   message: string;
@@ -52,9 +52,11 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
       { id: "pilares", label: "Pilares", icon: Building2 },
       { id: "armadura", label: "Armadura", icon: StretchHorizontal },
       { id: "resultado", label: "Relatório", icon: FileText },
+      { id: "ufo", label: "UFO Stability", icon: Activity },
+      { id: "tensionpro", label: "TENSION PRO", icon: Zap },
       { id: "vento", label: "Vento", icon: Wind },
       { id: "especiais", label: "Especiais", icon: Box },
-      { id: "forensic", label: "Laboratório Forense", icon: Search },
+      { id: "vigacross", label: "VIGA CROSS", icon: Share2 },
       { id: "integracao", label: "PhD Console", icon: Cpu },
     ];
 

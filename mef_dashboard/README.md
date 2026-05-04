@@ -1,49 +1,51 @@
-# Radier Lab Next (React + TypeScript)
+# MEF Structural Elite - v1.0.0
 
-Frontend React/TypeScript para o motor de calculo do `radier_lab` (API FastAPI).
+Plataforma avançada de engenharia estrutural que integra análise de elementos finitos (MEF), design gerativo e auditoria forense assistida por IA.
 
-## Execucao local
+## 🚀 Visão Geral
 
-1. Suba a API Python:
+O **MEF Structural Elite** é dividido em duas frentes de trabalho coordenadas:
 
+- **MESTRE (Academic Engine)**: Ambiente didático para análise de vigas contínuas (Hardy Cross), lajes e dimensionamento de elementos isolados.
+- **UFO (Professional Engine)**: Motor de alta performance para análise global de edifícios, estabilidade alfa e concreto protendido (**TensionPro**).
+
+## ✨ Principais Funcionalidades
+
+- **M5-PhD Optimization**: Motor de design gerativo que sugere seções transversais otimizadas para redução de peso e custo.
+- **BIM Interoperability**: Exportação de modelos em formato IFC 2x3 para integração com softwares de projeto (Revit, TQS, etc).
+- **TensionPro**: Módulo de concreto protendido com simulação de perdas imediatas e diferidas (fluência/retração) via Rust Core.
+- **Viga Cross**: Simulador didático de convergência de momentos hiperestáticos.
+- **Audit Agent**: IA Ph.D. integrada que emite pareceres técnicos e diagnósticos de segurança normativa (NBR 6118:2023).
+
+## 🛠️ Tecnologias
+
+- **Frontend**: Next.js 16 (Turbopack), Tailwind CSS, Framer Motion.
+- **Visualização**: Three.js (React Three Fiber) para modelos 3D dinâmicos.
+- **Backend**: FastAPI (Python) & Rust (WebAssembly) para motores de cálculo pesado.
+
+## ⚙️ Instalação e Execução
+
+### Pré-requisitos
+- Node.js 20+
+- Python 3.10+ (para o backend de relatórios)
+
+### Frontend
 ```bash
-cd ../radier_lab
+cd mef_dashboard
+npm install
+npm run dev
+```
+Acesse em: [http://localhost:3000](http://localhost:3000)
+
+### Backend (Motores de Cálculo)
+```bash
+# Certifique-se de que a porta 8000 está liberada
 python3 api.py
 ```
 
-2. Suba o frontend:
+## 📜 Licença e Versionamento
 
-```bash
-cd ../radier_lab_next
-npm run dev -- --hostname 127.0.0.1 --port 3001
-```
+O projeto segue a regra de versionamento **VibeDoCode**. Consulte o arquivo [atualizaçoes do projeto.md](./atualizaçoes%20do%20projeto.md) para o histórico completo de mudanças.
 
-3. Abra:
-
-- `http://127.0.0.1:3001`
-
-## Variaveis de ambiente
-
-Opcionalmente, configure a URL da API:
-
-```bash
-NEXT_PUBLIC_RADIER_API_URL=http://127.0.0.1:8000
-```
-
-Se nao for definida, o frontend usa `http://127.0.0.1:8000` por padrao.
-
-## Scripts
-
-- `npm run dev`: ambiente de desenvolvimento
-- `npm run build`: build de producao
-- `npm run start`: serve build de producao
-
-## Estrutura
-
-- `src/app/page.tsx`: dashboard principal
-- `src/components`: componentes de UI
-- `src/app/globals.css`: tema visual
-
-## Dependencias externas
-
-O projeto nao depende de fontes remotas para funcionar localmente.
+---
+© 2026 Elite Engineering - Scaling Structural Intelligence

@@ -66,6 +66,7 @@ export interface DiagramPoint {
   xLocal: number;
   shear: number;
   moment: number;
+  deflection?: number;
 }
 
 export interface CrossSolveResult {

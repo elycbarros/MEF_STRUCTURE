@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from schemas.reports import ExportPDFRequest
+from schemas.reports import ExportPDFRequest, VigaCrossPDFRequest
 from schemas.elite import BeamAnalysisRequest, ColumnRequest
 from radier_pdf import generate_radier_report_pdf
 from radier_utils import ensure_directory
@@ -85,6 +85,49 @@ async def export_academic_column_pdf(request: ColumnRequest):
         return FileResponse(
             path=pdf_path,
             filename="engine_mestre_pilar_memorial_pedagogico.pdf",
+            media_type="application/pdf",
+        )
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/export/vigacross/pdf")
+async def export_vigacross_pdf(request: VigaCrossPDFRequest):
+    try:
+        from master_pedagogy import build_vigacross_blackboard
+        from academic_pdf import generate_academic_blackboard_pdf
+
+        output_dir = "output_api"
+        ensure_directory(output_dir)
+        
+        # O blackboard da Viga Cross
+        blackboard = build_vigacross_blackboard(request.results, request.input_data)
+        
+        # Preparar diagramas para o PDF
+        raw_diagrams = request.results.get('diagrams', [])
+        mef_diagrams = {
+            'x_m': [p.get('x', 0) for p in raw_diagrams],
+            'V_kN': [p.get('shear', 0) for p in raw_diagrams],
+            'M_kNm': [p.get('moment', 0) for p in raw_diagrams],
+            'delta_mm': [p.get('deflection', 0) for p in raw_diagrams]
+        }
+
+        pdf_path = os.path.join(output_dir, "viga_cross_memorial_tecnico.pdf")
+        generate_academic_blackboard_pdf(
+            pdf_path, 
+            blackboard, 
+            request.project_meta or {
+                "disciplina": "Teoria das Estruturas",
+                "professor": "Engine VIGA CROSS",
+            }, 
+            diagrams=mef_diagrams
+        )
+        
+        return FileResponse(
+            path=pdf_path,
+            filename="viga_cross_memorial_tecnico.pdf",
             media_type="application/pdf",
         )
     except Exception as e:

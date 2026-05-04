@@ -10,120 +10,118 @@ interface WelcomeScreenProps {
 
 export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 blur-[120px] rounded-full" />
+    <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Background Decorativo - Gradientes Suaves */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-indigo-500/5 blur-[120px] rounded-full animate-pulse" />
       </div>
 
-      <div className="max-w-5xl w-full relative z-10">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 mb-4">
-            <ShieldCheck className="w-4 h-4 text-indigo-600" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">MEF STRUCTURAL V6.0.0-PHD</span>
+      <div className="max-w-6xl w-full relative z-10">
+        <div className="text-center mb-16 space-y-4">
+          <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm mb-4">
+            <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-900">MEF Structural Platform V6.0</span>
           </div>
-          <h1 className="text-5xl font-black tracking-tight text-[#1a1c1e] mb-4 italic">
-            Escolha seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-indigo-400">Engine</span>
+          <h1 className="text-6xl font-black tracking-tighter text-slate-900 leading-tight">
+            Selecione seu <span className="text-blue-600">Ambiente</span> de Trabalho
           </h1>
-          <p className="text-[#6a7485] font-medium max-w-xl mx-auto">
-            Selecione o ambiente de trabalho ideal para seu projeto estrutural.
+          <p className="text-lg font-medium text-slate-500 max-w-2xl mx-auto">
+            Integração absoluta entre o rigor acadêmico e a performance profissional de engenharia forense.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* MESTRE - Academic Mode */}
+        <div className="grid md:grid-cols-2 gap-10">
+          {/* MESTRE - Lab Acadêmico */}
           <button 
             onClick={() => onSelectMode("academic")}
-            className="group relative text-left p-8 rounded-[40px] border border-[#e0e7ef] bg-white shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden"
+            className="group relative text-left p-10 rounded-[48px] border border-slate-200 bg-white shadow-xl hover:shadow-2xl transition-all duration-700 hover:-translate-y-3 overflow-hidden"
           >
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <GraduationCap size={120} />
+            <div className="absolute -right-10 -top-10 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all group-hover:scale-110">
+              <GraduationCap size={240} />
             </div>
             
-            <div className="flex items-center gap-4 mb-6">
-              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 group-hover:bg-amber-100 transition-colors">
-                <GraduationCap className="w-8 h-8 text-amber-600" />
+            <div className="flex flex-col gap-8">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all">
+                  <GraduationCap className="h-8 w-8" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">MESTRE LAB</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Scientific Engine</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-black text-[#1a1c1e]">Engine MESTRE</h2>
-                <p className="text-xs font-bold text-amber-600 uppercase tracking-widest">Modo Acadêmico</p>
+
+              <p className="text-slate-500 font-bold leading-relaxed text-lg">
+                Foco pedagógico em elementos isolados, dimensionamento assistido e conformidade normativa rigorosa (NBR 6118).
+              </p>
+
+              <div className="space-y-4">
+                {[
+                  { icon: BookOpen, text: "Resolução Passo-a-Passo" },
+                  { icon: Layers, text: "Vigas, Lajes e Pilares Isolados" },
+                  { icon: ShieldCheck, text: "Memoriais de Cálculo Didáticos" }
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-4 text-sm font-black text-slate-700">
+                    <div className="h-2 w-2 rounded-full bg-blue-600" />
+                    {item.text}
+                  </div>
+                ))}
               </div>
-            </div>
 
-            <p className="text-[#6a7485] text-sm leading-relaxed mb-8">
-              Ideal para estudantes e professores. Foco em elementos isolados, 
-              didática normativa e resolução passo-a-passo baseada em livros técnicos.
-            </p>
-
-            <ul className="space-y-3 mb-10">
-              <li className="flex items-center gap-3 text-sm font-medium text-[#4a5568]">
-                <BookOpen className="w-4 h-4 text-amber-500" />
-                <span>Resolução didática (Livro-texto)</span>
-              </li>
-              <li className="flex items-center gap-3 text-sm font-medium text-[#4a5568]">
-                <Layers className="w-4 h-4 text-amber-500" />
-                <span>Elementos Isolados (Lajes/Blocos)</span>
-              </li>
-              <li className="flex items-center gap-3 text-sm font-medium text-[#4a5568]">
-                <ShieldCheck className="w-4 h-4 text-amber-500" />
-                <span>Verificações Normativas Simplificadas</span>
-              </li>
-            </ul>
-
-            <div className="inline-flex items-center gap-2 text-amber-600 font-black text-sm group-hover:gap-4 transition-all">
-              INICIAR APRENDIZADO <ArrowRight className="w-4 h-4" />
+              <div className="pt-4 flex items-center gap-3 text-slate-900 font-black text-sm uppercase tracking-widest group-hover:gap-6 transition-all">
+                Iniciar Aprendizado <ArrowRight className="h-5 w-5" />
+              </div>
             </div>
           </button>
 
-          {/* UFO - Professional Mode */}
+          {/* UFO - Engenharia Forense */}
           <button 
             onClick={() => onSelectMode("professional")}
-            className="group relative text-left p-8 rounded-[40px] border border-indigo-600/10 bg-[#1a1c1e] shadow-2xl hover:shadow-indigo-500/20 transition-all duration-500 hover:-translate-y-2 overflow-hidden"
+            className="group relative text-left p-10 rounded-[48px] border border-white/5 bg-[#16191f] shadow-2xl hover:shadow-blue-600/20 transition-all duration-700 hover:-translate-y-3 overflow-hidden text-white"
           >
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity text-white">
-              <Rocket size={120} />
+            <div className="absolute -right-10 -top-10 p-8 opacity-[0.05] group-hover:opacity-[0.1] transition-all group-hover:scale-110">
+              <Rocket size={240} />
             </div>
 
-            <div className="flex items-center gap-4 mb-6">
-              <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 group-hover:bg-indigo-500/20 transition-colors">
-                <Rocket className="w-8 h-8 text-indigo-400" />
+            <div className="flex flex-col gap-8">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/40 group-hover:scale-110 transition-all">
+                  <Rocket className="h-8 w-8" />
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">UFO CORE</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Professional Engine</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-black text-white">Engine UFO</h2>
-                <p className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Modo Profissional Elite</p>
+
+              <p className="text-white/60 font-bold leading-relaxed text-lg">
+                Análise global de edifícios altos, estabilidade P-Delta e auditoria autônoma Ph.D. para projetos de alta complexidade.
+              </p>
+
+              <div className="space-y-4">
+                {[
+                  { icon: Cpu, text: "Engine Rust de Alta Performance" },
+                  { icon: Zap, text: "Simulação Global 3D & P-Delta" },
+                  { icon: ShieldCheck, text: "Auditoria Forense Automatizada" }
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-4 text-sm font-black text-white/80">
+                    <div className="h-2 w-2 rounded-full bg-blue-500 shadow-glow shadow-blue-500/50" />
+                    {item.text}
+                  </div>
+                ))}
               </div>
-            </div>
 
-            <p className="text-slate-400 text-sm leading-relaxed mb-8">
-              Engine de alta performance para edifícios altos. Análise global 
-              P-Delta, inteligência autônoma PhD e simulações distribuídas.
-            </p>
-
-            <ul className="space-y-3 mb-10">
-              <li className="flex items-center gap-3 text-sm font-medium text-slate-300">
-                <Cpu className="w-4 h-4 text-indigo-400" />
-                <span>Agente Autônomo PhD (Auto-Design)</span>
-              </li>
-              <li className="flex items-center gap-3 text-sm font-medium text-slate-300">
-                <Zap className="w-4 h-4 text-indigo-400" />
-                <span>Análise Global 3D & Estabilidade P-Delta</span>
-              </li>
-              <li className="flex items-center gap-3 text-sm font-medium text-slate-300">
-                <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                <span>Diagnóstico de Auditoria Forense</span>
-              </li>
-            </ul>
-
-            <div className="inline-flex items-center gap-2 text-indigo-400 font-black text-sm group-hover:gap-4 transition-all">
-              INICIAR PROJETO ELITE <ArrowRight className="w-4 h-4" />
+              <div className="pt-4 flex items-center gap-3 text-blue-400 font-black text-sm uppercase tracking-widest group-hover:gap-6 transition-all">
+                Iniciar Projeto Profissional <ArrowRight className="h-5 w-5" />
+              </div>
             </div>
           </button>
         </div>
 
-        <div className="mt-12 text-center">
-          <p className="text-[10px] font-bold text-[#8a9ab0] uppercase tracking-widest">
-            Desenvolvido por Antigravity Deepmind & Elyc Barros • 2026
+        <div className="mt-20 text-center opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">
+            Engineered with Precision by Deepmind & Elyc Barros • 2026
           </p>
         </div>
       </div>

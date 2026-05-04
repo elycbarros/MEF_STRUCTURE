@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   GraduationCap,
   Layers3,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAcademicBacklogProgress } from "@/components/AcademicBacklogView";
@@ -51,13 +52,13 @@ export function AcademicDashboard({ setActiveTab, setSystemType }: AcademicDashb
       }
     },
     {
-      id: "forensic",
-      label: "FORENSE",
-      subLabel: "Auditoria Estrutural",
-      description: "Ferramentas de perícia e verificação de patologias em elementos existentes.",
-      icon: Search,
-      accent: "bg-slate-700",
-      onClick: () => setActiveTab("forensic")
+      id: "vigacross",
+      label: "VIGA CROSS",
+      subLabel: "Método de Hardy Cross",
+      description: "Análise de vigas contínuas através da distribuição de momentos. Foco pedagógico no passo-a-passo.",
+      icon: Share2,
+      accent: "bg-indigo-600",
+      onClick: () => setActiveTab("vigacross")
     },
     {
       id: "especiais",

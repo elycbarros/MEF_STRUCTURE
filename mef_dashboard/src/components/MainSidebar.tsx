@@ -13,12 +13,29 @@ interface MainSidebarProps {
   tabs: Tab[];
   activeTab: string;
   setActiveTab: (id: any) => void;
+  theme?: "academic" | "professional";
 }
 
-export function MainSidebar({ tabs, activeTab, setActiveTab }: MainSidebarProps) {
+export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" }: MainSidebarProps) {
+  const isProfessional = theme === "professional";
+
   return (
-    <aside className="col-span-12 rounded-3xl border border-white/60 bg-white/70 p-3 shadow-[0_10px_28px_rgba(0,0,0,0.05)] lg:col-span-3">
-      <nav className="space-y-2">
+    <aside className={cn(
+      "col-span-12 rounded-[40px] border p-5 transition-all duration-700 lg:col-span-3",
+      isProfessional 
+        ? "border-white/5 bg-[#16191f]/80 backdrop-blur-2xl shadow-blue-900/5" 
+        : "border-slate-200 bg-white/70 shadow-slate-200/50"
+    )}>
+      <div className="mb-6 px-4">
+        <p className={cn(
+          "text-[10px] font-black uppercase tracking-[0.3em]",
+          isProfessional ? "text-blue-400/60" : "text-slate-400"
+        )}>
+          Navegação Lab
+        </p>
+      </div>
+
+      <nav className="space-y-3">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -27,13 +44,25 @@ export function MainSidebar({ tabs, activeTab, setActiveTab }: MainSidebarProps)
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+              className={cn(
+                "group flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left text-sm font-black transition-all",
                 isActive
-                  ? "bg-[#1d1d1f] text-white shadow-[0_10px_20px_rgba(0,0,0,0.20)]"
-                  : "bg-white/70 text-[#4d5360] hover:bg-white"
-              }`}
+                  ? (isProfessional 
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" 
+                      : "bg-[#1d1d1f] text-white shadow-xl shadow-black/10")
+                  : (isProfessional 
+                      ? "text-white/40 hover:bg-white/5 hover:text-white" 
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")
+              )}
             >
-              <Icon className="h-4 w-4" />
+              <div className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-xl transition-transform group-hover:scale-110",
+                isActive 
+                  ? (isProfessional ? "bg-white/20" : "bg-white/10")
+                  : (isProfessional ? "bg-white/5" : "bg-slate-100")
+              )}>
+                <Icon className={cn("h-4 w-4", isActive ? "text-white" : (isProfessional ? "text-white/40" : "text-slate-500"))} />
+              </div>
               {tab.label}
             </button>
           );

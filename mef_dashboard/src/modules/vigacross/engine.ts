@@ -166,7 +166,7 @@ export function solveCross(input: BeamInput): CrossSolveResult {
     converged,
     finalMaxUnbalanced,
     nodeReactions: solveReactions(input.spans, barResults, nodes),
-    diagrams: buildDiagrams(input.spans, barResults),
+    diagrams: buildDiagrams(input.spans, barResults, input),
   };
 }
 
@@ -184,7 +184,7 @@ function solveReactions(spans: SpanInput[], bars: BarEndResult[], nodes: string[
   return reactions;
 }
 
-function buildDiagrams(spans: SpanInput[], bars: BarEndResult[]): DiagramPoint[] {
+function buildDiagrams(spans: SpanInput[], bars: BarEndResult[], input: BeamInput): DiagramPoint[] {
   const points: DiagramPoint[] = [];
   let xOffset = 0;
   spans.forEach((span, i) => {
@@ -196,20 +196,51 @@ function buildDiagrams(spans: SpanInput[], bars: BarEndResult[]): DiagramPoint[]
     const RB = (mLoadL + leftM - rightM) / L;
     const RA = totalLoad - RB;
 
+    // EI (kN.m2)
+    const E = input.eGPa || 210;
+    const I = span.inertiaCm4 || input.defaultInertiaCm4 || 1000;
+    const EI = E * I * 0.01;
+
+    // C1 constant for y(0)=0 and y(L)=0
+    let termLoadsL = 0;
+    span.loads.forEach(load => {
+      if (load.type === 'udl') {
+        termLoadsL += (load.value * Math.pow(L, 4)) / 24;
+      } else {
+        termLoadsL += (load.value * Math.pow(L - load.position, 3)) / 6;
+      }
+    });
+    const C1 = -((leftM * L * L) / 2 + (RA * L * L * L) / 6 - termLoadsL) / L;
+
     for (let j = 0; j <= 20; j += 1) {
       const x = (L * j) / 20;
       let V = RA;
       let M = leftM + RA * x;
+      let defLoad = 0;
+
       span.loads.forEach((load) => {
         if (load.type === 'udl') {
           V -= load.value * x;
           M -= (load.value * x * x) / 2;
+          defLoad += (load.value * Math.pow(x, 4)) / 24;
         } else if (x >= load.position) {
           V -= load.value;
           M -= load.value * (x - load.position);
+          defLoad += (load.value * Math.pow(x - load.position, 3)) / 6;
         }
       });
-      points.push({ xGlobal: xOffset + x, spanId: span.id, xLocal: x, shear: V, moment: M });
+
+      const yEI = (leftM * x * x) / 2 + (RA * x * x * x) / 6 - defLoad + C1 * x;
+      const deflectionMm = (yEI / EI) * 1000;
+
+      points.push({
+        xGlobal: xOffset + x,
+        spanId: span.id,
+        xLocal: x,
+        shear: V,
+        moment: M,
+        deflection: -deflectionMm // Positive downwards
+      });
     }
     xOffset += L;
   });

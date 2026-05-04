@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from errors import StructuralError, StandardErrorResponse, ErrorCode, ErrorResponse
 
 # Import modular routers
-from routes import core, wind, stability, reports, elite, special, frame as frame_router, loads, phd, forensic
+from routes import core, wind, stability, reports, elite, special, frame as frame_router, loads, phd, forensic, structural_rs
 from persistence import persistence
 
 app = FastAPI(
@@ -103,6 +103,7 @@ app.include_router(frame_router.router)   # C1: Frame 3D Premium (substitui Stru
 app.include_router(loads.router)
 app.include_router(phd.router) # M5-PhD
 app.include_router(forensic.router) # M5-Forensic
+app.include_router(structural_rs.router, prefix="/rust")
 
 @app.get("/")
 async def root():
@@ -110,7 +111,7 @@ async def root():
         "app": "MEF STRUCTURAL PH.D. ENGINE",
         "version": "6.0.0-PHD",
         "status": "online",
-        "modules": ["Core", "Wind", "Stability", "Elite", "Reports", "Special", "Frame3D", "PhD-Autonomous"]
+        "modules": ["Core", "Wind", "Stability", "Elite", "Reports", "Special", "Frame3D", "PhD-Autonomous", "RustCore", "TensionPro"]
     }
 
 @app.get("/health")
