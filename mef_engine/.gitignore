@@ -1,0 +1,16 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# OS/editor noise
+.DS_Store
+.vscode/
+
+# Runtime/generated artifacts
+output/
+output_api/
+*.tsbuildinfo

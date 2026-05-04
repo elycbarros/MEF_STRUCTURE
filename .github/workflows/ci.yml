@@ -1,0 +1,39 @@
+name: MEF STRUCTURAL — CI Suite
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Structural Engine Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "radier_lab/requirements.txt"
+
+      - name: Install dependencies
+        working-directory: radier_lab
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run structural test suite
+        working-directory: radier_lab
+        run: |
+          pytest tests/ -v --tb=short --cov=. --cov-report=term-missing 2>&1
+
+      - name: Validate API startup
+        working-directory: radier_lab
+        run: |
+          python -c "import api; print('API import OK')"

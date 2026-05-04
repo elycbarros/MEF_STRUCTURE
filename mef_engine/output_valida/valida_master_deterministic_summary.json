@@ -1,0 +1,15 @@
+{
+  "w_max_mm": 9.476340074280413,
+  "qsoil_max_kPa": 189.52680148560827,
+  "mx_abs_max_kNm_m": 367.0443752205309,
+  "my_abs_max_kNm_m": 367.04437522053405,
+  "distributed_load_kN": 6250.0,
+  "column_load_kN": 5000.0,
+  "reactions_total_kN": 11249.99999047719,
+  "loads_total_kN": 11250.0,
+  "residual_kN": -9.522810578346253e-06,
+  "residual_ratio": 8.464720514085557e-10,
+  "pile_reactions_total_kN": 0.0,
+  "active_springs": 121,
+  "iterations": 2
+}

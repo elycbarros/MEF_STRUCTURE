@@ -1,0 +1,96 @@
+{
+  "w_max_mm": 14.830726249711578,
+  "qsoil_max_kPa": 0.0,
+  "mx_abs_max_kNm_m": 22.664530698170694,
+  "my_abs_max_kNm_m": 22.66453069817305,
+  "distributed_load_kN": 448.0,
+  "column_load_kN": 21000.0,
+  "reactions_total_kN": 0.0,
+  "loads_total_kN": 21448.0,
+  "residual_kN": -21448.0,
+  "residual_ratio": 1.0,
+  "pile_reactions_total_kN": 0.0,
+  "active_springs": 441,
+  "iterations": 2,
+  "nlf_audit": {
+    "total_iterations": 15,
+    "convergence_history": [
+      {
+        "iteration": 1,
+        "max_stiffness_diff": 0.8,
+        "n_elements_cracked": 32
+      },
+      {
+        "iteration": 2,
+        "max_stiffness_diff": 0.32,
+        "n_elements_cracked": 33
+      },
+      {
+        "iteration": 3,
+        "max_stiffness_diff": 0.18824655673145518,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 4,
+        "max_stiffness_diff": 0.20024843809939297,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 5,
+        "max_stiffness_diff": 0.19838851629623522,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 6,
+        "max_stiffness_diff": 0.20036689942060004,
+        "n_elements_cracked": 34
+      },
+      {
+        "iteration": 7,
+        "max_stiffness_diff": 0.20418418966564966,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 8,
+        "max_stiffness_diff": 0.2199249261180588,
+        "n_elements_cracked": 32
+      },
+      {
+        "iteration": 9,
+        "max_stiffness_diff": 0.2307448171143549,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 10,
+        "max_stiffness_diff": 0.25205275452270726,
+        "n_elements_cracked": 26
+      },
+      {
+        "iteration": 11,
+        "max_stiffness_diff": 0.2635677921260512,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 12,
+        "max_stiffness_diff": 0.2872967166501552,
+        "n_elements_cracked": 22
+      },
+      {
+        "iteration": 13,
+        "max_stiffness_diff": 0.2958314188620136,
+        "n_elements_cracked": 35
+      },
+      {
+        "iteration": 14,
+        "max_stiffness_diff": 0.29360314135702914,
+        "n_elements_cracked": 18
+      },
+      {
+        "iteration": 15,
+        "max_stiffness_diff": 0.29596217359086896,
+        "n_elements_cracked": 35
+      }
+    ],
+    "is_stable": false
+  }
+}

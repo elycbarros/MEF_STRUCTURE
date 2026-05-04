@@ -1,0 +1,740 @@
+{
+  "identidade_do_modulo": {
+    "module_name": "radier",
+    "title": "Modulo de Radier em Concreto Armado",
+    "scope": "fundacoes superficiais do tipo laje sobre base elastica, com foco em resposta do solo e dimensionamento estrutural",
+    "current_stage": "pesquisa aplicada com uso profissional orientado a dimensionamento preliminar, analise e pericia",
+    "professional_uses": [
+      "dimensionamento",
+      "analise",
+      "pericia",
+      "pesquisa"
+    ],
+    "future_modules": [
+      "vigas",
+      "pilares",
+      "lajes",
+      "nucleos",
+      "ligacoes"
+    ]
+  },
+  "objetivo_profissional": {
+    "service_mode": "dimensionamento",
+    "service_mode_label": "Dimensionamento",
+    "project_stage": "pesquisa_aplicada",
+    "client_profile": "construtora_talls",
+    "study_goal": "dimensionamento, analise e pericia de radier com foco didatico e pesquisa aplicada",
+    "mode_focus": "dimensionamento preliminar, verificacoes de resistencia e definicao de espessura/armaduras",
+    "priority_sections": [
+      "pre_dimensionamento",
+      "verificacoes_estruturais",
+      "detalhamento_final"
+    ],
+    "decision_drivers": [
+      "espessura preliminar",
+      "armadura adotada",
+      "pun\u00e7\u00e3o",
+      "equilibrio global"
+    ]
+  },
+  "base_normativa": {
+    "perfil_principal": {
+      "label": "ABNT NBR 6118:2023",
+      "jurisdiction": "Brasil",
+      "role": "principal",
+      "foundation_code": "ABNT NBR 6122:2019",
+      "load_basis": "ABNT NBR 8681",
+      "serviceability_focus": [
+        "recalques",
+        "fissuracao",
+        "deformacoes"
+      ],
+      "strength_focus": [
+        "flexao",
+        "pun\u00e7\u00e3o",
+        "equilibrio global"
+      ],
+      "default_combinations": {
+        "servico_rara": {
+          "G": 1.0,
+          "Q": 1.0
+        },
+        "servico_frequente": {
+          "G": 1.0,
+          "Q": 0.7
+        },
+        "elu_fundamental": {
+          "G": 1.4,
+          "Q": 1.4
+        }
+      },
+      "notes": "Perfil principal do dimensionador. Ader\u00eancia normativa deve ser auditada cl\u00e1usula a cl\u00e1usula durante a evolu\u00e7\u00e3o do motor."
+    },
+    "referencias_internacionais": [
+      {
+        "label": "ACI 318-25",
+        "jurisdiction": "Estados Unidos / internacional",
+        "role": "comparativo",
+        "foundation_code": "integra\u00e7\u00e3o com crit\u00e9rios geot\u00e9cnicos do projeto",
+        "load_basis": "ASCE 7 / combina\u00e7\u00e3o do projeto aplic\u00e1vel",
+        "serviceability_focus": [
+          "strength/serviceability/durability"
+        ],
+        "strength_focus": [
+          "strength design",
+          "punching shear",
+          "detailing"
+        ],
+        "default_combinations": {
+          "service_reference": {
+            "G": 1.0,
+            "Q": 1.0
+          },
+          "strength_reference": {
+            "G": 1.2,
+            "Q": 1.6
+          }
+        },
+        "notes": "Perfil comparativo internacional para benchmarking e leitura paralela."
+      },
+      {
+        "label": "EN 1992-1-1:2004 Eurocode 2",
+        "jurisdiction": "Europa / internacional",
+        "role": "comparativo",
+        "foundation_code": "EN 1997",
+        "load_basis": "EN 1990 + EN 1991",
+        "serviceability_focus": [
+          "SLS",
+          "durability",
+          "detailing"
+        ],
+        "strength_focus": [
+          "ULS bending",
+          "shear",
+          "punching"
+        ],
+        "default_combinations": {
+          "sls_characteristic": {
+            "G": 1.0,
+            "Q": 1.0
+          },
+          "uls_persistent": {
+            "G": 1.35,
+            "Q": 1.5
+          }
+        },
+        "notes": "Perfil comparativo para alinhamento internacional e estudos benchmark."
+      }
+    ],
+    "combinacoes_adotadas": {
+      "service_rare": {
+        "G": 1.0,
+        "Q": 1.0
+      },
+      "service_frequent": {
+        "G": 1.0,
+        "Q": 0.7
+      },
+      "ultimate": {
+        "G": 1.4,
+        "Q": 1.4
+      }
+    },
+    "matriz_de_verificacoes": {
+      "automatizado_no_modulo": [
+        "pressao media e maxima de contato no solo",
+        "pre-dimensionamento orientativo da espessura",
+        "flexao ELU por faces com Wood-Armer simplificado",
+        "pun\u00e7\u00e3o ELU completa (NBR 6118) com fator beta (momentos) e Wp",
+        "indicadores de servico por recalque"
+      ],
+      "parcial_ou_em_evolucao": [
+        "combina\u00e7\u00f5es normativas completas ELU/ELS",
+        "fissuracao por abertura de fissuras",
+        "detalhamento executivo final por faixas e regi\u00f5es"
+      ],
+      "exige_validacao_de_engenharia": [
+        "aceita\u00e7\u00e3o final do dimensionamento para projeto executivo",
+        "compatibiliza\u00e7\u00e3o com documentos geot\u00e9cnicos e crit\u00e9rios espec\u00edficos da obra",
+        "escolha final das combina\u00e7\u00f5es e coeficientes conforme caso real"
+      ]
+    },
+    "checklist_detalhado": [
+      {
+        "id": "NBR6118_NBR6122_PRESSAO_SOLO",
+        "theme": "Geotecnia de contato",
+        "reference": "ABNT NBR 6122:2019 + ABNT NBR 6118:2023 (compatibilizacao fundacao-estrutura)",
+        "status": "ATENDE",
+        "method": "Pressao media e maxima do modelo versus tensao admissivel informada",
+        "input_key": "q_uniforme_Pa, cargas de pilares, sigma_adm_kPa",
+        "output_key": "pressao_media_kPa, pressao_max_modelo_kPa"
+      },
+      {
+        "id": "NBR6118_ELU_FLEXAO",
+        "theme": "Dimensionamento a flexao",
+        "reference": "ABNT NBR 6118:2023 (ELU em secoes de concreto armado)",
+        "status": "ATENDE",
+        "method": "Flexao ELU por faces com Wood-Armer simplificado e armadura minima",
+        "input_key": "mx,my,mxy,fck,fyk,h,cobrimento",
+        "output_key": "Asx/Asy superior e inferior requeridas e adotadas"
+      },
+      {
+        "id": "NBR6118_ELU_PUNCAO",
+        "theme": "Pun\u00e7\u00e3o em laje de fundacao",
+        "reference": "ABNT NBR 6118:2023 (pun\u00e7\u00e3o, contornos C e C')",
+        "status": "NAO_APLICAVEL",
+        "method": "Formula\u00e7\u00e3o completa com fator beta (efeito de momentos) e Wp para pilar interior/borda/canto; n\u00e3o aplic\u00e1vel quando n\u00e3o h\u00e1 pilares/cargas concentradas.",
+        "input_key": "p, mx, my, bx, by, x, y, h, fck, armadura local",
+        "output_key": "beta, tau_sd, tau_rd1, ratio, local critico"
+      },
+      {
+        "id": "NBR6118_ELS_FISSURACAO",
+        "theme": "Estado limite de servico - fissuracao",
+        "reference": "ABNT NBR 6118:2023 (controle de abertura de fissuras)",
+        "status": "ATENDE",
+        "method": "Estimativa de wk por tensao no aco, diametro e taxa efetiva",
+        "input_key": "momentos de servico, As adotada, phi, cobrimento, eta1",
+        "output_key": "wk_est_x_mm, wk_est_y_mm, wk_limit_mm"
+      },
+      {
+        "id": "NBR6122_ELS_DISTORCAO",
+        "theme": "Estado limite de servico - distorcao angular",
+        "reference": "ABNT NBR 6122:2022 (anexo J / literatura tecnica)",
+        "status": "ATENDE",
+        "method": "Calculo de delta_w / L entre todos os pilares vizinhos via Delaunay",
+        "input_key": "recalques nos pilares, distancias L entre pilares",
+        "output_key": "beta_max, beta_inv_min, conexao critica"
+      },
+      {
+        "id": "NBR6122_ELS_RECALQUES",
+        "theme": "Estado limite de servico - recalques",
+        "reference": "ABNT NBR 6122:2019/2022 (criterios de deformabilidade)",
+        "status": "ATENDE",
+        "method": "Comparacao de recalque total e diferencial com limites orientativos de servico",
+        "input_key": "w_max_mm, w_diff_mm, beta_max",
+        "output_key": "criterios_recalque"
+      },
+      {
+        "id": "NBR6118_RASTREABILIDADE",
+        "theme": "Rastreabilidade tecnica",
+        "reference": "Boas praticas de auditoria tecnica",
+        "status": "ATENDE",
+        "method": "Memorial + relatorio + manifesto de artefatos",
+        "input_key": "configuracao, resultados, arquivos gerados",
+        "output_key": "memorial_summary, report, artifacts"
+      }
+    ]
+  },
+  "dados_da_obra": {
+    "base_name": "valida_master",
+    "dimensoes_m": {
+      "Lx": 10.0,
+      "Ly": 10.0
+    },
+    "malha": {
+      "nx": 11,
+      "ny": 11
+    },
+    "espessura_adotada_m": 0.5,
+    "area_radier_m2": 100.0
+  },
+  "materiais": {
+    "fck_MPa": 30.0,
+    "fyk_MPa": 500.0,
+    "E_Pa": 32000000000.0,
+    "nu": 0.2,
+    "cobrimento_m": 0.05
+  },
+  "dados_do_solo": {
+    "kv_N_m3": 20000000.0,
+    "sigma_adm_kPa": 200.0,
+    "modelo": "Winkler vertical",
+    "tensionless": true,
+    "perfil_geotecnico": {
+      "source": "uniform_default"
+    },
+    "fundacao_profunda": {
+      "tipo": "radier_estaqueado",
+      "piles": [],
+      "is_piled": false
+    },
+    "matriz_calibracao_referencias": {
+      "version": "geotech_ref_matrix_v2",
+      "model": "k_v = fator * N_spt (MPa/m)",
+      "envelopes_MPa_per_m": {
+        "argila_mole": {
+          "min": 8.0,
+          "target": 12.0,
+          "max": 16.0
+        },
+        "argila_rija": {
+          "min": 14.0,
+          "target": 20.0,
+          "max": 28.0
+        },
+        "silte": {
+          "min": 12.0,
+          "target": 18.0,
+          "max": 25.0
+        },
+        "areia_fofa": {
+          "min": 18.0,
+          "target": 28.0,
+          "max": 40.0
+        },
+        "areia_media": {
+          "min": 25.0,
+          "target": 40.0,
+          "max": 55.0
+        },
+        "areia_compacta": {
+          "min": 35.0,
+          "target": 55.0,
+          "max": 80.0
+        },
+        "misto": {
+          "min": 20.0,
+          "target": 30.0,
+          "max": 45.0
+        }
+      },
+      "usage_policy": {
+        "conservador": "Use fator minimo para avaliacao cautelosa e maior margem de seguranca.",
+        "medio": "Use fator target para caso base de estudo preliminar.",
+        "agressivo": "Use fator maximo apenas com suporte de dados de campo e/ou instrumentacao."
+      },
+      "project_weighting": {
+        "project_type": "edificios_altos",
+        "group_weights": {
+          "academico": 1.12,
+          "hibrido": 1.08,
+          "mercado": 0.95,
+          "estrutural": 1.08,
+          "execucao": 0.9,
+          "pericia": 0.92,
+          "analise": 1.15
+        },
+        "custom_override_applied": false,
+        "bounds": {
+          "min": 0.5,
+          "max": 1.5
+        },
+        "recommended_band": {
+          "min": 0.8,
+          "max": 1.2
+        },
+        "clamped_groups": []
+      },
+      "references": [
+        {
+          "reference_id": "cintra_aoki_albiero_fundacoes_diretas",
+          "title": "Fundacoes Diretas - Projeto Geotecnico",
+          "author_or_org": "Cintra, Aoki e Albiero",
+          "profile": "academico_aplicado",
+          "intended_use": "criterios de estimativa e verificacao preliminar de fundacoes rasas",
+          "reliability_weight": 0.92,
+          "notes": "Boa aderencia para solo estratificado simples e checagens de admissibilidade.",
+          "weight_group": "academico",
+          "project_weight_factor": 1.12,
+          "calibrated_weight": 1.0304000000000002
+        },
+        {
+          "reference_id": "velloso_lopes_vol1",
+          "title": "Fundacoes - Vol. I",
+          "author_or_org": "Velloso e Lopes",
+          "profile": "academico_classico",
+          "intended_use": "fundamentacao teorica para modelagem geotecnica e capacidade de carga",
+          "reliability_weight": 0.95,
+          "notes": "Referencia forte para consolidacao teorica e consistencia de hipoteses.",
+          "weight_group": "academico",
+          "project_weight_factor": 1.12,
+          "calibrated_weight": 1.064
+        },
+        {
+          "reference_id": "falconi_fundacoes_teoria_pratica",
+          "title": "Fundacoes Teoria e Pratica",
+          "author_or_org": "Falconi et al.",
+          "profile": "mercado_academia",
+          "intended_use": "ponte entre abordagem de obra e modelagem tecnico-cientifica",
+          "reliability_weight": 0.9,
+          "notes": "Equilibrio entre viabilidade de campo e racional de calculo.",
+          "weight_group": "hibrido",
+          "project_weight_factor": 1.08,
+          "calibrated_weight": 0.9720000000000001
+        },
+        {
+          "reference_id": "berberian_passo_a_passo",
+          "title": "Engenharia de Fundacoes - Passo a Passo",
+          "author_or_org": "Dickran Berberian",
+          "profile": "mercado_pratico",
+          "intended_use": "diretrizes de engenharia aplicada e tomada de decisao de obra",
+          "reliability_weight": 0.85,
+          "notes": "Enfase em pragmatismo e robustez para pre-dimensionamento.",
+          "weight_group": "mercado",
+          "project_weight_factor": 0.95,
+          "calibrated_weight": 0.8075
+        },
+        {
+          "reference_id": "campos_elementos_fundacoes_concreto",
+          "title": "Elementos de Fundacoes em Concreto",
+          "author_or_org": "Joao Carlos de Campos",
+          "profile": "estrutural_fundacoes",
+          "intended_use": "compatibilizacao entre solicitacoes estruturais e bloco/radier",
+          "reliability_weight": 0.82,
+          "notes": "Apoia transicao entre resposta do solo e verificacoes do concreto.",
+          "weight_group": "estrutural",
+          "project_weight_factor": 1.08,
+          "calibrated_weight": 0.8856
+        },
+        {
+          "reference_id": "lorenzi_fundacoes_na_pratica",
+          "title": "Fundacoes na Pratica",
+          "author_or_org": "Vinicius Lorenzi",
+          "profile": "mercado_execucao",
+          "intended_use": "boas praticas de detalhamento e execucao em obra",
+          "reliability_weight": 0.78,
+          "notes": "Complementa calibracao com percepcao de construtibilidade.",
+          "weight_group": "execucao",
+          "project_weight_factor": 0.9,
+          "calibrated_weight": 0.7020000000000001
+        },
+        {
+          "reference_id": "patologia_fundacoes",
+          "title": "Patologia das Fundacoes",
+          "author_or_org": "Referencia tecnica de patologia",
+          "profile": "pericia_diagnostico",
+          "intended_use": "interpretacao de mecanismos de dano e limites de deformacao",
+          "reliability_weight": 0.84,
+          "notes": "Forte para avaliacao de risco de recalque diferencial.",
+          "weight_group": "pericia",
+          "project_weight_factor": 0.92,
+          "calibrated_weight": 0.7728
+        },
+        {
+          "reference_id": "interacao_solo_estrutura_edificios",
+          "title": "Interacao Solo-Estrutura e sua Aplicacao na Analise de Estruturas de Edificios",
+          "author_or_org": "Referencia de ISE em edificios",
+          "profile": "analise_numerica",
+          "intended_use": "refino da leitura de rigidez relativa solo-estrutura",
+          "reliability_weight": 0.88,
+          "notes": "Apoia ajustes de calibracao com foco em comportamento global.",
+          "weight_group": "analise",
+          "project_weight_factor": 1.15,
+          "calibrated_weight": 1.012
+        }
+      ],
+      "governance_note": "Matriz interna consolidada para calibracao preliminar; nao substitui investigacao geotecnica local, parecer tecnico e validacao de engenharia."
+    }
+  },
+  "acoes_e_combinacoes": {
+    "q_uniforme_Pa": 50000.0,
+    "carga_total_servico_kN": 11250.0,
+    "carga_distribuida_kN": 6250.0,
+    "carga_pilares_kN": 5000.0,
+    "reacoes_apoio": []
+  },
+  "verificacoes_geotecnicas": {
+    "pressao_media_kPa": 112.5,
+    "pressao_max_modelo_kPa": 189.52680148560827,
+    "tensao_admissivel_kPa": 200.0,
+    "atende_pressao_media": true,
+    "atende_pressao_max_modelo": true,
+    "metodologia_kv": {
+      "source": "uniform_default"
+    }
+  },
+  "pre_dimensionamento": {
+    "espessura_referencia_m": 0.2,
+    "espessura_adotada_m": 0.5,
+    "atende_referencia_preliminar": true
+  },
+  "modelo_estrutural": {
+    "tipo": "placa Mindlin-Reissner sobre base elastica de Winkler",
+    "graus_de_liberdade_por_no": 3,
+    "malha_elementos": 100
+  },
+  "verificacoes_estruturais": {
+    "momentos": {
+      "mx_abs_max_kNm_m": 367.0443752205309,
+      "my_abs_max_kNm_m": 367.04437522053405
+    },
+    "flexao": {
+      "Asx_bottom_req_max_cm2_m": 6.143674666923542,
+      "Asx_top_req_max_cm2_m": 33.53050345738671,
+      "Asy_bottom_req_max_cm2_m": 6.143674666923542,
+      "Asy_top_req_max_cm2_m": 33.530503457386985,
+      "Asx_bottom_adot_max_cm2_m": 6.143674666923542,
+      "Asx_top_adot_max_cm2_m": 33.53050345738671,
+      "Asy_bottom_adot_max_cm2_m": 6.143674666923542,
+      "Asy_top_adot_max_cm2_m": 33.530503457386985,
+      "As_min_total_cm2_m": 7.5,
+      "As_min_face_cm2_m": 3.75,
+      "sugestao_x_inf": "phi 12.5 c/ 17.5 cm",
+      "sugestao_x_sup": "phi 20.0 c/ 7.5 cm",
+      "sugestao_y_inf": "phi 12.5 c/ 17.5 cm",
+      "sugestao_y_sup": "phi 20.0 c/ 7.5 cm",
+      "metrics": {
+        "total_steel_kg": 2202.24,
+        "steel_density_kg_m3": 44.04,
+        "steel_density_kg_m2": 22.02,
+        "concrete_volume_m3": 50.0
+      }
+    },
+    "puncao": {
+      "ratio_max": null,
+      "ratio_gross_max": null,
+      "ratio_face_max": null,
+      "atende": true,
+      "critical_local": null,
+      "status": "nao_aplicavel_sem_pilares"
+    },
+    "distorcao_angular": {
+      "beta_max": null,
+      "beta_inv_min": null,
+      "atende": null,
+      "critical_pair": null
+    },
+    "equilibrio_global": {
+      "residual_ratio": 8.464720514085557e-10,
+      "atende": true
+    },
+    "fundacao_profunda": {
+      "reacao_total_estacas_kN": 0.0,
+      "percentual_carga_estacas": 0.0
+    }
+  },
+  "verificacoes_de_servico": {
+    "w_max_mm": 9.4763400742804,
+    "w_med_mm": 5.305255145791335,
+    "w_diff_mm": 6.484608979367399,
+    "wk_x_max_mm": 0.2114165300899747,
+    "wk_y_max_mm": 0.2114165300899894,
+    "wk_limit_mm": 0.3,
+    "wk_x_ok": true,
+    "wk_y_ok": true,
+    "criterios_recalque": {
+      "limits": {
+        "w_total_mm": 50.0,
+        "w_diff_mm": 25.0,
+        "beta_max": 0.002
+      },
+      "checks": [
+        {
+          "id": "recalque_total",
+          "description": "Recalque total maximo em servico",
+          "actual": 9.4763400742804,
+          "limit_max": 50.0,
+          "unit": "mm",
+          "atende": true
+        },
+        {
+          "id": "recalque_diferencial",
+          "description": "Recalque diferencial maximo em servico",
+          "actual": 6.484608979367399,
+          "limit_max": 25.0,
+          "unit": "mm",
+          "atende": true
+        },
+        {
+          "id": "distorcao_angular",
+          "description": "Distorcao angular maxima entre apoios",
+          "actual": null,
+          "limit_max": 0.002,
+          "unit": "adim",
+          "atende": true
+        }
+      ],
+      "atende_global": true,
+      "observacao": "Limites orientativos para estudo preliminar, sujeitos a ajuste por tipologia e desempenho alvo."
+    }
+  },
+  "comparativo_metodologias": {},
+  "detalhamento_final": {
+    "armadura_inferior": "distribuir nas duas direcoes, com maior participacao em regioes de momento positivo",
+    "armadura_superior": "concentrar sobre pilares, bordas e regioes de momento negativo",
+    "reforcos_locais": "avaliar sob pilares, bordas e aberturas"
+  },
+  "conceito_projeto": "radier como laje de fundacao apoiada no solo, com foco principal em pressao de contato, flexao, puncao e desempenho em servico",
+  "benchmark_evidences": {
+    "suite_name": "radier_internal_quick_benchmark_v1",
+    "applicability": "reference_regression",
+    "checks": [
+      {
+        "id": "benchmark_deterministic_wmax",
+        "description": "Faixa de regressao do recalque maximo do caso base",
+        "target": {
+          "min": 4.5,
+          "max": 5.5,
+          "unit": "mm"
+        },
+        "actual": 9.476340074280413,
+        "pass": false
+      },
+      {
+        "id": "benchmark_deterministic_qmax",
+        "description": "Faixa de regressao da pressao maxima de contato do caso base",
+        "target": {
+          "min": 190.0,
+          "max": 220.0,
+          "unit": "kPa"
+        },
+        "actual": 189.52680148560827,
+        "pass": false
+      },
+      {
+        "id": "benchmark_equilibrium_residual",
+        "description": "Equilibrio global da solucao",
+        "target": {
+          "max": 1e-06,
+          "unit": "ratio"
+        },
+        "actual": 8.464720514085557e-10,
+        "pass": true
+      }
+    ],
+    "all_passed": false,
+    "blocks_professional_use": true,
+    "observacao": "Benchmark fixo do caso de regressao interno."
+  },
+  "checklist_profissional": {
+    "status": "nao_apto_requer_revisao_tecnica",
+    "items": [
+      {
+        "id": "entrada_validada",
+        "description": "Configuracoes e CSVs passam pela camada de validacao",
+        "pass": true
+      },
+      {
+        "id": "base_normativa_explicita",
+        "description": "Perfil normativo principal e combinacoes estao declarados",
+        "pass": true
+      },
+      {
+        "id": "geotecnia_ok",
+        "description": "Pressao media e maxima modelada atendem ao criterio de admissibilidade",
+        "pass": true
+      },
+      {
+        "id": "equilibrio_global_ok",
+        "description": "Residual ratio em faixa de equilibrio numerico",
+        "pass": true
+      },
+      {
+        "id": "puncao_ok",
+        "description": "Razao de puncao <= 1.0 quando ha cargas concentradas/pilares",
+        "pass": true,
+        "applicability": "nao_aplicavel_sem_pilares"
+      },
+      {
+        "id": "fissuracao_servico_ok",
+        "description": "Checagens de abertura de fissuras em servico atendem ao limite adotado",
+        "pass": true
+      },
+      {
+        "id": "recalque_servico_ok",
+        "description": "Checagens de recalque e distorcao angular atendem aos limites orientativos",
+        "pass": true
+      },
+      {
+        "id": "benchmark_minimo_ok",
+        "description": "Suite benchmark interna passou nas tolerancias",
+        "pass": false,
+        "applicability": "reference_regression"
+      }
+    ],
+    "failed_ids": [
+      "benchmark_minimo_ok"
+    ],
+    "blocking_failures": [
+      "benchmark_minimo_ok"
+    ],
+    "observacao": "Uso executivo final exige revisao do engenheiro responsavel e verificacoes normativas complementares."
+  },
+  "maturity_score": {
+    "version_id": "valida_master",
+    "generated_at_utc": "2026-05-03T01:00:39.888698+00:00",
+    "score_0_100": 83.1,
+    "score_0_5": 4.16,
+    "level": "4 - quase executivo",
+    "subscores": {
+      "professional_readiness_ratio": 0.875,
+      "normative_traceability_ratio": 1.0,
+      "benchmark_ratio": 0.333
+    },
+    "weights": {
+      "professional_readiness": 0.55,
+      "normative_traceability": 0.3,
+      "benchmark_evidence": 0.15
+    },
+    "monitoring_note": "Compare o score_0_5 entre versoes (version_id) para acompanhar maturidade do modulo."
+  },
+  "pesquisa_e_melhoria": {
+    "enquadramento": "modulo didatico-profissional com orientacao de pesquisa aplicada em estruturas",
+    "o_que_esta_sendo_feito": [
+      "O modulo atual modela o radier como placa sobre base elastica de Winkler, adequado para estudos comparativos e rastreio inicial de comportamento.",
+      "O fluxo principal ja contempla pressao de contato, flexao, puncao e indicadores de servico, preservando a logica central do memorial de calculo."
+    ],
+    "oportunidades_de_melhoria": [
+      "O recalque diferencial estimado merece aprofundamento; comparar malhas, cenarios de kv e estrategias de rigidez local.",
+      "Investigar tabelas de pre-dimensionamento por tipologia de torre, vao entre pilares e rigidez de solo.",
+      "Evoluir a recomendacao de armadura de faixas e reforcos locais de forma mais executiva."
+    ],
+    "questoes_de_pesquisa": [
+      "Como calibrar o coeficiente de recalque com dados de instrumentacao de obras altas para reduzir incerteza de modelo?",
+      "Em quais faixas de rigidez de solo o modelo de Winkler deixa de ser suficiente e passa a exigir formulacoes mais refinadas?",
+      "Quais tipologias de engrossamento sob pilares centrais e de borda trazem melhor ganho de desempenho para torres altas?",
+      "Como transformar os resultados do modulo em base comparativa para futuros modulos de vigas, pilares e interacao solo-estrutura global?"
+    ]
+  },
+  "leitura_orientada_por_modo": {
+    "mode_label": "Dimensionamento",
+    "mode_focus": "dimensionamento preliminar, verificacoes de resistencia e definicao de espessura/armaduras",
+    "priority_sections": [
+      "pre_dimensionamento",
+      "verificacoes_estruturais",
+      "detalhamento_final"
+    ],
+    "decision_drivers": [
+      "espessura preliminar",
+      "armadura adotada",
+      "pun\u00e7\u00e3o",
+      "equilibrio global"
+    ],
+    "critical_checks": [
+      "Espessura adotada atende refer\u00eancia preliminar: True",
+      "Pun\u00e7\u00e3o atende: True",
+      "Asx topo adotada m\u00e1xima (cm\u00b2/m): 33.53050345738671",
+      "Asy topo adotada m\u00e1xima (cm\u00b2/m): 33.530503457386985"
+    ],
+    "recommended_actions": [
+      "Consolidar faixas de armadura inferior e superior.",
+      "Avaliar engrossamentos locais se pun\u00e7\u00e3o ou momentos forem cr\u00edticos."
+    ]
+  },
+  "avaliacao_tecnica_por_modo": {
+    "combination_basis": {
+      "service_combination": {
+        "G": 1.0,
+        "Q": 1.0
+      },
+      "ultimate_combination": {
+        "G": 1.4,
+        "Q": 1.4
+      }
+    },
+    "design_checks": {
+      "pre_dimensioning_ok": true,
+      "flexure_governing_Asx_top_cm2_m": 33.53050345738671,
+      "flexure_governing_Asx_bottom_cm2_m": 6.143674666923542,
+      "flexure_governing_Asy_top_cm2_m": 33.530503457386985,
+      "flexure_governing_Asy_bottom_cm2_m": 6.143674666923542,
+      "punching_ok": true,
+      "punching_critical_local": null
+    },
+    "executive_recommendations": [
+      "Definir faixas de armadura superior sobre pilares e bordas.",
+      "Confirmar espessura final com base em pun\u00e7\u00e3o, flex\u00e3o e construtibilidade.",
+      "Registrar detalhamento preliminar de refor\u00e7os locais e malhas m\u00ednima/inferior/superior."
+    ]
+  }
+}

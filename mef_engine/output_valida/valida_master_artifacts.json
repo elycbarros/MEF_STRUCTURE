@@ -1,0 +1,36 @@
+{
+  "module_name": "radier",
+  "service_mode": "dimensionamento",
+  "base_name": "valida_master",
+  "output_dir": "output_valida",
+  "master_summary_file": "output_valida/valida_master_master_summary.json",
+  "report_file": "output_valida/valida_master_report.md",
+  "memorial_summary_file": "output_valida/valida_master_memorial_summary.json",
+  "deterministic_summary_file": "output_valida/valida_master_deterministic_summary.json",
+  "batch_kpis_file": "output_valida/valida_master_batch_kpis.csv",
+  "didactic_guide_file": "output_valida/valida_master_guia_didatico.md",
+  "v22_summary_file": "output_valida/valida_master_v22_summary.json",
+  "v22_uq_samples_file": "output_valida/valida_master_v22_uq_samples.csv",
+  "v23_summary_file": "output_valida/valida_master_v23_bayes_summary.json",
+  "v23_marginal_file": "output_valida/v23_marginal_kv.csv",
+  "nodes_file": "output_valida/radier_v2_nodes.csv",
+  "elements_file": "output_valida/radier_v2_elements.csv",
+  "design_outputs": {
+    "flexure_design_file": "output_valida/radier_design_flexure_v2.csv",
+    "design_elements_file": "output_valida/radier_design_elements_elu.csv",
+    "reinforcement_metrics": {
+      "total_steel_kg": 12684.9,
+      "steel_density_kg_m3": 44.04,
+      "steel_density_kg_m2": 22.02,
+      "concrete_volume_m3": 288.0
+    },
+    "serviceability_check_file": "output_valida/radier_serviceability_check_v2.csv",
+    "punching_check_file": "output_valida/radier_punching_check_v2.csv",
+    "design_columns_file": "output_valida/columns_design_elu.csv",
+    "design_combination": {
+      "gamma_g": 1.4,
+      "gamma_q": 1.4,
+      "q_elu": 87500.0
+    }
+  }
+}
