@@ -17,7 +17,8 @@ import {
   Printer,
   Maximize2,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  ArrowUpDown
 } from "lucide-react";
 import { 
   LineChart, 
@@ -68,8 +69,8 @@ export function VigaCrossView() {
       const res = solveCross(beamInput);
       setResults(res);
       
-      const maxDeflection = Math.max(...res.diagrams.map(d => Math.abs(d.deflection)));
-      const maxMoment = Math.max(...res.diagrams.map(d => Math.abs(d.moment)));
+      const maxDeflection = Math.max(...res.diagrams.map(d => Math.abs(d.deflection ?? 0)));
+      const maxMoment = Math.max(...res.diagrams.map(d => Math.abs(d.moment ?? 0)));
 
       // Chamar Agente de Auditoria (Fase 4)
       const audit = await StructuralAuditAgent.auditBeam({
@@ -110,6 +111,50 @@ export function VigaCrossView() {
     if (!results) return;
     setShowHtmlMemorial(true);
   };
+
+  const beamLoadSummary = useMemo(() => {
+    const totalLoad = beamInput.spans.reduce((sum, span) => (
+      sum + span.loads.reduce((spanSum, load) => spanSum + (load.type === "udl" ? load.value * span.length : load.value), 0)
+    ), 0);
+    const totalReaction = results?.nodeReactions.reduce((sum, reaction) => sum + reaction.verticalReaction, 0) ?? 0;
+    return { totalLoad, totalReaction, residual: totalReaction - totalLoad };
+  }, [beamInput.spans, results]);
+
+  const buildHtmlMemorial = () => ({
+    title: "Memorial Tecnico - Viga Cross",
+    steps: [
+      {
+        id: "cross-model",
+        title: "Modelo Estrutural",
+        formula_latex: "n_{vaos} = " + beamInput.spans.length,
+        substitution_latex: `E = ${beamInput.eGPa} GPa`,
+        result_latex: `I = ${beamInput.defaultInertiaCm4} cm^4`,
+        explanation: "Resumo do modelo de viga continua usado no processo iterativo de Hardy Cross.",
+        norm_ref: "Teoria das Estruturas",
+        status: "OK",
+      },
+      {
+        id: "cross-convergence",
+        title: "Convergencia dos Momentos",
+        formula_latex: "M_{desb,max} \\to 0",
+        substitution_latex: `Iteracoes = ${results?.iterations.length ?? 0}`,
+        result_latex: `M_{desb,max} = ${formatNumberBR(results?.finalMaxUnbalanced ?? 0)} kNm`,
+        explanation: "A convergencia e atingida quando o momento desbalanceado nos nos fica abaixo da tolerancia definida.",
+        norm_ref: "Metodo de Hardy Cross",
+        status: results?.converged ? "OK" : "ALERTA",
+      },
+      {
+        id: "cross-envelopes",
+        title: "Envelopes de Esforcos",
+        formula_latex: "M_{max}=\\max |M(x)|,\\quad V_{max}=\\max |V(x)|",
+        substitution_latex: "Diagramas gerados por trecho",
+        result_latex: `M_{max} = ${formatNumberBR(Math.max(...(results?.diagrams ?? []).map(d => Math.abs(d.moment ?? 0))))} kNm`,
+        explanation: "Os diagramas finais combinam os momentos de extremidade convergidos com as cargas aplicadas em cada vao.",
+        norm_ref: "Resistencia dos Materiais",
+        status: "OK",
+      },
+    ],
+  });
 
   const addSpan = () => {
     if (beamInput.spans.length >= 5) return;
@@ -358,7 +403,10 @@ export function VigaCrossView() {
                                   placeholder="Pos"
                                   onChange={(e) => {
                                     const newSpans = [...beamInput.spans];
-                                    newSpans[idx].loads[lidx].position = parseFloat(e.target.value) || 0;
+                                    const targetLoad = newSpans[idx].loads[lidx];
+                                    if (targetLoad.type === "point") {
+                                      targetLoad.position = parseFloat(e.target.value) || 0;
+                                    }
                                     setBeamInput(prev => ({ ...prev, spans: newSpans }));
                                   }}
                                   className="w-16 px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[10px] font-black"
@@ -430,6 +478,146 @@ export function VigaCrossView() {
                   </div>
                 </div>
 
+                {/* Gráfico de Cargas e Reações */}
+                <div>
+                  <div className="flex items-center justify-between mb-4 gap-4">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpDown className="w-5 h-5 text-indigo-600" />
+                      <h3 className="font-black text-xl text-slate-900">Cargas Aplicadas e Reações</h3>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">ΣCargas / ΣReações</p>
+                      <p className="text-sm font-black text-slate-900">
+                        {formatNumberBR(beamLoadSummary.totalLoad)} / {formatNumberBR(beamLoadSummary.totalReaction)} kN
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <svg viewBox="0 0 1000 330" className="h-auto w-full overflow-visible" role="img" aria-label="Gráfico de cargas aplicadas e reações de apoio da viga">
+                      <defs>
+                        <marker id="loadArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" />
+                        </marker>
+                        <marker id="reactionArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669" />
+                        </marker>
+                      </defs>
+
+                      <line x1="90" y1="170" x2="910" y2="170" stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
+
+                      {(() => {
+                        const totalLength = beamInput.spans.reduce((sum, span) => sum + span.length, 0);
+                        const scaleX = 820 / totalLength;
+                        const allLoadValues = beamInput.spans.flatMap((span) => span.loads.map((load) => load.type === "udl" ? load.value : load.value));
+                        const reactionValues = results.nodeReactions.map((reaction) => Math.abs(reaction.verticalReaction));
+                        const maxValue = Math.max(1, ...allLoadValues, ...reactionValues);
+                        let xOffset = 90;
+
+                        return (
+                          <>
+                            {beamInput.spans.map((span, spanIdx) => {
+                              const spanX = xOffset;
+                              const spanW = span.length * scaleX;
+                              xOffset += spanW;
+
+                              return (
+                                <g key={`load-chart-span-${span.id}`}>
+                                  {span.loads.filter((load) => load.type === "udl").map((load, loadIdx) => {
+                                    const arrowHeight = 34 + (load.value / maxValue) * 48;
+                                    const arrowCount = Math.max(3, Math.ceil(span.length * 2));
+                                    return (
+                                      <g key={`udl-${span.id}-${loadIdx}`}>
+                                        <path
+                                          d={`M ${spanX} ${170 - arrowHeight} L ${spanX + spanW} ${170 - arrowHeight}`}
+                                          stroke="#dc2626"
+                                          strokeWidth="2"
+                                        />
+                                        {Array.from({ length: arrowCount }).map((_, idx) => {
+                                          const x = spanX + (idx * spanW) / Math.max(1, arrowCount - 1);
+                                          return (
+                                            <line
+                                              key={`udl-arrow-${idx}`}
+                                              x1={x}
+                                              y1={170 - arrowHeight}
+                                              x2={x}
+                                              y2="146"
+                                              stroke="#dc2626"
+                                              strokeWidth="2"
+                                              markerEnd="url(#loadArrow)"
+                                            />
+                                          );
+                                        })}
+                                        <text x={spanX + spanW / 2} y={158 - arrowHeight} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+                                          q = {formatNumberBR(load.value)} kN/m
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  {span.loads.filter((load) => load.type === "point").map((load, loadIdx) => {
+                                    const arrowHeight = 42 + (load.value / maxValue) * 58;
+                                    const x = spanX + load.position * scaleX;
+                                    return (
+                                      <g key={`point-${span.id}-${loadIdx}`}>
+                                        <line
+                                          x1={x}
+                                          y1={170 - arrowHeight}
+                                          x2={x}
+                                          y2="146"
+                                          stroke="#dc2626"
+                                          strokeWidth="3"
+                                          markerEnd="url(#loadArrow)"
+                                        />
+                                        <text x={x} y={158 - arrowHeight} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+                                          P = {formatNumberBR(load.value)} kN
+                                        </text>
+                                      </g>
+                                    );
+                                  })}
+
+                                  <line x1={spanX} y1="232" x2={spanX + spanW} y2="232" stroke="#cbd5e1" strokeDasharray="4 4" />
+                                  <text x={spanX + spanW / 2} y="252" textAnchor="middle" fontSize="12" fontWeight="900" fill="#64748b">
+                                    {span.id} - {formatNumberBR(span.length)} m
+                                  </text>
+                                  {spanIdx > 0 && <line x1={spanX} y1="160" x2={spanX} y2="182" stroke="#94a3b8" strokeWidth="1" />}
+                                </g>
+                              );
+                            })}
+
+                            {results.nodeReactions.map((reaction, idx) => {
+                              const x = 90 + beamInput.spans.slice(0, idx).reduce((sum, span) => sum + span.length, 0) * scaleX;
+                              const arrowHeight = 38 + (Math.abs(reaction.verticalReaction) / maxValue) * 64;
+                              const isDownward = reaction.verticalReaction < 0;
+                              return (
+                                <g key={`reaction-chart-${reaction.nodeId}`}>
+                                  <line
+                                    x1={x}
+                                    y1={isDownward ? 186 : 250}
+                                    x2={x}
+                                    y2={isDownward ? 186 + arrowHeight : 250 - arrowHeight}
+                                    stroke="#059669"
+                                    strokeWidth="3"
+                                    markerEnd="url(#reactionArrow)"
+                                  />
+                                  <text x={x} y="294" textAnchor="middle" fontSize="13" fontWeight="900" fill="#059669">
+                                    {reaction.nodeId}: {formatNumberBR(reaction.verticalReaction)} kN
+                                  </text>
+                                </g>
+                              );
+                            })}
+                          </>
+                        );
+                      })()}
+
+                      <text x="90" y="35" fontSize="12" fontWeight="900" fill="#dc2626">Cargas para baixo</text>
+                      <text x="90" y="315" fontSize="12" fontWeight="900" fill="#059669">
+                        Reações para cima | resíduo: {formatNumberBR(beamLoadSummary.residual, 3)} kN
+                      </text>
+                    </svg>
+                  </div>
+                </div>
+
                 {/* Reações de Apoio */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -480,7 +668,7 @@ export function VigaCrossView() {
                         </>
                       ) : (
                         <>
-                          <Printer className="w-3.5 h-3.5" /> Gerar Memorial Técnico
+                          <Printer className="w-3.5 h-3.5" /> Abrir Memorial HTML
                         </>
                       )}
                     </button>
@@ -648,7 +836,7 @@ export function VigaCrossView() {
                           if (idx < beamInput.spans.length) currentXOffset += beamInput.spans[idx].length * scaleOffset;
                           
                           const label = String.fromCharCode(65 + idx);
-                          const reaction = results?.nodeReactions?.find(r => r.nodeId === label);
+                          const reaction = results?.nodeReactions?.find(r => r.nodeId === `N${idx + 1}`);
 
                           return (
                             <g key={`svg-sup-${idx}`}>
@@ -689,7 +877,7 @@ export function VigaCrossView() {
                           <YAxis reversed fontSize={9} fontWeight={700} axisLine={false} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [`${formatNumberBR(value)} kNm`, "Momento"]}
+                            formatter={(value) => [`${formatNumberBR(Number(value ?? 0))} kNm`, "Momento"]}
                           />
                           <Area type="monotone" dataKey="moment" stroke="#c2410c" fill="#ffedd5" strokeWidth={2} />
                           <ReferenceLine y={0} stroke="#cbd5e1" />
@@ -712,7 +900,7 @@ export function VigaCrossView() {
                           <YAxis fontSize={9} fontWeight={700} axisLine={false} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [`${formatNumberBR(value)} kN`, "Cortante"]}
+                            formatter={(value) => [`${formatNumberBR(Number(value ?? 0))} kN`, "Cortante"]}
                           />
                           <Area type="stepAfter" dataKey="shear" stroke="#059669" fill="#ecfdf5" strokeWidth={2} />
                           <ReferenceLine y={0} stroke="#cbd5e1" />
@@ -735,7 +923,7 @@ export function VigaCrossView() {
                           <YAxis reversed fontSize={9} fontWeight={700} axisLine={false} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: number) => [`${formatNumberBR(value)} mm`, "Flecha"]}
+                            formatter={(value) => [`${formatNumberBR(Number(value ?? 0))} mm`, "Flecha"]}
                           />
                           <Area type="monotone" dataKey="deflection" stroke="#2563eb" fill="#dbeafe" strokeWidth={2} />
                           <ReferenceLine y={0} stroke="#cbd5e1" />
@@ -845,9 +1033,9 @@ export function VigaCrossView() {
 
       {showHtmlMemorial && results && (
         <MemorialHtmlView 
-          results={results} 
-          input={beamInput} 
+          blackboard={buildHtmlMemorial()}
           onClose={() => setShowHtmlMemorial(false)} 
+          onDownloadPdf={() => window.print()}
         />
       )}
     </ModuleContainer>
