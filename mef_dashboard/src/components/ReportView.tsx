@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Download, Printer, FileText, CheckCircle2, AlertTriangle, XCircle, Info, ExternalLink, TrendingUp, Wind } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -39,39 +39,7 @@ function SanityBadge({ label, ok, msg_ok, msg_fail }: { label: string, ok: boole
 
 export function ReportView({ results, frameResults, stabilityResults, windResults, projectMeta, apiBaseUrl }: ReportViewProps) {
 
-   const [exporting, setExporting] = useState(false);
-
-   const downloadPdf = async () => {
-      setExporting(true);
-      try {
-         const response = await fetch(`${apiBaseUrl}/export/pdf`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-               results: results,
-               project_meta: projectMeta,
-               wind_results: windResults,
-               stability_results: stabilityResults,
-            }),
-         });
-
-         if (!response.ok) throw new Error("Falha ao gerar PDF");
-
-         const blob = await response.blob();
-         const url = window.URL.createObjectURL(blob);
-         const a = document.createElement("a");
-         a.href = url;
-         a.download = `Relatorio_Estrutural_${projectMeta.obra.replace(/\s+/g, "_")}.pdf`;
-         document.body.appendChild(a);
-         a.click();
-         window.URL.revokeObjectURL(url);
-      } catch (error) {
-         console.error(error);
-         alert("Erro ao baixar o PDF. Verifique se o backend está rodando.");
-      } finally {
-         setExporting(false);
-      }
-   };
+   const saveAsPdf = () => window.print();
 
    if (!results) {
       return (
@@ -113,12 +81,11 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   Imprimir
                </button>
                <button
-                  onClick={downloadPdf}
-                  disabled={exporting}
+                  onClick={saveAsPdf}
                   className="inline-flex items-center gap-2 rounded-xl bg-apple-blue px-4 py-2 text-sm font-bold text-white shadow-apple hover:opacity-90 transition disabled:opacity-50"
                >
-                  <Download className={`h-4 w-4 ${exporting ? "animate-bounce" : ""}`} />
-                  {exporting ? "Gerando..." : "Baixar PDF Profissional"}
+                  <Download className="h-4 w-4" />
+                  Salvar em PDF
                </button>
             </div>
          </div>

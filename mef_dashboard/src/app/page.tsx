@@ -148,7 +148,7 @@ interface LineSupport {
   k_spring?: number;
 }
 
-type TabId = "dashboard" | "geometria" | "pilares" | "armadura" | "resultado" | "integracao" | "especiais" | "vento" | "vigas" | "vigacross" | "pilares_isolados" | "backlog";
+type TabId = "dashboard" | "geometria" | "pilares" | "armadura" | "resultado" | "integracao" | "especiais" | "vento" | "vigas" | "vigacross" | "pilares_isolados" | "backlog" | "tensionpro";
 
 type AnalysisMode = "guided" | "manual";
 type RiskSeverity = "green" | "yellow" | "red";
@@ -1478,7 +1478,7 @@ export default function Home() {
                       {activeTab === "vigas" ? "Dimensionamento de Vigas" : activeTab === "pilares_isolados" ? "Dimensionamento de Pilares" : "Elementos Especiais"}
                     </h2>
                     <p className="mt-1 text-sm font-semibold text-[#666a73]">
-                      Cálculo analítico {activeTab === "especiais" ? "de escadas e reservatórios" : ""} conforme NBR 6118.
+                      Cálculo analítico {activeTab === "especiais" ? "de paredes e elementos especiais" : ""} conforme NBR 6118.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1 bg-black/5 rounded-full border border-black/5">

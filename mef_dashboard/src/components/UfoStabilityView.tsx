@@ -127,7 +127,7 @@ export function UfoStabilityView() {
                <ambientLight intensity={0.7} />
                <pointLight position={[10, 10, 10]} intensity={1.5} />
                <Suspense fallback={null}>
-                 <Stage environment="city" intensity={0.5} contactShadow={{ opacity: 0.2 }}>
+              <Stage environment="city" intensity={0.5}>
                    <Building3D floors={15} />
                  </Stage>
                  <Grid infiniteGrid fadeDistance={20} cellColor="#3b82f6" sectionColor="#1e40af" />

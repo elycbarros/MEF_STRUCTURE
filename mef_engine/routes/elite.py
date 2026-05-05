@@ -93,12 +93,22 @@ async def calculate_building_core(req: CoreAnalysisRequest):
     )
     return sanitize_for_json({"success": True, **result})
 
-@router.post("/calculate/reservoir")
-async def calculate_reservoir(req: ReservoirRequest):
-    from reservoir_pool_solver import analyze_reservoir, ReservoirConfig
-    cfg = ReservoirConfig(**req.model_dump())
-    result = analyze_reservoir(cfg)
-    return sanitize_for_json({"success": True, **result})
+@router.post("/calculate/concrete_wall")
+async def calculate_concrete_wall(req: dict):
+    from engines.column_engine import ColumnEngine
+    res = ColumnEngine.solve_concrete_wall(
+        nd_kN_m=req.get('Nd', 500.0),
+        h_wall=req.get('h', 2.8),
+        t_wall=req.get('t', 0.12),
+        fck=req.get('fck', 30.0)
+    )
+    from master_pedagogy import build_concrete_wall_blackboard
+    pedagogical_steps = build_concrete_wall_blackboard(res)
+    return sanitize_for_json({
+        "success": True, 
+        **res,
+        "pedagogical_steps": pedagogical_steps
+    })
 
 @router.post("/calculate/column")
 async def calculate_column(req: ColumnRequest):

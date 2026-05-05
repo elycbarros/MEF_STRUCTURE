@@ -23,6 +23,8 @@ interface BarState {
   bReleased: boolean;
 }
 
+type ConnectedEnd = { bar: BarState; atEnd: 'A' | 'B' };
+
 function validateInput(input: BeamInput): void {
   if (input.spans.length < 1 || input.spans.length > 5) throw new Error('Número de vãos inválido (MESTRE: 1 a 5).');
   if (input.supports.length !== input.spans.length + 1) throw new Error('Quantidade de apoios deve ser número de vãos + 1.');
@@ -105,7 +107,7 @@ export function solveCross(input: BeamInput): CrossSolveResult {
     for (let n = 0; n < nodes.length; n += 1) {
       if (!nodeActive(input.supports[n])) continue;
 
-      const connected = bars.flatMap((bar) => {
+      const connected: ConnectedEnd[] = bars.flatMap((bar): ConnectedEnd[] => {
         if (bar.aNode === n && !bar.aReleased) return [{ bar, atEnd: 'A' as const }];
         if (bar.bNode === n && !bar.bReleased) return [{ bar, atEnd: 'B' as const }];
         return [];

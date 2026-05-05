@@ -67,10 +67,10 @@ class DistributedLoad:
     x_start: float       
     x_end: float         
     q_start: float       
-    q_end: float = 0.0   
+    q_end: Optional[float] = None   
 
     def __post_init__(self):
-        if self.q_end == 0.0:
+        if self.q_end is None:
             self.q_end = self.q_start
 
 
@@ -402,48 +402,112 @@ def _suggest_stirrup(Asw_cm2_m: float, bw: float) -> str:
 
 class ClassicalBeamSolver:
     @staticmethod
-    def generate_diagrams(L: float, distributed_loads: list, point_loads: list = None, is_cantilever: bool = False, n_points: int = 100) -> dict:
-        """Gera diagramas analíticos clássicos exatos para fins pedagógicos."""
-        x = np.linspace(0, L, n_points)
-        V = np.zeros_like(x)
-        M = np.zeros_like(x)
-        
-        # Soma cargas distribuídas (assumindo uniformes para o modo clássico)
-        q = sum(dl.q_start for dl in distributed_loads)
-        pts = point_loads or []
+    def _distributed_load_resultant(dl: DistributedLoad, a: float, b: float) -> tuple[float, float]:
+        """Resultante e centroide de uma carga linear no intervalo [a, b]."""
+        length_total = max(dl.x_end - dl.x_start, 1e-9)
+        qa = dl.q_start + (dl.q_end - dl.q_start) * ((a - dl.x_start) / length_total)
+        qb = dl.q_start + (dl.q_end - dl.q_start) * ((b - dl.x_start) / length_total)
+        load_len = b - a
+        force = 0.5 * (qa + qb) * load_len
+        if abs(force) < 1e-12:
+            return 0.0, 0.5 * (a + b)
+        centroid_from_a = load_len * (qa + 2.0 * qb) / (3.0 * (qa + qb)) if abs(qa + qb) > 1e-12 else 0.5 * load_len
+        return force, a + centroid_from_a
 
-        if is_cantilever:
-            # Engaste em x=0, Extremidade livre em x=L
-            # Reações em x=0
-            R_v = q * L + sum(p.P for p in pts)
-            M_0 = (q * L**2 / 2.0) + sum(p.P * p.x for p in pts)
-            
-            # Equações
-            V = R_v - q * x
-            M = -M_0 + R_v * x - (q * x**2 / 2.0)
-            
-            for p in pts:
-                V -= p.P * (x >= p.x)
-                M -= p.P * (x - p.x) * (x >= p.x)
+    @staticmethod
+    def _total_distributed_load(dl: DistributedLoad) -> tuple[float, float]:
+        return ClassicalBeamSolver._distributed_load_resultant(dl, dl.x_start, dl.x_end)
+
+    @staticmethod
+    def generate_diagrams(model: 'BeamModel', fea_reactions: dict = None):
+        L = model.L
+        pts = model.point_loads or []
+        dloads = model.distributed_loads or []
+        sups = model.supports or []
+        
+        if not sups:
+            return {
+                'x_m': np.linspace(0, L, 100).tolist(),
+                'V_kN': np.zeros(100).tolist(),
+                'M_kNm': np.zeros(100).tolist(),
+                'reactions': []
+            }
+
+        # Peso Próprio
+        all_dloads = list(dloads)
+        if getattr(model, "include_self_weight", True):
+            pp = model.section.area * 25000.0
+            all_dloads.append(DistributedLoad(x_start=0.0, x_end=L, q_start=pp, q_end=pp))
+
+        # Reações de Apoio
+        internal_reactions = []
+        if fea_reactions:
+            for x_pos, data in fea_reactions.items():
+                internal_reactions.append({
+                    'x': float(x_pos), 
+                    'R': data.get('V_kN', 0.0) * 1000.0, 
+                    'M': -data.get('M_kNm', 0.0) * 1000.0
+                })
         else:
-            # Bi-apoiada em x=0 e x=L
-            # Reação R1 (x=0)
-            R1 = (q * L / 2.0)
+            s_sorted = sorted(sups, key=lambda s: s.x)
+            if len(sups) >= 2:
+                s1, s2 = s_sorted[0], s_sorted[-1]
+                x1, x2 = s1.x, s2.x
+                dist = x2 - x1
+                if dist > 0:
+                    load_resultants = [ClassicalBeamSolver._total_distributed_load(dl) for dl in all_dloads]
+                    M_loads_x1 = sum(p.P * (p.x - x1) for p in pts) + \
+                                 sum(force * (centroid - x1) for force, centroid in load_resultants)
+                    R2 = M_loads_x1 / dist
+                    R1 = (sum(force for force, _ in load_resultants) + sum(p.P for p in pts)) - R2
+                    internal_reactions = [{'x': x1, 'R': R1}, {'x': x2, 'R': R2}]
+            elif len(sups) == 1:
+                s1 = sups[0]
+                x1 = s1.x
+                load_resultants = [ClassicalBeamSolver._total_distributed_load(dl) for dl in all_dloads]
+                R1 = (sum(force for force, _ in load_resultants) + sum(p.P for p in pts))
+                M1 = sum(p.P * (p.x - x1) for p in pts) + \
+                     sum(force * (centroid - x1) for force, centroid in load_resultants)
+                internal_reactions = [{'x': x1, 'R': R1, 'M': -M1}]
+
+        # Geração dos pontos por Método das Seções
+        n_points = 100
+        x = np.linspace(0, L, n_points)
+        V = np.zeros(n_points)
+        M = np.zeros(n_points)
+        
+        for i, xi in enumerate(x):
+            curr_v = 0.0
+            curr_m = 0.0
+            
+            for dl in all_dloads:
+                x_end = min(xi, dl.x_end)
+                if x_end > dl.x_start:
+                    force, centroid = ClassicalBeamSolver._distributed_load_resultant(dl, dl.x_start, x_end)
+                    curr_v -= force
+                    curr_m -= force * (xi - centroid)
+            
             for p in pts:
-                R1 += p.P * (L - p.x) / L
+                if xi > p.x + 1e-6:
+                    curr_v -= p.P
+                    curr_m -= p.P * (xi - p.x)
             
-            V = R1 - q * x
-            M = R1 * x - (q * x**2 / 2.0)
+            for r in internal_reactions:
+                if xi > r['x'] - 1e-6:
+                    curr_v += r['R']
+                    curr_m += r['R'] * (xi - r['x'])
+                    if 'M' in r:
+                        curr_m += r['M']
             
-            for p in pts:
-                mask = (x >= p.x)
-                V[mask] -= p.P
-                M[mask] -= p.P * (x[mask] - p.x)
-            
+            V[i] = curr_v
+            M[i] = curr_m
+
         return {
             'x_m': x.tolist(),
             'V_kN': (V / 1000.0).tolist(),
-            'M_kNm': (M / 1000.0).tolist()
+            'M_kNm': (M / 1000.0).tolist(),
+            'reactions': [{'x': r['x'], 'R': r['R']/1000.0} for r in internal_reactions],
+            'supports_debug': str([f"x={s.x}" for s in sups])
         }
 
 
@@ -465,26 +529,31 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
                       caa=durability['caa'], wk_limit_mm=durability['wk_limit_mm'],
                       include_self_weight=include_self_weight, gamma_f=gamma_f)
     solver = BeamFEMSolver(model)
-    result = NonlinearBeamEngine.solve_iterative(solver) if nonlinear else solver.solve()
+    linear_result = solver.solve()
+    result = NonlinearBeamEngine.solve_iterative(solver) if nonlinear else linear_result
     design = BeamDesigner.full_design(result, model, redistribution_delta=redistribution_delta)
     design['durability'] = {
         'caa': durability['caa'],
         'cover_required_mm': durability['cover_mm'],
         'cover_mm': round(cover_m * 1000, 1),
         'cover_ok': cover_m * 1000.0 >= durability['cover_mm'],
-        'wk_limit_mm': durability['wk_limit_mm'],
     }
+    classical_res = ClassicalBeamSolver.generate_diagrams(model, fea_reactions=linear_result.reactions)
     return {
+        'id': 'beam_1',
+        'L': model.L,
         'summary': {'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf, 'max_deflection_mm': result.max_deflection_mm,
                     'analysis_type': 'FISICA_NAO_LINEAR' if nonlinear else 'ELASTICA_LINEAR', 'fck_MPa': fck,
                     'caa': durability['caa'], 'cover_mm': round(cover_m * 1000, 1)},
         'design': design, 'reactions': result.reactions,
         'diagrams': {'x_m': result.x_elem.tolist(), 'V_kN': (result.V/1000.0).tolist(), 'M_kNm': (result.M/1000.0).tolist(),
                      'x_nodes_m': result.x.tolist(), 'w_mm': (result.w*1000.0).tolist()},
-        'classical_diagrams': ClassicalBeamSolver.generate_diagrams(
-            L, 
-            model.distributed_loads,
-            point_loads=model.point_loads,
-            is_cantilever=len(model.supports) == 1 and model.supports[0].type == 'fixed'
-        )
+        'classical_diagrams': classical_res,
+        'classical_reactions': classical_res.get('reactions', []),
+        'debug_info': {
+            'x1': classical_res.get('reactions', [{}])[0].get('x') if len(classical_res.get('reactions', [])) > 0 else None,
+            'x2': classical_res.get('reactions', [{}, {}])[1].get('x') if len(classical_res.get('reactions', [])) > 1 else None,
+            'L_total': model.L,
+            'n_supports': len(model.supports)
+        }
     }

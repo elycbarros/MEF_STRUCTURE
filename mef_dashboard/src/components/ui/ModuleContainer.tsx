@@ -128,7 +128,7 @@ export function ModuleContainer({
                 )}
               >
                 <Download className="h-4 w-4" />
-                Memorial PDF
+                Memorial HTML
               </button>
             )}
           </div>

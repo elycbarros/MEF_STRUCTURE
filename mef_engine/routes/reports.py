@@ -50,12 +50,12 @@ async def export_academic_beam_pdf(request: BeamAnalysisRequest):
         
         # Integrar Detalhamento Módulo 6-7 no PDF
         det_summary = BeamDetailer.generate_detailing_summary(
-            result, 
+            result.get("design", {}), 
             b_m=payload.get('b', 0.20), 
             h_m=payload.get('h', 0.50), 
             fck=payload.get('fck', 30.0)
         )
-        det_steps = build_detailing_blackboard(det_summary)
+        det_steps = build_detailing_blackboard(det_summary).get("steps", [])
         
         # Adicionar separador e passos de detalhamento
         blackboard['steps'].append({
@@ -168,14 +168,7 @@ async def export_academic_spt_pdf(req: dict):
         spt_data = req.get('spt_data', [])
         engine = GeotechnicalEngine()
         res = engine.analyze_spt(spt_data)
-        steps = build_spt_blackboard(res)
-        
-        blackboard = {
-            "mode": "MESTRE",
-            "element": "geotechnics",
-            "title": "Interpretacao de Sondagem SPT",
-            "steps": steps
-        }
+        blackboard = build_spt_blackboard(res)
         
         pdf_path = os.path.join(output_dir, "mestre_geotecnia_sondagem.pdf")
         generate_academic_blackboard_pdf(pdf_path, blackboard, {
@@ -203,14 +196,7 @@ async def export_academic_stability_pdf(req: dict):
         wind_data = engine.calculate_dynamic_pressure(cfg)
         gamma_z = engine.estimate_gamma_z(cfg.height, 10000, 50)
         res = {**wind_data, "gamma_z": gamma_z}
-        steps = build_stability_blackboard(res)
-        
-        blackboard = {
-            "mode": "MESTRE",
-            "element": "stability",
-            "title": "Estabilidade Global e Vento",
-            "steps": steps
-        }
+        blackboard = build_stability_blackboard(res)
         
         pdf_path = os.path.join(output_dir, "mestre_estabilidade_vento.pdf")
         generate_academic_blackboard_pdf(pdf_path, blackboard, {

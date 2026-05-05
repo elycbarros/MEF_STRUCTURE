@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   GraduationCap,
   Layers3,
+  Layers,
   Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -63,9 +64,9 @@ export function AcademicDashboard({ setActiveTab, setSystemType }: AcademicDashb
     {
       id: "especiais",
       label: "ESPECIAIS",
-      subLabel: "Reservatórios / Piscinas",
-      description: "Dimensionamento de contenções hidráulicas e elementos enterrados.",
-      icon: Waves,
+      subLabel: "Parede de Concreto",
+      description: "Dimensionamento de paredes estruturais, escadas e elementos especiais.",
+      icon: Layers,
       accent: "bg-cyan-500",
       onClick: () => setActiveTab("especiais")
     },
@@ -91,64 +92,83 @@ export function AcademicDashboard({ setActiveTab, setSystemType }: AcademicDashb
 
   return (
     <div className="space-y-8 py-4">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Ambiente de Aprendizagem</h3>
-          <h2 className="mt-1 text-3xl font-black text-slate-900">Mestre Structural Lab</h2>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between mb-12">
+        <div className="relative">
+          <div className="absolute -left-4 top-0 h-full w-1 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full" />
+          <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400 pl-4">Engineered Education</h3>
+          <h2 className="mt-1 text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tighter pl-4">
+            Mestre Structural Lab
+          </h2>
         </div>
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trilha pedagogica</p>
-              <p className="mt-1 text-xl font-black text-slate-950">{backlogProgress.progress}%</p>
+        
+        <div className="w-full max-w-sm rounded-[2rem] border border-white/50 bg-white/40 backdrop-blur-xl p-6 shadow-[0_8px_32px_0_rgba(0,0,0,0.05)]">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Trilha Pedagógica</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-black text-slate-950">{backlogProgress.progress}%</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase">Concluído</span>
+              </div>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white">
-              <GraduationCap className="h-5 w-5" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/20">
+              <GraduationCap className="h-7 w-7" />
             </div>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${backlogProgress.progress}%` }} />
+          
+          <div className="h-2.5 overflow-hidden rounded-full bg-slate-200/50 p-[2px]">
+            <div 
+              className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 shadow-[0_0_12px_rgba(37,99,235,0.4)] transition-all duration-1000 ease-out" 
+              style={{ width: `${backlogProgress.progress}%` }} 
+            />
           </div>
+          
           <button
             type="button"
             onClick={() => setActiveTab("backlog")}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-blue-700"
+            className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-slate-800 hover:scale-[1.02] active:scale-95 shadow-xl shadow-black/10"
           >
-            Abrir backlog <ClipboardCheck className="h-4 w-4" />
+            Explorar Backlog <ClipboardCheck className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {cards.map((card) => (
           <button
             key={card.id}
             onClick={card.onClick}
-            className="group relative flex flex-col text-left p-6 h-64 rounded-[2rem] border border-slate-100 bg-white shadow-sm transition-all hover:shadow-2xl hover:-translate-y-2 overflow-hidden"
+            className="group relative flex flex-col text-left p-8 h-72 rounded-[2.5rem] border border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] transition-all hover:shadow-[0_20px_48px_0_rgba(31,38,135,0.12)] hover:-translate-y-3 overflow-hidden"
           >
-            {/* Background Accent Decor */}
+            {/* Glossy Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+            
+            {/* Background Accent Glow */}
             <div className={cn(
-              "absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-[0.03] transition-all group-hover:scale-150 group-hover:opacity-[0.08]",
+              "absolute -right-8 -top-8 h-48 w-48 rounded-full blur-[64px] opacity-0 transition-all duration-500 group-hover:opacity-20",
               card.accent
             )} />
 
             <div className={cn(
-              "mb-6 flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110",
+              "mb-8 flex h-16 w-16 items-center justify-center rounded-[1.25rem] text-white shadow-lg transition-all duration-500 group-hover:scale-110 group-hover:rotate-3",
               card.accent
             )}>
-              <card.icon className="h-7 w-7" />
+              <card.icon className="h-8 w-8" />
             </div>
 
             <div className="flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{card.subLabel}</p>
-              <h3 className="text-xl font-black text-slate-900">{card.label}</h3>
-              <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500 line-clamp-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2">{card.subLabel}</p>
+              <h3 className="text-2xl font-black text-slate-900 leading-tight">{card.label}</h3>
+              <p className="mt-4 text-[13px] font-medium leading-relaxed text-slate-500/90 line-clamp-3">
                 {card.description}
               </p>
             </div>
 
-            <div className="mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-900 opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">
-              Acessar Módulo <ArrowRight className="h-3 w-3" />
+            <div className="mt-6 flex items-center gap-3 text-[11px] font-black uppercase tracking-widest text-slate-950 group-hover:translate-x-1 transition-transform">
+              <span className="relative">
+                Acessar Módulo
+                <div className="absolute -bottom-1 left-0 h-[2px] w-0 bg-slate-950 transition-all duration-300 group-hover:w-full" />
+              </span>
+              <ArrowRight className="h-4 w-4" />
             </div>
           </button>
         ))}

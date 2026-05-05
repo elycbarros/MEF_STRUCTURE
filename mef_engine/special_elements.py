@@ -100,13 +100,17 @@ class SpecialElementsSolver:
         return solve_isolated_footing(cfg)
 
     @staticmethod
-    def solve_reservoir_wall(height: float, thickness_cm: float, fck: float) -> dict:
+    def solve_concrete_wall(Nd_kN_m: float, height: float, thickness_cm: float, fck: float) -> dict:
         """
-        Dimensiona uma parede de reservatório (simplificado para pedagógico).
+        Dimensiona uma parede de concreto sob compressão.
         """
-        from reservoir_pool_solver import analyze_reservoir, ReservoirConfig
-        cfg = ReservoirConfig(H=height, wall_thickness=thickness_cm/100.0, fck=fck)
-        return analyze_reservoir(cfg)
+        from engines.column_engine import ColumnEngine
+        return ColumnEngine.solve_concrete_wall(
+            nd_kN_m=Nd_kN_m, 
+            h_wall=height, 
+            t_wall=thickness_cm/100.0, 
+            fck=fck
+        )
 
 if __name__ == "__main__":
     solver = SpecialElementsSolver()

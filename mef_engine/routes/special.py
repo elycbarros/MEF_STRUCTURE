@@ -29,12 +29,12 @@ class SpecialElementRequest(BaseModel):
 async def calculate_special(req: SpecialElementRequest):
     from special_elements import SpecialElementsSolver
     from master_pedagogy import (
-        build_stair_blackboard, 
+        build_stairs_blackboard, 
         build_footing_blackboard, 
-        build_reservoir_blackboard,
         build_beam_blackboard,
         build_column_blackboard,
-        build_detailing_blackboard
+        build_column_detailing_blackboard,
+        build_concrete_wall_blackboard
     )
     from beam_detailing import BeamDetailer
     
@@ -53,15 +53,7 @@ async def calculate_special(req: SpecialElementRequest):
             fck=params.get('fck', 30),
             width=params.get('width', 1.2),
         )
-        blackboard = build_stair_blackboard(res)
-        
-    elif type == "reservoir":
-        res = solver.solve_reservoir_wall(
-            height=params.get('h', 3.0), 
-            thickness_cm=params.get('t', 20), 
-            fck=params.get('fck', 30)
-        )
-        blackboard = build_reservoir_blackboard(res)
+        blackboard = build_stairs_blackboard(res)
         
     elif type == "beam":
         res = solver.solve_beam(
@@ -82,19 +74,23 @@ async def calculate_special(req: SpecialElementRequest):
         res['detailing'] = det_summary
         
         # Blackboard de Dimensionamento + Blackboard de Detalhamento
-        bb_dim = build_beam_blackboard(res)
-        bb_det = build_detailing_blackboard(det_summary)
+        bb_dim = build_beam_blackboard(res, params)
+        bb_det = build_column_detailing_blackboard(det_summary) # Reusando p/ exemplo
         
         # Unificar passos
         blackboard = bb_dim
         if bb_det:
             # Adicionar título separador se bb_dim existir
             blackboard['steps'].append({
+                "id": "det-sep",
                 "title": "--- Detalhamento Executivo ---",
-                "latex": r"\text{Módulos 6-7: Ancoragem e Decalagem}",
-                "description": "Início do roteiro de detalhamento das armaduras."
+                "formula_latex": r"\text{Módulos 6-7: Ancoragem e Decalagem}",
+                "result_latex": "",
+                "explanation": "Início do roteiro de detalhamento das armaduras.",
+                "norm_ref": "NBR 6118",
+                "status": "INFO"
             })
-            blackboard['steps'].extend(bb_det)
+            blackboard['steps'].extend(bb_det['steps'])
 
     elif type == "column":
         res = solver.solve_column(
@@ -115,6 +111,16 @@ async def calculate_special(req: SpecialElementRequest):
             fck=params.get('fck', 25.0)
         )
         blackboard = build_footing_blackboard(res)
+    
+    elif type == "concrete_wall":
+        from engines.column_engine import ColumnEngine
+        res = ColumnEngine.solve_concrete_wall(
+            nd_kN_m=params.get('Nd', 500.0),
+            h_wall=params.get('h', 2.8),
+            t_wall=params.get('t', 0.12),
+            fck=params.get('fck', 30.0)
+        )
+        blackboard = build_concrete_wall_blackboard(res)
 
     return {
         "success": True if res else False, 
@@ -140,12 +146,7 @@ async def calculate_spt(req: Dict):
     return {
         "success": True,
         "result": res,
-        "pedagogical_steps": {
-            "mode": "MESTRE",
-            "element": "geotechnics",
-            "title": "Interpretacao de Sondagem SPT",
-            "steps": blackboard
-        }
+        "pedagogical_steps": blackboard
     }
 
 @router.post("/calculate/stability")
@@ -169,10 +170,35 @@ async def calculate_stability(req: Dict):
     return {
         "success": True,
         "result": res,
-        "pedagogical_steps": {
-            "mode": "MESTRE",
-            "element": "stability",
-            "title": "Estabilidade Global e Vento",
-            "steps": blackboard
-        }
+        "pedagogical_steps": blackboard
+    }
+
+@router.post("/calculate/integrated-foundation")
+async def calculate_integrated_foundation(req: Dict):
+    from geotechnical_engine import GeotechnicalEngine
+    from footing_solver import solve_isolated_footing, FootingConfig
+    from master_pedagogy import build_integrated_foundation_blackboard
+    
+    # 1. Analise SPT
+    geo_engine = GeotechnicalEngine()
+    spt_res = geo_engine.analyze_spt(req.get('spt_data', []))
+    
+    # 2. Dimensionamento da Sapata usando sigma_adm do SPT
+    cfg = FootingConfig(
+        Nd_kN=req.get('Nd_kN', 500.0),
+        sigma_adm_kPa=spt_res['sigma_adm_kPa'],
+        ap_m=req.get('ap_m', 0.20),
+        bp_m=req.get('bp_m', 0.40),
+        fck=req.get('fck', 25.0)
+    )
+    footing_res = solve_isolated_footing(cfg)
+    
+    # 3. Memorial Integrado
+    blackboard = build_integrated_foundation_blackboard(spt_res, footing_res)
+    
+    return {
+        "success": True,
+        "spt_result": spt_res,
+        "footing_result": footing_res,
+        "pedagogical_steps": blackboard
     }

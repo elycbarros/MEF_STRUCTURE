@@ -9,6 +9,7 @@ import { StructuralAuditAgent } from "@/agents/StructuralAuditAgent";
 import { BimExporter } from "@/lib/bimExporter";
 import { OptimizationEngine } from "@/lib/optimizationEngine";
 import { MemorialHtmlView } from "./MemorialHtmlView";
+import { ModuleContainer } from "@/components/ui/ModuleContainer";
 
 function Cable3D({ length }: { length: number }) {
   const points = useMemo(() => {
@@ -20,6 +21,7 @@ function Cable3D({ length }: { length: number }) {
     }
     return pts;
   }, [length]);
+  const positions = useMemo(() => new Float32Array(points.flat()), [points]);
 
   return (
     <group>
@@ -31,9 +33,7 @@ function Cable3D({ length }: { length: number }) {
         <bufferGeometry attach="geometry">
           <bufferAttribute
             attach="attributes-position"
-            count={points.length}
-            array={new Float32Array(points.flat())}
-            itemSize={3}
+            args={[positions, 3]}
           />
         </bufferGeometry>
         <lineBasicMaterial attach="material" color="#f56300" linewidth={2} />
@@ -250,9 +250,23 @@ export function TensionProView() {
       </div>
       {showHtmlMemorial && results && (
         <MemorialHtmlView 
-          results={results} 
-          input={{ fck, p0, mu, k, length, humidity, ageOfLoading }} 
+          blackboard={{
+            title: "Memorial de Protensao",
+            steps: [
+              {
+                id: "tension-loss",
+                title: "Perdas de Protensao",
+                formula_latex: "P_x = P_0 e^{-(\\mu\\alpha + kx)}",
+                substitution_latex: `P_0 = ${p0} kN, L = ${length} m`,
+                result_latex: `P_x = ${formatNumberBR(results.p_x)} kN`,
+                explanation: `Parametros: fck=${fck} MPa, mu=${mu}, k=${k}, UR=${humidity}%, idade=${ageOfLoading} dias.`,
+                norm_ref: "NBR 6118",
+                status: "OK",
+              },
+            ],
+          }}
           onClose={() => setShowHtmlMemorial(false)} 
+          onDownloadPdf={() => window.print()}
         />
       )}
     </ModuleContainer>

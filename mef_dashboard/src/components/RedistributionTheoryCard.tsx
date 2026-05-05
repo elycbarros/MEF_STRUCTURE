@@ -48,7 +48,7 @@ export default function RedistributionTheoryCard() {
               <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs font-black text-slate-900 uppercase">Atenção à Ductilidade</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed">Para reduzir o momento ($\delta < 1$), a linha neutra ($\xi$) deve ser baixa. Se $\xi > 0.45$, a redistribuição é proibida pela norma.</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">Para reduzir o momento ($\delta &lt; 1$), a linha neutra ($\xi$) deve ser baixa. Se $\xi &gt; 0.45$, a redistribuição é proibida pela norma.</p>
               </div>
             </div>
           </div>

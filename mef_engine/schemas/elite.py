@@ -12,10 +12,7 @@ class BeamAnalysisRequest(BaseModel):
     fck: float = Field(30.0, ge=10.0, le=120.0, description="Resistência característica do concreto (MPa)")
     caa: int = Field(2, ge=1, le=4, description="Classe de Agressividade Ambiental")
     cover: Optional[float] = Field(None, gt=0.0, le=0.20, description="Cobrimento nominal (m); se ausente, vem da CAA")
-    supports: List[Dict] = [
-        {"x": 0.0, "type": "pinned"},
-        {"x": 6.0, "type": "pinned"},
-    ]
+    supports: List[Dict]
     distributed_loads: Optional[List[Dict]] = None
     point_loads: Optional[List[Dict]] = None
     n_elements: int = Field(40, ge=2, le=500, description="Número de elementos finitos da viga")

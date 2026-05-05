@@ -28,6 +28,12 @@ export interface Hole {
 }
 
 export type DiagnosticConservatism = "permissive" | "balanced" | "conservative";
+export type RiskSeverity = "green" | "yellow" | "red";
+export interface FieldRiskSummary {
+  status: RiskSeverity;
+  selected: Array<{ id: string; label: string; severity: RiskSeverity; action: string }>;
+  recommendations: string[];
+}
 export type KvSource = "plate_load_test" | "settlement_backcalc" | "spt_correlation" | "table_reference" | "engineering_estimate";
 
 export function useRadierAnalysis() {
