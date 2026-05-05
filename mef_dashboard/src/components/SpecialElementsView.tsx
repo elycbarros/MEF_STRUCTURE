@@ -51,6 +51,12 @@ function BeamLoadReactionChart({
     sum + (((Number(dl.q_start) || 0) + (Number(dl.q_end ?? dl.q_start) || 0)) / 2) * Math.max(0, (Number(dl.x_end) || 0) - (Number(dl.x_start) || 0))
   ), 0) + beamParams.pointLoads.reduce((sum: number, p: any) => sum + (Number(p.P) || 0), 0);
   const totalReaction = reactions.reduce((sum: number, r: any) => sum + r.R, 0);
+  const loadColors = {
+    distributed: { stroke: "#2563eb", fill: "#dbeafe", label: "#1d4ed8", border: "#bfdbfe" },
+    variable: { stroke: "#dc2626", fill: "#fee2e2", label: "#dc2626", border: "#fecaca" },
+    selfWeight: { stroke: "#9333ea", fill: "#f3e8ff", label: "#7e22ce", border: "#e9d5ff" },
+    point: { stroke: "#f97316", fill: "#ffedd5", label: "#ea580c", border: "#fed7aa" },
+  };
   const maxValue = Math.max(
     1,
     ...shownDistributedLoads.map((dl: any) => Math.max(Math.abs(Number(dl.q_start) || 0), Math.abs(Number(dl.q_end ?? dl.q_start) || 0))),
@@ -58,6 +64,30 @@ function BeamLoadReactionChart({
     ...reactions.map((r: any) => Math.abs(r.R)),
   );
   const scaleX = 820 / Math.max(totalLength, 0.001);
+  const beamY = 230;
+  const hasPointLoads = beamParams.pointLoads.length > 0;
+  const hasVariableLoads = shownDistributedLoads.some((dl: any) => {
+    const qStart = Number(dl.q_start) || 0;
+    const qEnd = Number(dl.q_end ?? dl.q_start) || 0;
+    return !dl.selfWeight && Math.abs(qStart - qEnd) > 0.001;
+  });
+  const hasUniformLoads = shownDistributedLoads.some((dl: any) => {
+    const qStart = Number(dl.q_start) || 0;
+    const qEnd = Number(dl.q_end ?? dl.q_start) || 0;
+    return !dl.selfWeight && Math.abs(qStart - qEnd) <= 0.001;
+  });
+  const hasSelfWeightLoad = shownDistributedLoads.some((dl: any) => dl.selfWeight);
+  const activeLaneKeys = [
+    hasSelfWeightLoad ? "selfWeight" : null,
+    hasUniformLoads ? "distributed" : null,
+    hasVariableLoads ? "variable" : null,
+    hasPointLoads ? "point" : null,
+  ].filter(Boolean) as Array<"selfWeight" | "distributed" | "variable" | "point">;
+  const compactLaneEndYs = [202, 176, 150, 124];
+  const laneEndByType = activeLaneKeys.reduce<Record<string, number>>((acc, key, index) => {
+    acc[key] = compactLaneEndYs[index] ?? 112;
+    return acc;
+  }, {});
 
   return (
     <div className="rounded-2xl border border-[#e0e7ef] bg-white p-5 shadow-sm">
@@ -72,47 +102,86 @@ function BeamLoadReactionChart({
         </div>
       </div>
 
-      <svg viewBox="0 0 1000 360" className="h-auto w-full overflow-visible" role="img" aria-label="Cargas e reações da viga">
+      <svg viewBox="0 0 1000 410" className="h-auto w-full overflow-visible" role="img" aria-label="Cargas e reações da viga">
         <defs>
           <marker id="beamLoadArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" />
+          </marker>
+          <marker id="beamDistributedArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={loadColors.distributed.stroke} />
+          </marker>
+          <marker id="beamVariableArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={loadColors.variable.stroke} />
+          </marker>
+          <marker id="beamSelfWeightArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={loadColors.selfWeight.stroke} />
+          </marker>
+          <marker id="beamPointArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={loadColors.point.stroke} />
           </marker>
           <marker id="beamReactionArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669" />
           </marker>
         </defs>
 
-        <line x1="90" y1="170" x2="910" y2="170" stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
-        <line x1={90 + beamParams.L_left * scaleX} y1="156" x2={90 + beamParams.L_left * scaleX} y2="184" stroke="#94a3b8" strokeWidth="2" />
-        <line x1={90 + (beamParams.L_left + beamParams.L) * scaleX} y1="156" x2={90 + (beamParams.L_left + beamParams.L) * scaleX} y2="184" stroke="#94a3b8" strokeWidth="2" />
+        <line x1="90" y1={beamY} x2="910" y2={beamY} stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
+        <line x1={90 + beamParams.L_left * scaleX} y1={beamY - 14} x2={90 + beamParams.L_left * scaleX} y2={beamY + 14} stroke="#94a3b8" strokeWidth="2" />
+        <line x1={90 + (beamParams.L_left + beamParams.L) * scaleX} y1={beamY - 14} x2={90 + (beamParams.L_left + beamParams.L) * scaleX} y2={beamY + 14} stroke="#94a3b8" strokeWidth="2" />
 
         {shownDistributedLoads.map((dl: any, idx: number) => {
           const x1 = 90 + (Number(dl.x_start) || 0) * scaleX;
           const x2 = 90 + (Number(dl.x_end) || 0) * scaleX;
-          const q = Math.max(Math.abs(Number(dl.q_start) || 0), Math.abs(Number(dl.q_end ?? dl.q_start) || 0));
-          const trackY = 98 + idx * 32;
-          const arrowEndY = 146 + idx * 3;
+          const qStart = Number(dl.q_start) || 0;
+          const qEnd = Number(dl.q_end ?? dl.q_start) || 0;
+          const q = Math.max(Math.abs(qStart), Math.abs(qEnd));
+          const isVariable = Math.abs(qStart - qEnd) > 0.001;
           const arrowCount = Math.max(3, Math.ceil(((Number(dl.x_end) || 0) - (Number(dl.x_start) || 0)) * 2));
-          const labelText = `${dl.selfWeight ? "PP" : "q"} = ${formatNumberBR(q)} kN/m`;
+          const labelText = isVariable
+            ? `${dl.selfWeight ? "PP" : "q"} ${formatNumberBR(qStart)} -> ${formatNumberBR(qEnd)} kN/m`
+            : `${dl.selfWeight ? "PP" : "q"} = ${formatNumberBR(q)} kN/m`;
           const labelX = Math.min(Math.max((x1 + x2) / 2, 170), 830);
           const labelWidth = Math.max(112, labelText.length * 7.4);
+          const laneKey = dl.selfWeight ? "selfWeight" : isVariable ? "variable" : "distributed";
+          const sameLaneOffset = shownDistributedLoads
+            .slice(0, idx)
+            .filter((prev: any) => {
+              const prevVariable = Math.abs((Number(prev.q_start) || 0) - (Number(prev.q_end ?? prev.q_start) || 0)) > 0.001;
+              const prevLane = prev.selfWeight ? "selfWeight" : prevVariable ? "variable" : "distributed";
+              return prevLane === laneKey;
+            }).length * 14;
+          const arrowEndY = (laneEndByType[laneKey] ?? 176) + sameLaneOffset;
+          const laneHeight = laneKey === "selfWeight" ? 18 : 30;
+          const qScale = laneHeight / Math.max(q, 0.001);
+          const yStart = arrowEndY - Math.abs(qStart) * qScale;
+          const yEnd = arrowEndY - Math.abs(qEnd) * qScale;
+          const color = dl.selfWeight ? loadColors.selfWeight : isVariable ? loadColors.variable : loadColors.distributed;
+          const markerId = dl.selfWeight ? "beamSelfWeightArrow" : isVariable ? "beamVariableArrow" : "beamDistributedArrow";
           return (
-            <g key={`beam-dl-${dl.id ?? idx}`} opacity={dl.selfWeight ? 0.55 : 1}>
-              <line x1={x1} y1={trackY} x2={x2} y2={trackY} stroke="#dc2626" strokeWidth={dl.selfWeight ? "1.5" : "2"} />
+            <g key={`beam-dl-${dl.id ?? idx}`}>
+              <path
+                d={`M ${x1} ${arrowEndY} L ${x1} ${yStart} L ${x2} ${yEnd} L ${x2} ${arrowEndY}`}
+                fill={isVariable || dl.selfWeight ? color.fill : "none"}
+                fillOpacity={isVariable || dl.selfWeight ? 0.55 : 0}
+                stroke={color.stroke}
+                strokeWidth={dl.selfWeight ? "1.5" : "2"}
+              />
               {Array.from({ length: arrowCount }).map((_, arrowIdx) => {
                 const x = x1 + (arrowIdx * (x2 - x1)) / Math.max(1, arrowCount - 1);
-                return <line key={arrowIdx} x1={x} y1={trackY} x2={x} y2={arrowEndY} stroke="#dc2626" strokeWidth={dl.selfWeight ? "1.5" : "2"} markerEnd="url(#beamLoadArrow)" />;
+                const ratio = arrowIdx / Math.max(1, arrowCount - 1);
+                const qAtX = Math.abs(qStart + (qEnd - qStart) * ratio);
+                const arrowTopY = arrowEndY - qAtX * qScale;
+                return <line key={arrowIdx} x1={x} y1={arrowTopY} x2={x} y2={arrowEndY} stroke={color.stroke} strokeWidth={dl.selfWeight ? "1.5" : "2"} markerEnd={`url(#${markerId})`} />;
               })}
               <rect
                 x={labelX - labelWidth / 2}
-                y={trackY - 25}
+                y={Math.min(yStart, yEnd) - 25}
                 width={labelWidth}
                 height="20"
                 rx="6"
                 fill="white"
-                stroke={dl.selfWeight ? "#fecaca" : "#fee2e2"}
+                stroke={color.border}
               />
-              <text x={labelX} y={trackY - 11} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+              <text x={labelX} y={Math.min(yStart, yEnd) - 11} textAnchor="middle" fontSize="13" fontWeight="900" fill={color.label}>
                 {labelText}
               </text>
             </g>
@@ -121,11 +190,27 @@ function BeamLoadReactionChart({
 
         {beamParams.pointLoads.map((p: any, idx: number) => {
           const x = 90 + (Number(p.x) || 0) * scaleX;
-          const arrowHeight = 42 + (Math.abs(Number(p.P) || 0) / maxValue) * 58;
+          const pointX = Number(p.x) || 0;
+          const occupiedEndYs = shownDistributedLoads
+            .filter((dl: any) => pointX >= (Number(dl.x_start) || 0) - 0.05 && pointX <= (Number(dl.x_end) || 0) + 0.05)
+            .map((dl: any) => {
+              const qStart = Number(dl.q_start) || 0;
+              const qEnd = Number(dl.q_end ?? dl.q_start) || 0;
+              const isVariable = Math.abs(qStart - qEnd) > 0.001;
+              const laneKey = dl.selfWeight ? "selfWeight" : isVariable ? "variable" : "distributed";
+              return laneEndByType[laneKey] ?? 176;
+            });
+          const freePointLane = compactLaneEndYs.find((laneY) => (
+            !occupiedEndYs.some((occupiedY) => Math.abs(occupiedY - laneY) < 22)
+          ));
+          const pointEndY = (freePointLane ?? laneEndByType.point ?? 124) + idx * 8;
+          const pointTopY = Math.max(58, pointEndY - 68);
+          const labelY = pointTopY - 10;
           return (
             <g key={`beam-pl-${p.id ?? idx}`}>
-              <line x1={x} y1={170 - arrowHeight} x2={x} y2="146" stroke="#dc2626" strokeWidth="3" markerEnd="url(#beamLoadArrow)" />
-              <text x={x} y={158 - arrowHeight} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+              <line x1={x} y1={pointTopY} x2={x} y2={pointEndY} stroke={loadColors.point.stroke} strokeWidth="3" markerEnd="url(#beamPointArrow)" />
+              <rect x={x - 58} y={labelY - 14} width="116" height="20" rx="6" fill="white" stroke={loadColors.point.border} />
+              <text x={x} y={labelY} textAnchor="middle" fontSize="13" fontWeight="900" fill={loadColors.point.label}>
                 P = {formatNumberBR(p.P)} kN
               </text>
             </g>
@@ -138,19 +223,28 @@ function BeamLoadReactionChart({
           const isDownward = r.R < 0;
           return (
             <g key={`beam-reaction-${idx}`}>
-              <line x1={x} y1={isDownward ? 186 : 250} x2={x} y2={isDownward ? 186 + arrowHeight : 250 - arrowHeight} stroke="#059669" strokeWidth="3" markerEnd="url(#beamReactionArrow)" />
-              <text x={x} y="294" textAnchor="middle" fontSize="13" fontWeight="900" fill="#059669">
+              <line x1={x} y1={isDownward ? beamY + 18 : 332} x2={x} y2={isDownward ? beamY + 18 + arrowHeight : 332 - arrowHeight} stroke="#059669" strokeWidth="3" markerEnd="url(#beamReactionArrow)" />
+              <text x={x} y="370" textAnchor="middle" fontSize="13" fontWeight="900" fill="#059669">
                 R{idx + 1}: {formatNumberBR(r.R)} kN
               </text>
             </g>
           );
         })}
 
-        <line x1="90" y1="232" x2="910" y2="232" stroke="#cbd5e1" strokeDasharray="4 4" />
-        <text x="90" y="252" textAnchor="start" fontSize="12" fontWeight="900" fill="#64748b">0.00 m</text>
-        <text x="910" y="252" textAnchor="end" fontSize="12" fontWeight="900" fill="#64748b">{formatNumberBR(totalLength)} m</text>
-        <text x="90" y="35" fontSize="12" fontWeight="900" fill="#dc2626">Cargas para baixo</text>
-        <text x="90" y="342" fontSize="12" fontWeight="900" fill="#059669">Reações para cima | resíduo: {formatNumberBR(totalReaction - totalLoad, 3)} kN</text>
+        <line x1="90" y1="286" x2="910" y2="286" stroke="#cbd5e1" strokeDasharray="4 4" />
+        <text x="90" y="306" textAnchor="start" fontSize="12" fontWeight="900" fill="#64748b">0.00 m</text>
+        <text x="910" y="306" textAnchor="end" fontSize="12" fontWeight="900" fill="#64748b">{formatNumberBR(totalLength)} m</text>
+        <g fontSize="12" fontWeight="900">
+          <circle cx="94" cy="34" r="5" fill={loadColors.distributed.stroke} />
+          <text x="106" y="38" fill={loadColors.distributed.label}>Distribuída</text>
+          <circle cx="198" cy="34" r="5" fill={loadColors.variable.stroke} />
+          <text x="210" y="38" fill={loadColors.variable.label}>Triangular/trapezoidal</text>
+          <circle cx="362" cy="34" r="5" fill={loadColors.selfWeight.stroke} />
+          <text x="374" y="38" fill={loadColors.selfWeight.label}>Peso próprio</text>
+          <circle cx="474" cy="34" r="5" fill={loadColors.point.stroke} />
+          <text x="486" y="38" fill={loadColors.point.label}>Pontual</text>
+        </g>
+        <text x="90" y="397" fontSize="12" fontWeight="900" fill="#059669">Reações para cima | resíduo: {formatNumberBR(totalReaction - totalLoad, 3)} kN</text>
       </svg>
     </div>
   );
@@ -448,22 +542,40 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black uppercase tracking-widest text-[#98a2b3]">Ações e combinações</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const id = `DL${beamParams.distributedLoads.length + 1}`;
-                      setBeamParams({
-                        ...beamParams,
-                        distributedLoads: [
-                          ...beamParams.distributedLoads, 
-                          { id, x_start: 0, x_end: beamParams.L_left + beamParams.L + beamParams.L_right, q_start: 20, q_end: 20 }
-                        ]
-                      });
-                    }}
-                    className="flex items-center gap-1 text-[10px] font-black text-blue-600 hover:text-blue-700"
-                  >
-                    <Plus size={12} /> CARGA POR TRECHO
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = `DL${beamParams.distributedLoads.length + 1}`;
+                        setBeamParams({
+                          ...beamParams,
+                          distributedLoads: [
+                            ...beamParams.distributedLoads, 
+                            { id, x_start: 0, x_end: beamParams.L_left + beamParams.L + beamParams.L_right, q_start: 20, q_end: 20 }
+                          ]
+                        });
+                      }}
+                      className="flex items-center gap-1 text-[10px] font-black text-blue-600 hover:text-blue-700"
+                    >
+                      <Plus size={12} /> CARGA POR TRECHO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = `DL${beamParams.distributedLoads.length + 1}`;
+                        setBeamParams({
+                          ...beamParams,
+                          distributedLoads: [
+                            ...beamParams.distributedLoads,
+                            { id, x_start: 0, x_end: beamParams.L_left + beamParams.L + beamParams.L_right, q_start: 0, q_end: 20 }
+                          ]
+                        });
+                      }}
+                      className="flex items-center gap-1 text-[10px] font-black text-red-600 hover:text-red-700"
+                    >
+                      <Plus size={12} /> TRIANGULAR
+                    </button>
+                  </div>
                 </div>
 
                 {beamParams.distributedLoads.length === 0 ? (
