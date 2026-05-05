@@ -90,6 +90,24 @@ class SpecialElementsSolver:
             "status": "OK" if Nd_kN < n_rd and lambd < 90 else "REVISAR_SECAO"
         }
 
+    @staticmethod
+    def solve_footing(Nd_kN: float, sigma_adm_kPa: float, ap: float, bp: float, fck: float) -> dict:
+        """
+        Dimensiona uma sapata isolada.
+        """
+        from footing_solver import solve_isolated_footing, FootingConfig
+        cfg = FootingConfig(Nd_kN=Nd_kN, sigma_adm_kPa=sigma_adm_kPa, ap_m=ap, bp_m=bp, fck=fck)
+        return solve_isolated_footing(cfg)
+
+    @staticmethod
+    def solve_reservoir_wall(height: float, thickness_cm: float, fck: float) -> dict:
+        """
+        Dimensiona uma parede de reservatório (simplificado para pedagógico).
+        """
+        from reservoir_pool_solver import analyze_reservoir, ReservoirConfig
+        cfg = ReservoirConfig(H=height, wall_thickness=thickness_cm/100.0, fck=fck)
+        return analyze_reservoir(cfg)
+
 if __name__ == "__main__":
     solver = SpecialElementsSolver()
     res = solver.solve_stair(L_horizontal=4.0, H_vertical=3.0, load_kN_m2=5.0, thickness_cm=15, fck=25)

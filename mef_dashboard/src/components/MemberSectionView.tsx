@@ -9,6 +9,8 @@ interface MemberSectionViewProps {
   title?: string;
 }
 
+import { formatNumberBR } from '@/lib/utils';
+
 export default function MemberSectionView({ b, h, as_top = 0, as_bottom = 0, type, title }: MemberSectionViewProps) {
   // Escala para o SVG (ajustar para caber em 200x200)
   const scale = 150 / Math.max(b, h);
@@ -60,18 +62,18 @@ export default function MemberSectionView({ b, h, as_top = 0, as_bottom = 0, typ
         ))}
 
         {/* Dimensões */}
-        <text x={offsetX + width / 2} y={offsetY - 5} textAnchor="middle" fontSize="10" fill="#64748b">{b} cm</text>
-        <text x={offsetX - 5} y={offsetY + height / 2} textAnchor="end" fontSize="10" fill="#64748b" transform={`rotate(-90, ${offsetX - 5}, ${offsetY + height / 2})`}>{h} cm</text>
+        <text x={offsetX + width / 2} y={offsetY - 5} textAnchor="middle" fontSize="10" fill="#64748b">{formatNumberBR(b, 0)} cm</text>
+        <text x={offsetX - 5} y={offsetY + height / 2} textAnchor="end" fontSize="10" fill="#64748b" transform={`rotate(-90, ${offsetX - 5}, ${offsetY + height / 2})`}>{formatNumberBR(h, 0)} cm</text>
       </svg>
 
       <div className="mt-4 grid grid-cols-2 gap-4 w-full">
         <div className="text-center">
           <p className="text-[8px] text-apple-muted uppercase">As Superior</p>
-          <p className="text-xs font-bold">{as_top.toFixed(2)} cm²</p>
+          <p className="text-xs font-bold">{formatNumberBR(as_top)} cm²</p>
         </div>
         <div className="text-center">
           <p className="text-[8px] text-apple-muted uppercase">As Inferior</p>
-          <p className="text-xs font-bold">{as_bottom.toFixed(2)} cm²</p>
+          <p className="text-xs font-bold">{formatNumberBR(as_bottom)} cm²</p>
         </div>
       </div>
     </div>

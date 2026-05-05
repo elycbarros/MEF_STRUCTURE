@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberBR } from "@/lib/utils";
 
 interface ForcePoint {
   x: number;
@@ -125,11 +125,11 @@ export default function EffortDiagrams({ memberId, data, type, unit, title, vari
         )}>
           <div>
             <p className="text-[9px] font-black uppercase opacity-50">Seção x</p>
-            <p className="font-black">{selected.source.x.toFixed(2)} m</p>
+            <p className="font-black">{formatNumberBR(selected.source.x)} m</p>
           </div>
           <div>
             <p className="text-[9px] font-black uppercase opacity-50">{type === "moment" ? "M(x)" : "V(x)"}</p>
-            <p className="font-black" style={{ color }}>{selected.val.toFixed(2)} {unit}</p>
+            <p className="font-black" style={{ color }}>{formatNumberBR(selected.val)} {unit}</p>
           </div>
         </div>
       )}
@@ -187,10 +187,10 @@ export default function EffortDiagrams({ memberId, data, type, unit, title, vari
           {data.length > 0 && (
             <>
               <text x={padding} y={axisY + (type === "moment" ? -10 : 20)} fill={isLight ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.45)"} fontSize="10" textAnchor="start">
-                {valueOf(data[0], type).toFixed(1)}
+                {formatNumberBR(valueOf(data[0], type), 1)}
               </text>
               <text x={width - padding} y={axisY + (type === "moment" ? -10 : 20)} fill={isLight ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.45)"} fontSize="10" textAnchor="end">
-                {valueOf(data[data.length - 1], type).toFixed(1)}
+                {formatNumberBR(valueOf(data[data.length - 1], type), 1)}
               </text>
             </>
           )}
@@ -216,7 +216,7 @@ export default function EffortDiagrams({ memberId, data, type, unit, title, vari
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full border-2" style={{ borderColor: color }} />
             <span className={cn("text-[10px]", isLight ? "text-slate-600" : "text-white/60")}>
-              Máx: {maxPoint.val.toFixed(2)} {unit} em x={maxPoint.source.x.toFixed(2)} m
+              Máx: {formatNumberBR(maxPoint.val)} {unit} em x={formatNumberBR(maxPoint.source.x)} m
             </span>
           </div>
         )}

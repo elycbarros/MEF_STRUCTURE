@@ -864,3 +864,232 @@ def build_vigacross_blackboard(results: dict[str, Any], input_data: dict[str, An
         },
         "steps": steps
     }
+
+
+def build_stair_blackboard(result: dict[str, Any]) -> dict[str, Any]:
+    """
+    Roteiro didatico para dimensionamento de escada de lance unico.
+    """
+    steps = []
+    L = result.get("L", 0.0)
+    q = result.get("q", 0.0)
+    Mk = result.get("Mk", 0.0)
+    As = result.get("As_cm2_m", 0.0)
+    
+    steps.append(_step(MathStep(
+        id="stair-load",
+        title="Carga total projetada",
+        formula_latex=r"q_{total} = q_{ext} + g_{pp}",
+        substitution_latex=rf"q = {_fmt(q, 2)}\,kN/m^2",
+        result_latex=rf"q = {_fmt(q, 2)}\,kN/m^2",
+        norm_ref="NBR 6120, acoes em escadas",
+        explanation="A carga considera o peso proprio da laje inclinada projetado no plano horizontal mais a sobrecarga de uso."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="stair-moment",
+        title="Momento fletor maximo",
+        formula_latex=r"M_k = \frac{q \cdot L^2}{8}",
+        substitution_latex=rf"M_k = \frac{{{_fmt(q, 2)} \cdot {_fmt(L, 2)}^2}}{{8}}",
+        result_latex=rf"M_k = {_fmt(Mk, 2)}\,kNm/m",
+        norm_ref="Modelo de viga bi-apoiada",
+        explanation="Para escadas de lance unico, o modelo simplificado de viga bi-apoiada e usualmente adotado."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="stair-reinforcement",
+        title="Armadura longitudinal",
+        formula_latex=r"A_s = \frac{M_d}{0{,}8 \cdot d \cdot f_{yd}}",
+        substitution_latex=rf"A_s = f(M_d={_fmt(Mk*1.4, 2)}\,kNm/m)",
+        result_latex=rf"A_s = {_fmt(As, 2)}\,cm^2/m",
+        norm_ref="NBR 6118, dimensionamento de lajes a flexao",
+        explanation="A armadura e calculada para resistir ao momento fletor majorado, garantindo a seguranca no ELU."
+    )))
+
+    return {
+        "mode": "MESTRE",
+        "element": "stair",
+        "title": "Roteiro didatico: Escada de Lance Unico",
+        "steps": steps
+    }
+
+
+def build_footing_blackboard(result: dict[str, Any]) -> dict[str, Any]:
+    """
+    Roteiro didatico para dimensionamento de sapata isolada rigida.
+    """
+    steps = []
+    a = result.get("a_m", 0.0)
+    b = result.get("b_m", 0.0)
+    h = result.get("h_m", 0.0)
+    sigma_adm = result.get("sigma_adm_kPa", 0.0)
+    sigma_real = result.get("sigma_real_kPa", 0.0)
+    As_a = result.get("As_a_cm2", 0.0)
+    
+    steps.append(_step(MathStep(
+        id="footing-area",
+        title="Dimensionamento da base",
+        formula_latex=r"A_{req} = \frac{N \cdot 1{,}1}{\sigma_{adm}}",
+        substitution_latex=rf"A_{{req}} = \frac{{N \cdot 1{,}1}}{{{_fmt(sigma_adm, 0)}}} \Rightarrow a \cdot b = {_fmt(a*b, 2)}\,m^2",
+        result_latex=rf"a \times b = {_fmt(a, 2)} \times {_fmt(b, 2)}\,m",
+        norm_ref="NBR 6122, pressao admissivel",
+        explanation="A area da base e definida para que a pressao transmitida ao solo nao supere sua capacidade de carga."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="footing-rigidity",
+        title="Verificacao de rigidez",
+        formula_latex=r"h \geq \frac{a - a_p}{3}",
+        substitution_latex=rf"h = {_fmt(h, 2)}\,m",
+        result_latex=r"\text{Rigida}" if h >= 0.3 else r"\text{Flexivel}",
+        norm_ref="NBR 6118, classificacao de sapatas",
+        explanation="Sapatas rigidas permitem uma distribuicao linear de pressoes no solo e dispensam verificacao detalhada de puncao se atenderem aos criterios geometricos."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="footing-reinforcement",
+        title="Armadura de flexao (Direcao a)",
+        formula_latex=r"M_d = \sigma_d \cdot b \cdot \frac{l_a^2}{2}",
+        substitution_latex=rf"A_s = {_fmt(As_a, 2)}\,cm^2",
+        result_latex=rf"A_{{s,a}} = {_fmt(As_a, 2)}\,cm^2",
+        norm_ref="Metodo das bielas / flexao simples",
+        explanation="A armadura e calculada para resistir aos momentos fletores nas secoes de referencia da sapata."
+    )))
+
+    return {
+        "mode": "MESTRE",
+        "element": "footing",
+        "title": "Roteiro didatico: Sapata Isolada Rigida",
+        "steps": steps
+    }
+
+
+def build_reservoir_blackboard(result: dict[str, Any]) -> dict[str, Any]:
+    """
+    Roteiro didatico para reservatorios e piscinas.
+    """
+    steps = []
+    summary = result.get("summary", {})
+    vol = summary.get("volume_m3", 0.0)
+    wk = summary.get("wk_max_mm", 0.0)
+    As = summary.get("As_parede_cm2_m", 0.0)
+    
+    steps.append(_step(MathStep(
+        id="res-volume",
+        title="Volume de armazenamento",
+        formula_latex=r"V = L_x \cdot L_y \cdot H",
+        substitution_latex=rf"V = {_fmt(vol, 1)}\,m^3",
+        result_latex=rf"V = {_fmt(vol, 1)}\,m^3 = {int(vol*1000)}\,L",
+        norm_ref="Geometria hidraulica",
+        explanation="Calculo da capacidade util do reservatorio baseada nas dimensoes internas informadas."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="res-crack",
+        title="Controle de fissuracao (Estanqueidade)",
+        formula_latex=r"w_k \leq w_{k,lim} = 0{,}1\,mm",
+        substitution_latex=rf"w_k = {_fmt(wk, 3)}\,mm \leq 0{,}1\,mm",
+        result_latex=r"\text{Atende}" if wk <= 0.1 else r"\text{Risco de Vazamento}",
+        norm_ref="NBR 6118, ELS-W para Classe IV",
+        explanation="Em pecas em contato com agua, o limite de fissuracao e mais rigoroso (0.1mm) para garantir a estanqueidade e durabilidade."
+    )))
+    
+    steps.append(_step(MathStep(
+        id="res-reinforcement",
+        title="Armadura das paredes (Empuxo)",
+        formula_latex=r"A_s = f(M_{hidrostatico}, w_k)",
+        substitution_latex=rf"A_s = {_fmt(As, 2)}\,cm^2/m",
+        result_latex=rf"A_s = {_fmt(As, 2)}\,cm^2/m",
+        norm_ref="Dimensionamento sob pressao de liquidos",
+        explanation="A armadura final das paredes e geralmente governada pelo controle de fissuracao, resultando em taxas superiores as de pecas comuns."
+    )))
+
+    return {
+        "mode": "MESTRE",
+        "element": "reservoir",
+        "title": "Roteiro didatico: Reservatorios e Estanqueidade",
+        "steps": steps
+    }
+
+
+def build_detailing_blackboard(det_res: dict) -> List[Dict]:
+    """Cria o roteiro didático do detalhamento executivo (Módulos 6-7)."""
+    steps = [
+        {
+            "title": "1. Geometria e Decalagem",
+            "latex": r"d = h - 4cm = " + f"{det_res['geometry']['h_cm'] - 4}cm" + r" \\ " +
+                     r"a_l = 0.5 \cdot d \cdot (\cot \theta - \cot \alpha) = " + f"{det_res['geometry']['al_cm']}cm",
+            "description": "Cálculo do deslocamento do diagrama de momentos para considerar a treliça de Mörsch."
+        },
+        {
+            "title": "2. Ancoragem Básica (lb)",
+            "latex": r"f_{bd} = 2.25 \cdot f_{ctd} \\ " +
+                     r"l_b = \frac{\phi}{4} \cdot \frac{f_{yd}}{f_{bd}} = " + f"{det_res['inf']['lb_basic']}cm",
+            "description": "Comprimento básico necessário para transferir os esforços da barra para o concreto."
+        },
+        {
+            "title": "3. Ancoragem Necessária (lb,nec)",
+            "latex": r"l_{b,nec} = \alpha \cdot l_b \cdot \frac{A_{s,calc}}{A_{s,efet}} \\ " +
+                     r"l_{b,nec} = 1.0 \cdot " + f"{det_res['inf']['lb_basic']} \cdot " + 
+                     f"\\frac{{{det_res['inf']['area_calc']}}}{{{det_res['inf']['area_efet']}}} = {det_res['inf']['lb_nec']}cm",
+            "description": "Ajuste do comprimento de ancoragem pela taxa de armadura real utilizada."
+        },
+        {
+            "title": "4. Resumo de Armaduras",
+            "latex": r"\text{Inferior: } " + det_res['inf']['spec'] + r" \\ " +
+                     r"\text{Superior: } " + det_res['sup']['spec'] + r" \\ " +
+                     r"\text{Estribos: } " + det_res['stirrups'],
+            "description": "Especificação final das bitolas e quantidades para execução."
+        }
+    ]
+    return steps
+
+
+def build_spt_blackboard(spt_res: dict) -> List[Dict]:
+    """Cria o roteiro didático de interpretação de sondagem (Módulo 30-B)."""
+    steps = [
+        {
+            "title": "1. Identificação da Camada Competente",
+            "latex": r"N_{SPT, projeto} = " + f"{spt_res['nspt_design']} \\ " +
+                     r"\text{Profundidade: } " + f"{spt_res['depth_m']}m",
+            "description": "Busca-se a primeira camada com N_SPT >= 8 para assentamento de fundações superficiais."
+        },
+        {
+            "title": "2. Estimativa da Tensão Admissível (Teixeira)",
+            "latex": r"\sigma_{adm} = \frac{N_{SPT}}{5} \text{ (kgf/cm}^2) \\ " +
+                     r"\sigma_{adm} = \frac{" + f"{spt_res['nspt_design']}" + r"}{5} = " + 
+                     f"{spt_res['sigma_adm_kPa']/100.0} \text{ kgf/cm}^2",
+            "description": "Correlação empírica clássica para solos brasileiros."
+        },
+        {
+            "title": "3. Parâmetro de Projeto (SI)",
+            "latex": r"\sigma_{adm} = " + f"{spt_res['sigma_adm_kPa']} \text{ kPa}",
+            "description": "Conversão para quiloPascal para uso nos solvers de sapata e radier."
+        }
+    ]
+    return steps
+
+
+def build_stability_blackboard(wind_res: dict) -> List[Dict]:
+    """Cria o roteiro didático de Estabilidade Global e Vento (Módulos 20+)."""
+    steps = [
+        {
+            "title": "1. Velocidade Característica (Vk)",
+            "latex": r"V_k = V_0 \cdot S_1 \cdot S_2 \cdot S_3 \\ " +
+                     r"V_k = 30 \cdot 1.0 \cdot 0.95 \cdot 1.0 = 28.5 \text{ m/s}",
+            "description": "Cálculo da velocidade do vento ajustada pela rugosidade do terreno e altura da edificação."
+        },
+        {
+            "title": "2. Pressão Dinâmica (q)",
+            "latex": r"q = 0.613 \cdot V_k^2 \\ " +
+                     r"q = 0.613 \cdot 28.5^2 = 498 \text{ N/m}^2",
+            "description": "Transformação da energia cinética do vento em pressão estática sobre as faces do edifício."
+        },
+        {
+            "title": "3. Estabilidade Global (Gamma-Z)",
+            "latex": r"\gamma_z \approx " + f"{wind_res['gamma_z']} \\ " +
+                     r"\text{Status: } " + ("Estável" if wind_res['gamma_z'] <= 1.1 else "Sensível a 2ª Ordem"),
+            "description": "O coeficiente Gamma-Z indica se os efeitos de segunda ordem globais podem ser desprezados (< 1.1)."
+        }
+    ]
+    return steps

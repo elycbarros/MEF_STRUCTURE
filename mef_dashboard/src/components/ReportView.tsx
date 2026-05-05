@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Download, Printer, FileText, CheckCircle2, AlertTriangle, XCircle, Info, ExternalLink, TrendingUp, Wind } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { formatNumberBR, cn } from "@/lib/utils";
 
 import { motion } from "framer-motion";
 import { ExecutiveDecisionCard } from "./dashboard/ExecutiveDecisionCard";
@@ -165,17 +166,17 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Parâmetro γz</p>
-                        <p className="text-3xl font-black text-apple-text">{stabilityResults.gamma_z?.toFixed(3)}</p>
+                        <p className="text-3xl font-black text-apple-text">{formatNumberBR(stabilityResults.gamma_z, 3)}</p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Limite normativo: 1.10 (1ª ordem) / 1.30 (estabilidade)</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Amplificação P-Δ</p>
-                        <p className="text-3xl font-black text-apple-text">{stabilityResults.p_delta_factor?.toFixed(2)}</p>
+                        <p className="text-3xl font-black text-apple-text">{formatNumberBR(stabilityResults.p_delta_factor)}</p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Fator de majoração de esforços de 2ª ordem</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Aceleração de Pico</p>
-                        <p className="text-3xl font-black text-apple-text">{(stabilityResults.peak_acceleration_ms2 * 100).toFixed(2)} <span className="text-sm font-bold text-apple-muted">cm/s²</span></p>
+                        <p className="text-3xl font-black text-apple-text">{formatNumberBR(stabilityResults.peak_acceleration_ms2 * 100)} <span className="text-sm font-bold text-apple-muted">cm/s²</span></p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Status: {stabilityResults.comfort_status}</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
@@ -222,17 +223,17 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Coef. Arrasto Cf</p>
-                        <p className="text-2xl font-black text-apple-text">{windResults.geometry?.cf?.toFixed(2)}</p>
+                        <p className="text-2xl font-black text-apple-text">{formatNumberBR(windResults.geometry?.cf)}</p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Planta Retangular</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Força Total</p>
-                        <p className="text-2xl font-black text-apple-text">{windResults.summary?.total_force_kN?.toFixed(1)} <span className="text-sm font-bold text-apple-muted">kN</span></p>
+                        <p className="text-2xl font-black text-apple-text">{formatNumberBR(windResults.summary?.total_force_kN, 1)} <span className="text-sm font-bold text-apple-muted">kN</span></p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Resultante de base</p>
                      </div>
                      <div className="p-5 rounded-2xl bg-apple-bg border border-black/5">
                         <p className="text-[10px] font-black uppercase tracking-widest text-apple-muted mb-1">Momento Base</p>
-                        <p className="text-2xl font-black text-apple-text">{windResults.summary?.base_moment_kNm?.toFixed(0)} <span className="text-sm font-bold text-apple-muted">kNm</span></p>
+                        <p className="text-2xl font-black text-apple-text">{formatNumberBR(windResults.summary?.base_moment_kNm, 0)} <span className="text-sm font-bold text-apple-muted">kNm</span></p>
                         <p className="text-[11px] font-bold mt-2 text-apple-muted">Tombamento total</p>
                      </div>
                   </div>
@@ -250,10 +251,10 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <tbody className="divide-y divide-black/5">
                            {windResults.profile?.filter((_: any, i: number) => i % (Math.ceil(windResults.profile.length / 10)) === 0 || i === windResults.profile.length - 1).map((level: any, i: number) => (
                               <tr key={i} className="hover:bg-apple-blue/5 transition-colors">
-                                 <td className="px-6 py-3 font-black text-apple-text">{level.z.toFixed(1)}</td>
-                                 <td className="px-6 py-3 font-bold text-apple-muted">{level.vk_m_s.toFixed(2)}</td>
-                                 <td className="px-6 py-3 font-bold text-apple-muted">{level.q_Pa.toFixed(0)}</td>
-                                 <td className="px-6 py-3 text-right font-black text-blue-600">{level.f_total_kN.toFixed(2)}</td>
+                                 <td className="px-6 py-3 font-black text-apple-text">{formatNumberBR(level.z, 1)}</td>
+                                 <td className="px-6 py-3 font-bold text-apple-muted">{formatNumberBR(level.vk_m_s)}</td>
+                                 <td className="px-6 py-3 font-bold text-apple-muted">{formatNumberBR(level.q_Pa, 0)}</td>
+                                 <td className="px-6 py-3 text-right font-black text-blue-600">{formatNumberBR(level.f_total_kN)}</td>
                               </tr>
                            ))}
                         </tbody>
@@ -318,9 +319,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   <h2 className="text-lg font-black text-apple-text">DADOS DE ENTRADA</h2>
                </div>
                <div className="grid grid-cols-3 gap-6">
-                  <ReportMetric label="Geometria" value={`${results.master?.Lx}m x ${results.master?.Ly}m`} sub={`Área: ${results.master?.area_m2?.toFixed(1)} m²`} />
-                  <ReportMetric label="Espessura" value={`${results.master?.h} m`} sub={`Vol: ${results.master?.volume_m3?.toFixed(1)} m³`} />
-                  {!isLaje && <ReportMetric label="Solo (kv)" value={`${(results.master?.kv / 1000).toFixed(0)}`} unit="kN/m³" />}
+                  <ReportMetric label="Geometria" value={`${results.master?.Lx}m x ${results.master?.Ly}m`} sub={`Área: ${formatNumberBR(results.master?.area_m2, 1)} m²`} />
+                  <ReportMetric label="Espessura" value={`${results.master?.h} m`} sub={`Vol: ${formatNumberBR(results.master?.volume_m3, 1)} m³`} />
+                  {!isLaje && <ReportMetric label="Solo (kv)" value={`${formatNumberBR(results.master?.kv / 1000, 0)}`} unit="kN/m³" />}
                   {isLaje && <ReportMetric label="Sistema" value="Laje Elevada" sub="Apoios Discretos" />}
                </div>
             </section>
@@ -334,25 +335,25 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                <div className="grid grid-cols-4 gap-4">
                   <ReportMetric
                      label="Concreto"
-                     value={flexure.metrics?.concrete_volume_m3?.toFixed(1)}
+                     value={formatNumberBR(flexure.metrics?.concrete_volume_m3, 1)}
                      unit="m³"
                      sub="Volume total"
                   />
                   <ReportMetric
                      label="Aço Total"
-                     value={flexure.metrics?.total_steel_kg?.toFixed(0)}
+                     value={formatNumberBR(flexure.metrics?.total_steel_kg, 0)}
                      unit="kg"
                      sub="+10% perdas"
                   />
                   <ReportMetric
                      label="Taxa/Volume"
-                     value={flexure.metrics?.steel_density_kg_m3?.toFixed(1)}
+                     value={formatNumberBR(flexure.metrics?.steel_density_kg_m3, 1)}
                      unit="kg/m³"
                      sub="Média global"
                   />
                   <ReportMetric
                      label="Taxa/Área"
-                     value={flexure.metrics?.steel_density_kg_m2?.toFixed(1)}
+                     value={formatNumberBR(flexure.metrics?.steel_density_kg_m2, 1)}
                      unit="kg/m²"
                      sub="Média global"
                   />
@@ -380,17 +381,17 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                               <tr key={p.id} className="hover:bg-apple-blue/5 transition-colors">
                                  <td className="px-4 py-3 font-bold text-apple-text">{p.id}</td>
                                  <td className="px-4 py-3 text-center text-apple-muted font-mono tracking-tighter">
-                                    {p.x.toFixed(2)}m , {p.y.toFixed(2)}m
+                                    {formatNumberBR(p.x)}m , {formatNumberBR(p.y)}m
                                  </td>
                                  <td className="px-4 py-3 text-right font-mono font-bold text-apple-blue">
-                                    {p.reaction_kN.toFixed(2)}
+                                    {formatNumberBR(p.reaction_kN)}
                                  </td>
                               </tr>
                            ))}
                            <tr className="bg-apple-bg/30 font-black border-t-2 border-black/5">
                               <td colSpan={2} className="px-4 py-3 text-right uppercase text-[9px] tracking-widest">Somatório das Reações</td>
                               <td className="px-4 py-3 text-right font-mono text-apple-text text-sm">
-                                 {results.memorial?.acoes_e_combinacoes?.carga_pilares_kN?.toFixed(2)} kN
+                                 {formatNumberBR(results.memorial?.acoes_e_combinacoes?.carga_pilares_kN)} kN
                               </td>
                            </tr>
                         </tbody>
@@ -423,13 +424,13 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <tbody className="divide-y divide-black/5">
                            <tr>
                               <td className="px-4 py-3 font-medium">Pressão Máxima</td>
-                              <td className="px-4 py-3">{geotech.pressao_max_modelo_kPa?.toFixed(2)} kPa</td>
-                              <td className="px-4 py-3">{geotech.tensao_admissivel_kPa?.toFixed(2)} kPa</td>
+                              <td className="px-4 py-3">{formatNumberBR(geotech.pressao_max_modelo_kPa)} kPa</td>
+                              <td className="px-4 py-3">{formatNumberBR(geotech.tensao_admissivel_kPa)} kPa</td>
                               <td className="px-4 py-3"><StatusLabel ok={geotech.atende_pressao_max_modelo} /></td>
                            </tr>
                            <tr>
                               <td className="px-4 py-3 font-medium">Recalque Máximo</td>
-                              <td className="px-4 py-3">{service.w_max_mm?.toFixed(2)} mm</td>
+                              <td className="px-4 py-3">{formatNumberBR(service.w_max_mm)} mm</td>
                               <td className="px-4 py-3">25.00 mm</td>
                               <td className="px-4 py-3"><StatusLabel ok={service.w_max_mm < 25} /></td>
                            </tr>
@@ -451,11 +452,11 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                      <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                            <span className="font-medium">Asx:</span>
-                           <span className="font-bold text-apple-blue">{flexure.Asx_top_adot_max_cm2_m?.toFixed(2)} cm²/m</span>
+                           <span className="font-bold text-apple-blue">{formatNumberBR(flexure.Asx_top_adot_max_cm2_m)} cm²/m</span>
                         </div>
                         <div className="flex justify-between text-sm">
                            <span className="font-medium">Asy:</span>
-                           <span className="font-bold text-apple-blue">{flexure.Asy_top_adot_max_cm2_m?.toFixed(2)} cm²/m</span>
+                           <span className="font-bold text-apple-blue">{formatNumberBR(flexure.Asy_top_adot_max_cm2_m)} cm²/m</span>
                         </div>
                         <p className="text-[10px] text-apple-muted mt-2 italic">* Sugestão: {flexure.sugestao_x_sup}</p>
                      </div>
@@ -465,11 +466,11 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                      <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                            <span className="font-medium">Asx:</span>
-                           <span className="font-bold text-apple-blue">{flexure.Asx_bottom_adot_max_cm2_m?.toFixed(2)} cm²/m</span>
+                           <span className="font-bold text-apple-blue">{formatNumberBR(flexure.Asx_bottom_adot_max_cm2_m)} cm²/m</span>
                         </div>
                         <div className="flex justify-between text-sm">
                            <span className="font-medium">Asy:</span>
-                           <span className="font-bold text-apple-blue">{flexure.Asy_bottom_adot_max_cm2_m?.toFixed(2)} cm²/m</span>
+                           <span className="font-bold text-apple-blue">{formatNumberBR(flexure.Asy_bottom_adot_max_cm2_m)} cm²/m</span>
                         </div>
                         <p className="text-[10px] text-apple-muted mt-2 italic">* Sugestão: {flexure.sugestao_x_inf}</p>
                      </div>
@@ -502,9 +503,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <tbody className="divide-y divide-black/5">
                            <tr>
                               <td className="px-4 py-3 font-medium">{punching.critical_local || 'N/D'}</td>
-                              <td className="px-4 py-3">{punching.tau_sd?.toFixed(2)} MPa</td>
-                              <td className="px-4 py-3">{punching.tau_rd1?.toFixed(2)} MPa</td>
-                              <td className="px-4 py-3 font-bold">{punching.ratio_max?.toFixed(2)}</td>
+                              <td className="px-4 py-3">{formatNumberBR(punching.tau_sd)} MPa</td>
+                              <td className="px-4 py-3">{formatNumberBR(punching.tau_rd1)} MPa</td>
+                              <td className="px-4 py-3 font-bold">{formatNumberBR(punching.ratio_max)}</td>
                               <td className="px-4 py-3"><StatusLabel ok={punching.atende} /></td>
                            </tr>
                         </tbody>
@@ -526,15 +527,15 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <div className="space-y-2 text-sm">
                            <div className="flex justify-between border-b border-apple-bg pb-1">
                               <span>MEF (Winkler):</span>
-                              <span className="font-bold">{geotech.pressao_max_modelo_kPa?.toFixed(2)}</span>
+                              <span className="font-bold">{formatNumberBR(geotech.pressao_max_modelo_kPa)}</span>
                            </div>
                            <div className="flex justify-between border-b border-apple-bg pb-1">
                               <span>Analítico (Rígido):</span>
-                              <span className="font-bold">{memorial.comparativo_metodologias?.analytical?.q_max_kPa?.toFixed(2)}</span>
+                              <span className="font-bold">{formatNumberBR(memorial.comparativo_metodologias?.analytical?.q_max_kPa)}</span>
                            </div>
                            <div className="flex justify-between text-apple-muted text-[11px]">
                               <span>Divergência:</span>
-                              <span>{Math.abs((memorial.comparativo_metodologias?.divergence_metrics?.q_max_diff_pct || 0) * 100).toFixed(1)}%</span>
+                              <span>{formatNumberBR(Math.abs((memorial.comparativo_metodologias?.divergence_metrics?.q_max_diff_pct || 0) * 100), 1)}%</span>
                            </div>
                         </div>
                      </div>
@@ -707,9 +708,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                  <h4 className="text-[10px] font-black text-apple-muted uppercase mb-4">Passo 01: Geometria e Matriz do Modelo (MEF)</h4>
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm font-serif italic">
                                     <div className="space-y-2">
-                                       <p>L<sub>x</sub> = <span className="font-bold text-apple-text">{L_x.toFixed(2)} m</span></p>
-                                       <p>L<sub>y</sub> = <span className="font-bold text-apple-text">{L_y.toFixed(2)} m</span></p>
-                                       <p>Área (A) = <span className="font-bold text-apple-text">{area.toFixed(2)} m²</span></p>
+                                       <p>L<sub>x</sub> = <span className="font-bold text-apple-text">{formatNumberBR(L_x)} m</span></p>
+                                       <p>L<sub>y</sub> = <span className="font-bold text-apple-text">{formatNumberBR(L_y)} m</span></p>
+                                       <p>Área (A) = <span className="font-bold text-apple-text">{formatNumberBR(area)} m²</span></p>
                                     </div>
                                     <div className="space-y-2">
                                        <p>Malha = <span className="font-bold text-apple-text">{n_x} × {n_y} nós</span> ({nodes} nós totais)</p>
@@ -743,16 +744,16 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                  </h4>
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm font-serif italic mb-6">
                                     <div className="space-y-2">
-                                       <p>f<sub>ck</sub> = <span className="font-bold text-apple-text">{fck.toFixed(0)} MPa</span></p>
-                                       <p>E<sub>cs</sub> = <span className="font-bold text-apple-text">{E_GPa.toFixed(1)} GPa</span></p>
-                                       <p>ν = <span className="font-bold text-apple-text">{nu.toFixed(2)}</span></p>
+                                       <p>f<sub>ck</sub> = <span className="font-bold text-apple-text">{formatNumberBR(fck, 0)} MPa</span></p>
+                                       <p>E<sub>cs</sub> = <span className="font-bold text-apple-text">{formatNumberBR(E_GPa, 1)} GPa</span></p>
+                                       <p>ν = <span className="font-bold text-apple-text">{formatNumberBR(nu)}</span></p>
                                     </div>
                                     <div className="space-y-2">
-                                       <p>Espessura (h) = <span className="font-bold text-apple-text">{(h_m * 100).toFixed(1)} cm</span></p>
+                                       <p>Espessura (h) = <span className="font-bold text-apple-text">{formatNumberBR(h_m * 100, 1)} cm</span></p>
                                        {!isLaje && (
                                           <>
-                                             <p>Módulo de Mola (k<sub>v</sub>) = <span className="font-bold text-apple-text">{kv_MN_m3.toFixed(1)} MN/m³</span></p>
-                                             <p>Tensão Adm. (σ<sub>adm</sub>) = <span className="font-bold text-apple-text">{sigma_adm.toFixed(1)} kPa</span></p>
+                                             <p>Módulo de Mola (k<sub>v</sub>) = <span className="font-bold text-apple-text">{formatNumberBR(kv_MN_m3, 1)} MN/m³</span></p>
+                                             <p>Tensão Adm. (σ<sub>adm</sub>) = <span className="font-bold text-apple-text">{formatNumberBR(sigma_adm, 1)} kPa</span></p>
                                           </>
                                        )}
                                     </div>
@@ -763,7 +764,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                        <span className="border-b border-black px-2">E<sub>cs</sub> · h³</span>
                                        <span className="px-2">12 · (1 − ν²)</span>
                                     </div>
-                                    <span> = <span className="font-bold text-apple-blue">{D_MNm.toFixed(2)} MN·m</span></span>
+                                    <span> = <span className="font-bold text-apple-blue">{formatNumberBR(D_MNm)} MN·m</span></span>
                                  </div>
                               </div>
                            );
@@ -782,9 +783,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                               <div className="p-5 rounded-apple-inner bg-apple-bg/5 border border-black/5">
                                  <h4 className="text-[10px] font-black text-apple-muted uppercase mb-4">Passo 03: Carregamentos e Equilíbrio Global (Solver)</h4>
                                  <div className="space-y-4 font-serif italic text-sm">
-                                    <p>Carga Distribuída (q) = <span className="font-bold">{q_kPa.toFixed(2)} kPa</span></p>
-                                    <p>Σ Cargas Concentradas (Pilares) = <span className="font-bold">{P_kN.toFixed(2)} kN</span></p>
-                                    <p>Carga Total Vertical (F<sub>ext</sub>) = <span className="font-bold">{F_total.toFixed(2)} kN</span></p>
+                                    <p>Carga Distribuída (q) = <span className="font-bold">{formatNumberBR(q_kPa)} kPa</span></p>
+                                    <p>Σ Cargas Concentradas (Pilares) = <span className="font-bold">{formatNumberBR(P_kN)} kN</span></p>
+                                    <p>Carga Total Vertical (F<sub>ext</sub>) = <span className="font-bold">{formatNumberBR(F_total)} kN</span></p>
 
                                     <div className="bg-white/50 p-3 rounded mt-4 text-xs">
                                        <p className="font-sans not-italic font-bold mb-1">Resolução do Sistema: [K] {`{U}`} = {`{F}`}</p>
@@ -811,14 +812,14 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                  <div className="space-y-4 font-serif italic text-sm">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                        <div className="space-y-3">
-                                          <p>σ<sub>méd</sub> = Σ F<sub>ext</sub> / A = <span className="font-bold">{qmed?.toFixed(2) ?? 'N/D'} kPa</span></p>
-                                          <p>σ<sub>máx</sub> = max(k<sub>v</sub> · w) = <span className="font-bold">{qmax?.toFixed(2) ?? 'N/D'} kPa</span></p>
+                                          <p>σ<sub>méd</sub> = Σ F<sub>ext</sub> / A = <span className="font-bold">{formatNumberBR(qmed) ?? 'N/D'} kPa</span></p>
+                                          <p>σ<sub>máx</sub> = max(k<sub>v</sub> · w) = <span className="font-bold">{formatNumberBR(qmax) ?? 'N/D'} kPa</span></p>
                                        </div>
                                        <div className="space-y-3">
-                                          <p>σ<sub>adm</sub> = <span className="font-bold">{sigma?.toFixed(2) ?? 'N/D'} kPa</span></p>
+                                          <p>σ<sub>adm</sub> = <span className="font-bold">{formatNumberBR(sigma) ?? 'N/D'} kPa</span></p>
                                           <div className="flex items-center gap-2 pt-2 border-t border-black/10">
                                              <span className="not-italic font-sans font-black text-[10px]">VERIFICAÇÃO:</span>
-                                             <span className="font-bold text-xs">{qmax?.toFixed(2)} ≤ {sigma?.toFixed(2)}</span>
+                                             <span className="font-bold text-xs">{formatNumberBR(qmax)} ≤ {formatNumberBR(sigma)}</span>
                                              <span className={`ml-2 px-2 py-0.5 rounded text-[9px] font-black ${geotech.atende_pressao_max_modelo ? 'bg-apple-green/10 text-apple-green' : 'bg-apple-red/10 text-apple-red'}`}>
                                                 {geotech.atende_pressao_max_modelo ? 'OK' : 'FALHA'}
                                              </span>
@@ -911,11 +912,11 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                     <div className="bg-white/50 p-4 rounded mt-4 text-[11px] not-italic font-sans space-y-2">
                                        <div className="flex justify-between items-center border-b border-black/10 pb-2">
                                           <span>A<sub>s,mínima</sub> (Normativa por face):</span>
-                                          <strong>{as_min?.toFixed(2) ?? 'N/D'} cm²/m</strong>
+                                          <strong>{formatNumberBR(as_min)} cm²/m</strong>
                                        </div>
                                        <div className="flex justify-between items-center pt-1">
                                           <span>A<sub>s,adotada</sub> (Máxima na seção crítica):</span>
-                                          <strong className="text-apple-blue text-sm">{as_adopted?.toFixed(2) ?? 'N/D'} cm²/m</strong>
+                                          <strong className="text-apple-blue text-sm">{formatNumberBR(as_adopted)} cm²/m</strong>
                                        </div>
                                     </div>
                                  </div>
@@ -928,15 +929,15 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                            <div className="p-5 rounded-apple-inner bg-apple-bg/5 border border-black/5">
                               <h4 className="text-[10px] font-black text-apple-muted uppercase mb-4">Passo 07: Verificação de Punção no Pilar Crítico (ELU)</h4>
                               <div className="space-y-4 font-serif italic text-sm">
-                                 <p>F<sub>sd</sub> = F<sub>k</sub> · γ<sub>f</sub> = <span className="font-bold">{punching.Ved_kN?.toFixed(1) ?? 'N/D'} kN</span></p>
-                                 <p>Perímetro (u₁) = <span className="font-bold">{punching.u?.toFixed(2) ?? 'N/D'} m</span></p>
+                                 <p>F<sub>sd</sub> = F<sub>k</sub> · γ<sub>f</sub> = <span className="font-bold">{formatNumberBR(punching.Ved_kN, 1) ?? 'N/D'} kN</span></p>
+                                 <p>Perímetro (u₁) = <span className="font-bold">{formatNumberBR(punching.u) ?? 'N/D'} m</span></p>
 
-                                 <p className="pt-2">τ<sub>sd</sub> = (F<sub>sd</sub> · β) / (u₁ · d) = <span className="font-bold">{punching.tau_sd?.toFixed(3) ?? 'N/D'} MPa</span></p>
-                                 <p>τ<sub>Rd1</sub> = 0.12 · k · (100 · ρ · f<sub>ck</sub>)<sup>1/3</sup> = <span className="font-bold">{punching.tau_rd1?.toFixed(3) ?? 'N/D'} MPa</span></p>
+                                 <p className="pt-2">τ<sub>sd</sub> = (F<sub>sd</sub> · β) / (u₁ · d) = <span className="font-bold">{formatNumberBR(punching.tau_sd, 3) ?? 'N/D'} MPa</span></p>
+                                 <p>τ<sub>Rd1</sub> = 0.12 · k · (100 · ρ · f<sub>ck</sub>)<sup>1/3</sup> = <span className="font-bold">{formatNumberBR(punching.tau_rd1, 3) ?? 'N/D'} MPa</span></p>
 
                                  <div className="flex items-center gap-2 pt-4 border-t border-black/10">
                                     <span className="not-italic font-sans font-black text-[10px]">VERIFICAÇÃO CORTANTE:</span>
-                                    <span className="font-bold text-xs">{punching.tau_sd?.toFixed(3)} ≤ {punching.tau_rd1?.toFixed(3)}</span>
+                                    <span className="font-bold text-xs">{formatNumberBR(punching.tau_sd, 3)} ≤ {formatNumberBR(punching.tau_rd1, 3)}</span>
                                     <span className={`ml-4 px-2 py-0.5 rounded text-[9px] font-black ${punching.atende ? 'bg-apple-green/10 text-apple-green' : 'bg-apple-red/10 text-apple-red'}`}>
                                        {punching.atende ? 'OK' : 'FALHA (REQUER ARMADURA)'}
                                     </span>
@@ -961,17 +962,17 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                     <div className="space-y-4">
                                        <h5 className="text-[10px] font-sans font-bold not-italic border-b border-black/10 pb-1">Recalques e Deformações</h5>
                                        <div className="space-y-2">
-                                          <p>w<sub>máx</sub> = <span className="font-bold text-apple-text">{wmax?.toFixed(2) ?? 'N/D'} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 50mm)</span></p>
-                                          <p>Δw (Diferencial) = <span className="font-bold text-apple-text">{wdiff?.toFixed(2) ?? 'N/D'} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 25mm)</span></p>
+                                          <p>w<sub>máx</sub> = <span className="font-bold text-apple-text">{formatNumberBR(wmax)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 50mm)</span></p>
+                                          <p>Δw (Diferencial) = <span className="font-bold text-apple-text">{formatNumberBR(wdiff)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 25mm)</span></p>
                                        </div>
                                     </div>
 
                                     <div className="space-y-4">
                                        <h5 className="text-[10px] font-sans font-bold not-italic border-b border-black/10 pb-1">Fissuração (w<sub>k</sub>)</h5>
                                        <div className="space-y-2">
-                                          <p>w<sub>k,x</sub> = <span className="font-bold text-apple-text">{wk_x?.toFixed(2) ?? 'N/D'} mm</span></p>
-                                          <p>w<sub>k,y</sub> = <span className="font-bold text-apple-text">{wk_y?.toFixed(2) ?? 'N/D'} mm</span></p>
-                                          <p>w<sub>limite</sub> = <span className="font-bold text-apple-text">{wk_limit?.toFixed(2) ?? 'N/D'} mm</span></p>
+                                          <p>w<sub>k,x</sub> = <span className="font-bold text-apple-text">{formatNumberBR(wk_x)} mm</span></p>
+                                          <p>w<sub>k,y</sub> = <span className="font-bold text-apple-text">{formatNumberBR(wk_y)} mm</span></p>
+                                          <p>w<sub>limite</sub> = <span className="font-bold text-apple-text">{formatNumberBR(wk_limit)} mm</span></p>
                                           <div className="pt-1">
                                              <span className={`px-2 py-0.5 rounded text-[9px] font-sans font-black ${wk_ok ? 'bg-apple-green/10 text-apple-green' : 'bg-apple-red/10 text-apple-red'}`}>
                                                 {wk_ok ? 'FISSURAÇÃO OK' : 'REVISAR ARMADURA/ESPESSURA'}
@@ -1055,10 +1056,10 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                     <p className="text-[10px] font-black text-apple-muted uppercase mb-2">{zone.replace(/_/g, ' ')}</p>
                                     <div className="space-y-1 text-xs">
                                        <div className="flex justify-between">
-                                          <span>Asx:</span><span className="font-bold text-apple-blue">{data.Asx_cm2_m?.toFixed(2)} cm²/m</span>
+                                          <span>Asx:</span><span className="font-bold text-apple-blue">{formatNumberBR(data.Asx_cm2_m)} cm²/m</span>
                                        </div>
                                        <div className="flex justify-between">
-                                          <span>Asy:</span><span className="font-bold text-apple-blue">{data.Asy_cm2_m?.toFixed(2)} cm²/m</span>
+                                          <span>Asy:</span><span className="font-bold text-apple-blue">{formatNumberBR(data.Asy_cm2_m)} cm²/m</span>
                                        </div>
                                        <p className="text-[10px] text-apple-muted mt-1 italic">{data.sugestao_x}</p>
                                     </div>
@@ -1107,7 +1108,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <span className="bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded">13</span>
                         <h2 className="text-lg font-black text-apple-text tracking-tight uppercase">Checklist de Concreto Massa</h2>
                         <span className="ml-2 text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200">
-                           h = {results.thermal_checklist.h_adopted_m?.toFixed(2)} m ≥ {results.thermal_checklist.threshold_m} m
+                           h = {formatNumberBR(results.thermal_checklist.h_adopted_m)} m ≥ {formatNumberBR(results.thermal_checklist.threshold_m)} m
                         </span>
                      </div>
                      <p className="text-[11px] text-apple-muted mb-4">{results.thermal_checklist.nota}</p>
@@ -1163,9 +1164,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                        <tr key={p.id} className="hover:bg-indigo-50/30 transition-colors">
                                           <td className="px-4 py-3 font-bold text-apple-text">{p.id}</td>
                                           <td className="px-4 py-3 font-mono">{(p.b * 100).toFixed(0)}x{(p.h * 100).toFixed(0)}</td>
-                                          <td className="px-4 py-3 text-right font-mono text-apple-blue">{p.Nd?.toFixed(1)}</td>
-                                          <td className="px-4 py-3 text-right font-bold text-indigo-600">{p.As?.toFixed(2)}</td>
-                                          <td className="px-4 py-3 text-right font-mono text-apple-muted">{((p.As / (p.b * p.h * 10000)) * 100).toFixed(2)}%</td>
+                                          <td className="px-4 py-3 text-right font-mono text-apple-blue">{formatNumberBR(p.Nd, 1)}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatNumberBR(p.As)}</td>
+                                          <td className="px-4 py-3 text-right font-mono text-apple-muted">{formatNumberBR(((p.As / (p.b * p.h * 10000)) * 100))}%</td>
                                        </tr>
                                     ))}
                                  </tbody>
@@ -1195,9 +1196,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                        <tr key={b.id} className="hover:bg-indigo-50/30 transition-colors">
                                           <td className="px-4 py-3 font-bold text-apple-text">{b.id}</td>
                                           <td className="px-4 py-3 font-mono">{(b.b * 100).toFixed(0)}x{(b.h * 100).toFixed(0)}</td>
-                                          <td className="px-4 py-3 text-right font-mono text-apple-blue">{b.max_moment?.toFixed(1)}</td>
-                                          <td className="px-4 py-3 text-right font-bold text-indigo-600">{b.As_bottom?.toFixed(2)}</td>
-                                          <td className="px-4 py-3 text-right font-bold text-apple-muted">{b.As_top?.toFixed(2)}</td>
+                                          <td className="px-4 py-3 text-right font-mono text-apple-blue">{formatNumberBR(b.max_moment, 1)}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-indigo-600">{formatNumberBR(b.As_bottom)}</td>
+                                          <td className="px-4 py-3 text-right font-bold text-apple-muted">{formatNumberBR(b.As_top)}</td>
                                        </tr>
                                     ))}
                                  </tbody>

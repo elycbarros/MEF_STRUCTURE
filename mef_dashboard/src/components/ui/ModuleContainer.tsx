@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberBR } from "@/lib/utils";
 import { ShieldCheck, Info, HelpCircle, Download, ChevronRight } from "lucide-react";
 
 interface ModuleContainerProps {
@@ -222,7 +222,7 @@ export function ModuleContainer({
                     <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
                       <div>
                         <p className="text-[8px] font-black uppercase opacity-60">Redução Estimada</p>
-                        <p className="text-xl font-black text-emerald-400">-{optimizationSuggestion.weightReduction.toFixed(1)}%</p>
+                        <p className="text-xl font-black text-emerald-400">-{formatNumberBR(optimizationSuggestion.weightReduction, 1)}%</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[8px] font-black uppercase opacity-60">Seção Ideal</p>

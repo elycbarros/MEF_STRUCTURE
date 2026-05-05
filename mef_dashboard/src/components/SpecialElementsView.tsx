@@ -9,7 +9,7 @@ import { ElegantTooltip } from "./ui/ElegantTooltip";
 
 interface SpecialElementsViewProps {
   apiBaseUrl: string;
-  type?: "viga" | "pilar" | "escada" | "reservatorio";
+  type?: "viga" | "pilar" | "escada" | "reservatorio" | "footing" | "spt" | "stability";
 }
 
 function normalizeBeamDiagram(diagrams: any): Array<{ x: number; moment: number; shear: number }> {
@@ -26,8 +26,8 @@ function normalizeBeamDiagram(diagrams: any): Array<{ x: number; moment: number;
 }
 
 export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewProps) {
-  const initialTab = type === "viga" ? "beam" : type === "pilar" ? "column" : type === "reservatorio" ? "reservoir" : "stair";
-  const [activeTab, setActiveTab] = useState<"stair" | "reservoir" | "beam" | "column">(initialTab);
+  const initialTab = type === "viga" ? "beam" : type === "pilar" ? "column" : type === "reservatorio" ? "reservoir" : type === "footing" ? "footing" : type === "spt" ? "spt" : type === "stability" ? "stability" : "stair";
+  const [activeTab, setActiveTab] = useState<"stair" | "reservoir" | "beam" | "column" | "footing" | "spt" | "stability">(initialTab);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [useClassical, setUseClassical] = useState(true);
@@ -36,7 +36,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
   // Sync with prop if it changes
   React.useEffect(() => {
     if (type) {
-      setActiveTab(type === "viga" ? "beam" : type === "pilar" ? "column" : type === "reservatorio" ? "reservoir" : "stair");
+      setActiveTab(type === "viga" ? "beam" : type === "pilar" ? "column" : type === "reservatorio" ? "reservoir" : type === "footing" ? "footing" : "stair");
     }
   }, [type]);
 
@@ -85,6 +85,13 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
     rightK: 10000,
   });
   const [colParams, setColParams] = useState({ b: 0.40, h: 0.40, Nd: 1200, Mxd: 40, Myd: 15, L_free: 3.0, fck: 25, caa: 2 });
+  const [footingParams, setFootingParams] = useState({ Nd: 800.0, sigma_adm: 250.0, ap: 0.20, bp: 0.40, fck: 25 });
+  const [sptData, setSptData] = useState([
+    { depth_m: 1.0, nspt: 2, soil_type: "Ateu" },
+    { depth_m: 2.0, nspt: 5, soil_type: "Silte Argiloso" },
+    { depth_m: 3.0, nspt: 12, soil_type: "Areia Compacta" },
+  ]);
+  const [windParams, setWindParams] = useState({ v0: 30.0, height: 30.0, width_x: 12.0 });
 
   const calculate = async () => {
     setLoading(true);
@@ -93,6 +100,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
     else if (activeTab === "reservoir") params = resParams;
     else if (activeTab === "beam") params = beamParams;
     else if (activeTab === "column") params = colParams;
+    else if (activeTab === "footing") params = footingParams;
 
     try {
       const isColumn = activeTab === "column";
@@ -139,15 +147,26 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
             }
         : isReservoir
           ? resParams
-          : { type: activeTab, params };
+          : activeTab === "spt"
+            ? { spt_data: sptData }
+            : activeTab === "stability"
+              ? windParams
+              : { type: activeTab, params };
 
+      const url = activeTab === "spt" ? `${apiBaseUrl}/calculate/spt` : activeTab === "stability" ? `${apiBaseUrl}/calculate/stability` : `${apiBaseUrl}/calculate/special-elements`;
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await response.json();
-      setResult(data.result || data);
+      
+      // Padronização para o Mestre: alguns retornam {result, pedagogical_steps}
+      if (data.pedagogical_steps || data.result) {
+         setResult(data);
+      } else {
+         setResult(data);
+      }
     } catch (error) {
       console.error("Erro ao calcular elemento isolado:", error);
     } finally {
@@ -158,40 +177,26 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
   const downloadAcademicPdf = async () => {
     const isColumn = activeTab === "column";
     const isBeam = activeTab === "beam";
-    if (!isColumn && !isBeam) return;
+    const isSpt = activeTab === "spt";
+    const isStability = activeTab === "stability";
+    if (!isColumn && !isBeam && !isSpt && !isStability) return;
 
-    const url = isColumn ? `${apiBaseUrl}/export/academic/column` : `${apiBaseUrl}/export/academic/beam`;
-    const body = isColumn
-      ? {
-          b: colParams.b,
-          h: colParams.h,
-          fck: colParams.fck,
-          caa: colParams.caa,
-          L_free: colParams.L_free,
-          Nd_kN: colParams.Nd,
-          Mxd_kNm: colParams.Mxd,
-          Myd_kNm: colParams.Myd,
-        }
-      : {
-          L: beamParams.L,
-          b: beamParams.b,
-          h: beamParams.h,
-          fck: beamParams.fck,
-          caa: beamParams.caa,
-          cover: beamParams.coverCm / 100,
-          gamma_f: beamParams.gammaF,
-          redistribution_delta: beamParams.redistributionDelta,
-          n_elements: beamParams.nElements,
-          include_self_weight: beamParams.includeSelfWeight,
-          supports: [
-            { x: 0.0, type: beamParams.leftSupport },
-            { x: beamParams.L, type: beamParams.rightSupport },
-          ],
-          distributed_loads: [
-            { x_start: 0.0, x_end: beamParams.L, q_start: beamParams.q * 1000 },
-          ],
-          point_loads: beamParams.pointLoads.map(p => ({ x: p.x, P: p.P * 1000 })),
-        };
+    let url = "";
+    let body: any = {};
+
+    if (isColumn) {
+      url = `${apiBaseUrl}/export/academic/column`;
+      body = { b: colParams.b, h: colParams.h, fck: colParams.fck, caa: colParams.caa, L_free: colParams.L_free, Nd_kN: colParams.Nd, Mxd_kNm: colParams.Mxd, Myd_kNm: colParams.Myd };
+    } else if (isBeam) {
+      url = `${apiBaseUrl}/export/academic/beam`;
+      body = { L: beamParams.L, b: beamParams.b, h: beamParams.h, fck: beamParams.fck, caa: beamParams.caa, cover: beamParams.coverCm / 100, gamma_f: beamParams.gammaF, redistribution_delta: beamParams.redistributionDelta, n_elements: beamParams.nElements, include_self_weight: beamParams.includeSelfWeight, supports: [{ x: 0.0, type: beamParams.leftSupport }, { x: beamParams.L, type: beamParams.rightSupport }], distributed_loads: [{ x_start: 0.0, x_end: beamParams.L, q_start: beamParams.q * 1000 }], point_loads: beamParams.pointLoads.map(p => ({ x: p.x, P: p.P * 1000 })) };
+    } else if (isSpt) {
+      url = `${apiBaseUrl}/export/academic/spt`;
+      body = { spt_data: sptData };
+    } else if (isStability) {
+      url = `${apiBaseUrl}/export/academic/stability`;
+      body = windParams;
+    }
 
     const response = await fetch(url, {
       method: "POST",
@@ -203,7 +208,8 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = isColumn ? "engine_mestre_pilar_memorial_pedagogico.pdf" : "engine_mestre_viga_memorial_pedagogico.pdf";
+    const filenames: any = { beam: "engine_mestre_viga.pdf", column: "engine_mestre_pilar.pdf", spt: "mestre_sondagem.pdf", stability: "mestre_vento_estabilidade.pdf" };
+    link.download = filenames[activeTab] || "memorial_pedagogico.pdf";
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -217,6 +223,9 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
           {[
             { id: "stair", label: "Escadas", icon: Ruler },
             { id: "reservoir", label: "Reservatórios", icon: Waves },
+            { id: "footing", label: "Sapatas", icon: Box },
+            { id: "spt", label: "Geotecnia", icon: Search },
+            { id: "stability", label: "Estabilidade", icon: Wind },
             { id: "beam", label: "Vigas", icon: Zap },
             { id: "column", label: "Pilares", icon: Zap },
           ].map((tab) => (
@@ -605,6 +614,112 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
             </div>
           )}
 
+          {activeTab === "footing" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Sapata isolada rígida</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Dimensionamento de base, rigidez e armadura para sapatas centradas sob carga vertical.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#98a2b3]">Carga e Solo</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Nd [kN]</label>
+                    <input type="number" value={footingParams.Nd} onChange={(e) => setFootingParams({ ...footingParams, Nd: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">σ adm [kPa]</label>
+                    <input type="number" value={footingParams.sigma_adm} onChange={(e) => setFootingParams({ ...footingParams, sigma_adm: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#98a2b3]">Pilar e Concreto</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">ap [m]</label>
+                    <input type="number" value={footingParams.ap} onChange={(e) => setFootingParams({ ...footingParams, ap: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">bp [m]</label>
+                    <input type="number" value={footingParams.bp} onChange={(e) => setFootingParams({ ...footingParams, bp: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[#667085]">fck [MPa]</label>
+                  <input type="number" value={footingParams.fck} onChange={(e) => setFootingParams({ ...footingParams, fck: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "spt" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Interpretação de Sondagem</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Insira os valores de N_SPT para cada metro para definir a cota de assentamento e tensão admissível.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {sptData.map((layer, idx) => (
+                  <div key={idx} className="flex gap-2 items-center bg-white p-2 rounded-xl border border-slate-100">
+                    <span className="text-[10px] font-black w-8">{layer.depth_m}m</span>
+                    <input 
+                      type="number" 
+                      value={layer.nspt} 
+                      onChange={(e) => {
+                        const newSpt = [...sptData];
+                        newSpt[idx].nspt = Number(e.target.value);
+                        setSptData(newSpt);
+                      }}
+                      className="w-16 rounded-lg border border-[#e0e7ef] p-1 text-xs font-bold text-center" 
+                    />
+                    <input 
+                      type="text" 
+                      value={layer.soil_type} 
+                      onChange={(e) => {
+                        const newSpt = [...sptData];
+                        newSpt[idx].soil_type = e.target.value;
+                        setSptData(newSpt);
+                      }}
+                      className="flex-1 rounded-lg border border-[#e0e7ef] p-1 text-xs font-medium" 
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "stability" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-teal-700">Vento e Estabilidade Global</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Defina os parâmetros do edifício para calcular a pressão do vento e o coeficiente de estabilidade Gamma-Z.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-[#667085]">V0 [m/s]</label>
+                  <input type="number" value={windParams.v0} onChange={(e) => setWindParams({ ...windParams, v0: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Altura Total [m]</label>
+                    <input type="number" value={windParams.height} onChange={(e) => setWindParams({ ...windParams, height: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Largura X [m]</label>
+                    <input type="number" value={windParams.width_x} onChange={(e) => setWindParams({ ...windParams, width_x: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={calculate}
             disabled={loading}
@@ -612,7 +727,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
           >
             {loading ? "Calculando..." : <><Zap size={18} /> Dimensionar</>}
           </button>
-          {(activeTab === "beam" || activeTab === "column") && (
+          {(activeTab === "beam" || activeTab === "column" || activeTab === "spt" || activeTab === "stability") && (
             <button
               type="button"
               onClick={downloadAcademicPdf}
@@ -639,11 +754,11 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                     <div className="space-y-4">
                       <div>
                         <p className="text-xs font-bold text-[#667085] uppercase">Momento Fletor (Mk)</p>
-                        <p className="text-3xl font-black">{(result.design?.M_max_pos_kNm ?? result.Mk)?.toFixed(2) ?? "--"} <span className="text-sm font-bold text-[#8a9ab0]">kNm</span></p>
+                        <p className="text-3xl font-black">{formatNumberBR(result.design?.M_max_pos_kNm ?? result.Mk)} <span className="text-sm font-bold text-[#8a9ab0]">kNm</span></p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-[#667085] uppercase">Armadura Tracionada (As)</p>
-                        <p className="text-3xl font-black text-[#1f8f56]">{(result.design?.flexure_bottom?.As_cm2 ?? result.As_cm2)?.toFixed(2) ?? "--"} <span className="text-sm font-bold text-[#8a9ab0]">cm²</span></p>
+                        <p className="text-3xl font-black text-[#1f8f56]">{formatNumberBR(result.design?.flexure_bottom?.As_cm2 ?? result.As_cm2)} <span className="text-sm font-bold text-[#8a9ab0]">cm²</span></p>
                       </div>
                     </div>
                     <div className="rounded-2xl bg-[#f9fafb] p-6 space-y-3 border border-[#f2f4f7]">
@@ -656,16 +771,38 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                   </>
                 )}
 
+                {activeTab === "beam" && result?.result?.detailing && (
+                  <div className="col-span-2 mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Armadura Inferior</p>
+                      <p className="mt-2 text-2xl font-black text-slate-800">{result.result.detailing.inf.spec}</p>
+                      <p className="mt-1 text-xs font-bold text-blue-600">L_ancoragem = {result.result.detailing.inf.lb_nec} cm</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Armadura Superior</p>
+                      <p className="mt-2 text-2xl font-black text-slate-800">{result.result.detailing.sup.spec}</p>
+                      <p className="mt-1 text-xs font-bold text-slate-600">L_ancoragem = {result.result.detailing.sup.lb_nec} cm</p>
+                    </div>
+                    <div className="col-span-2 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4 flex justify-between items-center">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Estribos e Decalagem</p>
+                        <p className="mt-1 text-sm font-bold text-slate-700">{result.result.detailing.stirrups} | a_l = {result.result.detailing.geometry.al_cm} cm</p>
+                      </div>
+                      <Box className="text-emerald-600" size={24} />
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === "column" && (
                   <>
                     <div className="space-y-4">
                       <div>
                         <p className="text-xs font-bold text-[#667085] uppercase">Armadura Final (As)</p>
-                        <p className="text-3xl font-black text-emerald-600">{result.design?.As_final_cm2?.toFixed(2) ?? result.As_cm2?.toFixed(2) ?? "--"} <span className="text-sm font-bold text-[#8a9ab0]">cm²</span></p>
+                        <p className="text-3xl font-black text-emerald-600">{formatNumberBR(result.design?.As_final_cm2 ?? result.As_cm2)} <span className="text-sm font-bold text-[#8a9ab0]">cm²</span></p>
                       </div>
                       <div>
                         <p className="text-xs font-bold text-[#667085] uppercase">Índice de Esbeltez (λ)</p>
-                        <p className="text-3xl font-black">{result.design?.slenderness?.lambda_x?.toFixed(1) ?? result.lambda?.toFixed(1) ?? "--"}</p>
+                        <p className="text-3xl font-black">{formatNumberBR(result.design?.slenderness?.lambda_x ?? result.lambda, 1)}</p>
                       </div>
                     </div>
                     <div className="rounded-2xl bg-[#f9fafb] p-6 space-y-3 border border-[#f2f4f7]">
@@ -678,7 +815,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                   </>
                 )}
 
-                {(activeTab === "stair" || activeTab === "reservoir") && (
+                {(activeTab === "stair" || activeTab === "reservoir" || activeTab === "footing" || activeTab === "spt" || activeTab === "stability") && (
                    <p className="col-span-2 text-sm font-bold text-[#667085]">Cálculo concluído com sucesso. O resumo abaixo destaca os parâmetros governantes.</p>
                 )}
                 
@@ -686,15 +823,15 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                    <div className="col-span-2 grid gap-4 md:grid-cols-3">
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">Momento Mk</p>
-                        <p className="mt-2 text-2xl font-black">{result.Mk?.toFixed(2) ?? "--"} <span className="text-sm text-[#8a9ab0]">kNm/m</span></p>
+                        <p className="mt-2 text-2xl font-black">{formatNumberBR(result.Mk)} <span className="text-sm text-[#8a9ab0]">kNm/m</span></p>
                       </div>
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">Armadura principal</p>
-                        <p className="mt-2 text-2xl font-black text-emerald-600">{result.As_cm2_m?.toFixed(2) ?? "--"} <span className="text-sm text-[#8a9ab0]">cm²/m</span></p>
+                        <p className="mt-2 text-2xl font-black text-emerald-600">{formatNumberBR(result.As_cm2_m)} <span className="text-sm text-[#8a9ab0]">cm²/m</span></p>
                       </div>
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">Reação total</p>
-                        <p className="mt-2 text-2xl font-black">{result.total_reaction_kN?.toFixed(2) ?? "--"} <span className="text-sm text-[#8a9ab0]">kN</span></p>
+                        <p className="mt-2 text-2xl font-black">{formatNumberBR(result.total_reaction_kN)} <span className="text-sm text-[#8a9ab0]">kN</span></p>
                         <span className={`mt-3 inline-flex rounded-full px-2 py-1 text-[10px] font-black ${result.status === "ATENDE" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700 border border-rose-200 animate-pulse"}`}>{result.status}</span>
                       </div>
                    </div>
@@ -705,15 +842,15 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                     <div className="grid gap-4 md:grid-cols-4">
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">Volume</p>
-                        <p className="mt-2 text-2xl font-black">{result.summary?.volume_m3?.toFixed(2) ?? "--"} <span className="text-sm text-[#8a9ab0]">m³</span></p>
+                        <p className="mt-2 text-2xl font-black">{formatNumberBR(result.summary?.volume_m3)} <span className="text-sm text-[#8a9ab0]">m³</span></p>
                       </div>
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">As parede</p>
-                        <p className="mt-2 text-2xl font-black text-emerald-600">{result.summary?.As_parede_cm2_m?.toFixed(2) ?? "--"} <span className="text-sm text-[#8a9ab0]">cm²/m</span></p>
+                        <p className="mt-2 text-2xl font-black text-emerald-600">{formatNumberBR(result.summary?.As_parede_cm2_m)} <span className="text-sm text-[#8a9ab0]">cm²/m</span></p>
                       </div>
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">wk máx.</p>
-                        <p className="mt-2 text-2xl font-black">{result.summary?.wk_max_mm?.toFixed(3) ?? "--"} <span className="text-sm text-[#8a9ab0]">mm</span></p>
+                        <p className="mt-2 text-2xl font-black">{formatNumberBR(result.summary?.wk_max_mm, 3)} <span className="text-sm text-[#8a9ab0]">mm</span></p>
                       </div>
                       <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                         <p className="text-xs font-bold text-[#667085] uppercase">Status</p>
@@ -724,9 +861,58 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                       <p className="text-sm font-black text-cyan-900">Parecer hidráulico-estrutural</p>
                       <p className="mt-2 text-xs font-semibold leading-relaxed text-cyan-900">
                         Caso governante: {result.wall_envelope?.governing ?? "--"}. 
-                        Pressão no fundo: {result.hydraulic?.pressao_fundo_kPa?.toFixed(2) ?? "--"} kPa. 
+                        Pressão no fundo: {formatNumberBR(result.hydraulic?.pressao_fundo_kPa)} kPa. 
                         {result.subpressao?.status ? `Subpressão: ${result.subpressao.status} (FS=${result.subpressao.fator_flutuacao}).` : "Sem verificação crítica de subpressão para esta tipologia."}
                       </p>
+                    </div>
+                  </div>
+                {activeTab === "footing" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
+                      <p className="text-xs font-bold text-[#667085] uppercase">Dimensões</p>
+                      <p className="mt-2 text-2xl font-black">{formatNumberBR(result.result?.a_m)} × {formatNumberBR(result.result?.b_m)} <span className="text-sm text-[#8a9ab0]">m</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
+                      <p className="text-xs font-bold text-[#667085] uppercase">Espessura (h)</p>
+                      <p className="mt-2 text-2xl font-black">{formatNumberBR(result.result?.h_m)} <span className="text-sm text-[#8a9ab0]">m</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
+                      <p className="text-xs font-bold text-[#667085] uppercase">Pressão Real</p>
+                      <p className="mt-2 text-2xl font-black">{formatNumberBR(result.result?.sigma_real_kPa)} <span className="text-sm text-[#8a9ab0]">kPa</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "spt" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl bg-[#f0f9ff] p-5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase">Tensão Admissível</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{formatNumberBR(result.result?.sigma_adm_kPa)} <span className="text-sm">kPa</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f0f9ff] p-5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase">N_SPT Projeto</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{result.result?.nspt_design}</p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f0f9ff] p-5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase">Cota Assentamento</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{result.result?.depth_m} <span className="text-sm">m</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "stability" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl bg-[#f0fdfa] p-5 border border-teal-100 text-center">
+                      <p className="text-xs font-bold text-teal-700 uppercase">Coeficiente γz</p>
+                      <p className="mt-2 text-4xl font-black text-teal-900">{formatNumberBR(result.result?.gamma_z, 2)}</p>
+                      <span className={`mt-2 inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase ${result.result?.gamma_z <= 1.1 ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+                        {result.result?.gamma_z <= 1.1 ? "Edifício Rígido" : "Edifício Flexível"}
+                      </span>
+                    </div>
+                    <div className="rounded-2xl bg-[#f0fdfa] p-5 border border-teal-100">
+                      <p className="text-xs font-bold text-teal-700 uppercase">Força de Arraste Total</p>
+                      <p className="mt-2 text-2xl font-black text-teal-900">{formatNumberBR(result.result?.force_total_kN)} <span className="text-sm">kN</span></p>
+                      <p className="mt-1 text-[10px] text-teal-600 font-bold italic">Considerando Ca = {result.result?.ca}</p>
                     </div>
                   </div>
                 )}
@@ -797,10 +983,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
               </div>
             </div>
           )}
-          {activeTab === "column" && result?.pedagogical_steps && (
-            <PedagogicalStepsView blackboard={result.pedagogical_steps} />
-          )}
-          {activeTab === "beam" && result?.pedagogical_steps && (
+          {result?.pedagogical_steps && (
             <PedagogicalStepsView blackboard={result.pedagogical_steps} />
           )}
         </div>

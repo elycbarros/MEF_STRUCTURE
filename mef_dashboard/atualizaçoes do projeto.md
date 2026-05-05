@@ -7,6 +7,8 @@
 - **BIM Interoperability**: Exportação nativa de arquivos IFC 2x3 para integração com Revit/TQS/Tekla.
 - **Física Avançada (TensionPro)**: Simulação de fluência, retração e perdas diferidas conforme NBR 6118.
 - **Elite Cohesion Design System**: Unificação visual completa entre os motores MESTRE e UFO.
+- **Navegação Horizontal**: Migração da Sidebar vertical para uma Tab-bar horizontal superior, liberando 100% da largura da tela para o conteúdo técnico.
+- **Memorial HTML Premium**: Substituição da geração de PDF no backend por um relatório HTML de alta fidelidade com função nativa de impressão/salvamento.
 - **Layout de Diagramas**: Otimização da visualização dos gráficos DMF/DEC/Flecha para disposição vertical com altura expandida (350px).
 - **Structural Audit Agent**: Presença nativa de IA Ph.D. em todos os módulos para auditoria forense.
 

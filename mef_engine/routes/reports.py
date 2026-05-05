@@ -38,7 +38,8 @@ async def export_pdf(request: ExportPDFRequest):
 async def export_academic_beam_pdf(request: BeamAnalysisRequest):
     try:
         from beam_solver import run_beam_analysis
-        from master_pedagogy import build_beam_blackboard
+        from master_pedagogy import build_beam_blackboard, build_detailing_blackboard
+        from beam_detailing import BeamDetailer
         from academic_pdf import generate_academic_blackboard_pdf
 
         output_dir = "output_api"
@@ -46,6 +47,24 @@ async def export_academic_beam_pdf(request: BeamAnalysisRequest):
         payload = request.model_dump()
         result = run_beam_analysis(**payload)
         blackboard = build_beam_blackboard(result, payload)
+        
+        # Integrar Detalhamento Módulo 6-7 no PDF
+        det_summary = BeamDetailer.generate_detailing_summary(
+            result, 
+            b_m=payload.get('b', 0.20), 
+            h_m=payload.get('h', 0.50), 
+            fck=payload.get('fck', 30.0)
+        )
+        det_steps = build_detailing_blackboard(det_summary)
+        
+        # Adicionar separador e passos de detalhamento
+        blackboard['steps'].append({
+            "title": "--- Detalhamento Executivo ---",
+            "latex": r"\text{NBR 6118: Ancoragem e Decalagem}",
+            "description": "Início do roteiro de detalhamento das armaduras longitudinais."
+        })
+        blackboard['steps'].extend(det_steps)
+
         pdf_path = os.path.join(output_dir, "engine_mestre_viga_memorial_pedagogico.pdf")
         generate_academic_blackboard_pdf(pdf_path, blackboard, {
             "disciplina": "Concreto Armado",
@@ -133,4 +152,72 @@ async def export_vigacross_pdf(request: VigaCrossPDFRequest):
     except Exception as e:
         import traceback
         print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/export/academic/spt")
+async def export_academic_spt_pdf(req: dict):
+    try:
+        from geotechnical_engine import GeotechnicalEngine
+        from master_pedagogy import build_spt_blackboard
+        from academic_pdf import generate_academic_blackboard_pdf
+        
+        output_dir = "output_api"
+        ensure_directory(output_dir)
+        
+        spt_data = req.get('spt_data', [])
+        engine = GeotechnicalEngine()
+        res = engine.analyze_spt(spt_data)
+        steps = build_spt_blackboard(res)
+        
+        blackboard = {
+            "mode": "MESTRE",
+            "element": "geotechnics",
+            "title": "Interpretacao de Sondagem SPT",
+            "steps": steps
+        }
+        
+        pdf_path = os.path.join(output_dir, "mestre_geotecnia_sondagem.pdf")
+        generate_academic_blackboard_pdf(pdf_path, blackboard, {
+            "disciplina": "Fundacoes e Geotecnia",
+            "professor": "Engine MESTRE",
+        })
+        
+        return FileResponse(path=pdf_path, filename="mestre_geotecnia_sondagem.pdf", media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/export/academic/stability")
+async def export_academic_stability_pdf(req: dict):
+    try:
+        from wind_engine import WindEngine, WindConfig
+        from master_pedagogy import build_stability_blackboard
+        from academic_pdf import generate_academic_blackboard_pdf
+        
+        output_dir = "output_api"
+        ensure_directory(output_dir)
+        
+        cfg = WindConfig(v0=req.get('v0', 30.0), height=req.get('height', 30.0), width_x=req.get('width_x', 12.0))
+        engine = WindEngine()
+        wind_data = engine.calculate_dynamic_pressure(cfg)
+        gamma_z = engine.estimate_gamma_z(cfg.height, 10000, 50)
+        res = {**wind_data, "gamma_z": gamma_z}
+        steps = build_stability_blackboard(res)
+        
+        blackboard = {
+            "mode": "MESTRE",
+            "element": "stability",
+            "title": "Estabilidade Global e Vento",
+            "steps": steps
+        }
+        
+        pdf_path = os.path.join(output_dir, "mestre_estabilidade_vento.pdf")
+        generate_academic_blackboard_pdf(pdf_path, blackboard, {
+            "disciplina": "Sistemas Estruturais",
+            "professor": "Engine MESTRE",
+        })
+        
+        return FileResponse(path=pdf_path, filename="mestre_estabilidade_vento.pdf", media_type="application/pdf")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

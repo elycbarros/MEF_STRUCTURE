@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Cpu, AlertTriangle, CheckCircle, Info, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberBR } from "@/lib/utils";
 
 interface AICopilotAlertsProps {
   diagnosis?: string[];
@@ -67,7 +67,7 @@ export default function AICopilotAlerts({
               </div>
               <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-center">
                 <p className="text-[8px] font-black text-emerald-400 uppercase">Redução de Peso</p>
-                <p className="text-sm font-black text-emerald-400">-{optimizationSuggestion.weightReduction.toFixed(1)}%</p>
+                <p className="text-sm font-black text-emerald-400">-{formatNumberBR(optimizationSuggestion.weightReduction, 1)}%</p>
               </div>
             </div>
             <button className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-blue-600/20">

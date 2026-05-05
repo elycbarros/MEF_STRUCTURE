@@ -86,33 +86,83 @@ class BeamDetailer:
         lb = (phi_mm / 40.0) * (500.0 / 1.15) / fbd # cm
         return round(lb, 1)
 
+    @staticmethod
+    def calculate_al(d_cm: float, alpha: float = 45.0, theta: float = 45.0) -> float:
+        """
+        Calcula a decalagem do diagrama de momentos (al).
+        al = 0.5 * d * (cot(theta) - cot(alpha))
+        Para estribos verticais (alpha=90) e theta=45: al = 0.5 * d
+        """
+        # Convert to radians
+        a_rad = math.radians(alpha)
+        t_rad = math.radians(theta)
+        
+        # cot(x) = 1/tan(x)
+        cot_theta = 1.0 / math.tan(t_rad)
+        cot_alpha = 1.0 / math.tan(a_rad) if alpha != 90 else 0.0
+        
+        al = 0.5 * d_cm * (cot_theta - cot_alpha)
+        return round(al, 1)
+
+    @staticmethod
+    def calculate_lb_nec(lb_basic: float, As_calc: float, As_efet: float, 
+                        alpha: float = 1.0, phi_mm: float = 10.0) -> float:
+        """
+        Calcula o comprimento de ancoragem necessário (lb,nec).
+        lb,nec = alpha * lb * (As,calc / As,efet) >= lb,min
+        """
+        if As_efet <= 0: return lb_basic
+        
+        ratio = As_calc / As_efet
+        lb_nec = alpha * lb_basic * ratio
+        
+        # lb,min = max(0.3*lb, 10*phi, 10cm)
+        lb_min = max(0.3 * lb_basic, 1.0 * phi_mm / 10.0, 10.0) # lb em cm
+        return round(max(lb_nec, lb_min), 1)
+
     @classmethod
     def generate_detailing_summary(cls, design_res: dict, b_m: float, h_m: float, fck: float) -> dict:
         """Compila o resumo de detalhamento para a viga."""
         b_cm = b_m * 100
         h_cm = h_m * 100
+        d_cm = h_cm - 4.0 # Estimativa
         
-        As_inf = design_res['flexure_bottom']['As_cm2']
-        As_sup = design_res['flexure_top']['As_cm2']
+        As_inf_calc = design_res.get('flexure_bottom', {}).get('As_cm2', 0.0)
+        As_sup_calc = design_res.get('flexure_top', {}).get('As_cm2', 0.0)
         
-        det_inf = cls.select_reinforcement(As_inf, b_cm, h_cm)
-        det_sup = cls.select_reinforcement(As_sup, b_cm, h_cm)
-        skin = cls.calculate_skin_reinforcement(h_cm, b_cm)
+        det_inf = cls.select_reinforcement(As_inf_calc, b_cm, h_cm)
+        det_sup = cls.select_reinforcement(As_sup_calc, b_cm, h_cm)
         
-        lb_inf = cls.calculate_anchorage(det_inf['phi_mm'], fck)
-        lb_sup = cls.calculate_anchorage(det_sup['phi_mm'], fck)
+        # Decalagem
+        al = cls.calculate_al(d_cm)
+        
+        # Ancoragens
+        lb_basic_inf = cls.calculate_anchorage(det_inf['phi_mm'], fck)
+        lb_nec_inf = cls.calculate_lb_nec(lb_basic_inf, As_inf_calc, det_inf['area_cm2'], phi_mm=det_inf['phi_mm'])
+        
+        lb_basic_sup = cls.calculate_anchorage(det_sup['phi_mm'], fck)
+        lb_nec_sup = cls.calculate_lb_nec(lb_basic_sup, As_sup_calc, det_sup['area_cm2'], phi_mm=det_sup['phi_mm'])
 
         return {
+            "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": d_cm, "al_cm": al},
             "inf": {
                 "spec": f"{det_inf['count']} Φ {det_inf['phi_mm']}",
-                "area": det_inf['area_cm2'],
-                "lb": lb_inf
+                "phi_mm": det_inf['phi_mm'],
+                "count": det_inf['count'],
+                "area_efet": det_inf['area_cm2'],
+                "area_calc": As_inf_calc,
+                "lb_basic": lb_basic_inf,
+                "lb_nec": lb_nec_inf
             },
             "sup": {
                 "spec": f"{det_sup['count']} Φ {det_sup['phi_mm']}",
-                "area": det_sup['area_cm2'],
-                "lb": lb_sup
+                "phi_mm": det_sup['phi_mm'],
+                "count": det_sup['count'],
+                "area_efet": det_sup['area_cm2'],
+                "area_calc": As_sup_calc,
+                "lb_basic": lb_basic_sup,
+                "lb_nec": lb_nec_sup
             },
-            "skin": skin,
-            "stirrups": design_res['shear']['stirrup_spec']
+            "skin": cls.calculate_skin_reinforcement(h_cm, b_cm),
+            "stirrups": design_res.get('shear', {}).get('stirrup_spec', "N/A")
         }

@@ -1005,7 +1005,7 @@ export default function Home() {
             isProfessionalMode 
               ? "bg-[#16191f] border-white/5 shadow-blue-900/10" 
               : "bg-white/80 border-slate-200 shadow-slate-200/50",
-            selectedMode !== "academic" ? "lg:col-span-9" : "lg:col-span-12"
+            selectedMode !== "academic" ? "col-span-12" : "col-span-12"
           )}>
             {activeTab === "dashboard" && (
               <div className="space-y-6">
@@ -1488,7 +1488,7 @@ export default function Home() {
                 </div>
                 <SpecialElementsView
                   apiBaseUrl={apiBaseUrl}
-                  type={activeTab === "vigas" ? "viga" : activeTab === "pilares_isolados" ? "pilar" : "escada"}
+                  type={activeTab === "vigas" ? "viga" : activeTab === "pilares_isolados" ? "pilar" : "reservatorio"}
                 />
               </div>
             )}

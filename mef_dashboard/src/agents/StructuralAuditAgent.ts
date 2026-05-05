@@ -62,4 +62,32 @@ export class StructuralAuditAgent {
       actions: ["Nenhuma ação necessária"]
     };
   }
+
+  /**
+   * Analisa perdas e estados de protensão (TensionPro)
+   */
+  static async auditTension(params: any) {
+    const findings: string[] = [];
+    const recommendations: string[] = [];
+
+    const totalLosses = params.immediateLosses + params.deferredLosses;
+    const lossPercentage = (totalLosses / params.initialForce) * 100;
+
+    if (lossPercentage > 30) {
+      findings.push(`⚠️ Perdas totais elevadas: ${lossPercentage.toFixed(1)}%.`);
+      recommendations.push("Considere aumentar a idade do concreto no ato da protensão para reduzir a fluência.");
+    }
+
+    if (params.deferredLosses > params.immediateLosses * 1.5) {
+      findings.push("⚠️ Perdas por retração/fluência dominantes.");
+      recommendations.push("Verifique a umidade relativa do ambiente e o tipo de cimento utilizado.");
+    }
+
+    return {
+      agent: "PhD Tension Auditor",
+      findings,
+      recommendations,
+      verdict: recommendations.length > 0 ? "REVISÃO TÉCNICA" : "DENTRO DOS PARÂMETROS"
+    };
+  }
 }

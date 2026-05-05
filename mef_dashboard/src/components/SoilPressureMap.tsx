@@ -32,6 +32,8 @@ function pressureToColor(q: number, qmin: number, qmax: number): string {
   }
 }
 
+import { formatNumberBR } from "@/lib/utils";
+
 export function SoilPressureMap({
   Lx,
   Ly,
@@ -139,7 +141,7 @@ export function SoilPressureMap({
 
         {/* Labels dimensão */}
         <text x={PAD + W / 2} y={PAD + H + 16} textAnchor="middle" fontSize={9} fill="#666" fontFamily="Arial">
-          {Lx.toFixed(1)} m
+          {formatNumberBR(Lx, 1)} m
         </text>
         <text
           x={PAD - 14}
@@ -150,7 +152,7 @@ export function SoilPressureMap({
           fontFamily="Arial"
           transform={`rotate(-90, ${PAD - 14}, ${PAD + H / 2})`}
         >
-          {Ly.toFixed(1)} m
+          {formatNumberBR(Ly, 1)} m
         </text>
 
         {/* Legenda de escala */}
@@ -161,7 +163,7 @@ export function SoilPressureMap({
             <g key={i}>
               <rect x={lx} y={PAD + H + 24} width={W / 4} height={10} fill={pressureToColor(q, qmin, qmax)} />
               <text x={lx + 2} y={PAD + H + 44} fontSize={7} fill="#444" fontFamily="Arial">
-                {q.toFixed(0)} kPa
+                {formatNumberBR(q, 0)} kPa
               </text>
             </g>
           );
@@ -174,16 +176,16 @@ export function SoilPressureMap({
       {/* Métricas inline */}
       <div className="flex gap-4 text-xs font-medium">
         <span className="px-2 py-1 rounded bg-apple-bg/40 border border-black/5">
-          σmáx = <strong>{qmax?.toFixed(1)} kPa</strong>
+          σmáx = <strong>{formatNumberBR(qmax, 1)} kPa</strong>
         </span>
         <span className="px-2 py-1 rounded bg-apple-bg/40 border border-black/5">
-          σmédio = <strong>{qmed?.toFixed(1)} kPa</strong>
+          σmédio = <strong>{formatNumberBR(qmed, 1)} kPa</strong>
         </span>
         <span
           className="px-2 py-1 rounded border font-bold"
           style={{ color: ratioColor, borderColor: ratioColor + "40" }}
         >
-          η = {pressureRatio.toFixed(3)}
+          η = {formatNumberBR(pressureRatio, 3)}
         </span>
       </div>
     </div>

@@ -206,7 +206,7 @@ export function WindStabilityView({
                   "text-2xl font-black",
                   stability.gamma_z > 1.3 ? "text-[#c52626]" : stability.gamma_z > 1.1 ? "text-[#b45309]" : "text-[#1f8f56]"
                 )}>
-                  {stability.gamma_z?.toFixed(3)}
+                  {formatNumberBR(stability.gamma_z, 3)}
                 </span>
               </div>
 
@@ -255,7 +255,7 @@ export function WindStabilityView({
                     style={{ height: `${(lvl.q_Pa / Math.max(...profile.map((p: any) => p.q_Pa))) * 100}%` }}
                   >
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#1a1c1e] text-white text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 font-black shadow-xl">
-                      {lvl.z.toFixed(1)}m: {formatNumberBR(lvl.q_Pa)} Pa
+                      {formatNumberBR(lvl.z, 1)}m: {formatNumberBR(lvl.q_Pa)} Pa
                     </div>
                   </div>
                 ))}
@@ -267,7 +267,7 @@ export function WindStabilityView({
               </div>
               <div className="flex justify-between mt-4 text-[10px] font-black text-[#6a7485] px-2">
                 <span>Cota 0.0m</span>
-                <span>Cota {params.altura_total.toFixed(1)}m</span>
+                <span>Cota {formatNumberBR(params.altura_total, 1)}m</span>
               </div>
             </div>
 
@@ -307,7 +307,7 @@ export function WindStabilityView({
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-bold text-[#6a7485]">Coef. Arrasto Cf:</span>
                   <span className="px-3 py-1 bg-white border border-[#e2e8f0] rounded-full text-xs font-black text-[#1a1c1e]">
-                    {results.geometry?.cf?.toFixed(2)}
+                    {formatNumberBR(results.geometry?.cf)}
                   </span>
                 </div>
               </div>
@@ -327,14 +327,14 @@ export function WindStabilityView({
                   <tbody className="divide-y divide-[#e2e8f0]">
                     {profile.map((level: any, i: number) => (
                       <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
-                        <td className="px-6 py-4 text-sm font-black text-[#1a1c1e]">{level.z.toFixed(1)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{level.s2.toFixed(3)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{level.vk_m_s.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#2b5a9e]">{level.q_Pa.toFixed(1)}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{level.area_m2.toFixed(1)}</td>
+                        <td className="px-6 py-4 text-sm font-black text-[#1a1c1e]">{formatNumberBR(level.z, 1)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{formatNumberBR(level.s2, 3)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{formatNumberBR(level.vk_m_s)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#2b5a9e]">{formatNumberBR(level.q_Pa, 1)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#64748b]">{formatNumberBR(level.area_m2, 1)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <span className="text-sm font-black text-[#1a1c1e] min-w-[60px]">{level.f_total_kN.toFixed(2)}</span>
+                            <span className="text-sm font-black text-[#1a1c1e] min-w-[60px]">{formatNumberBR(level.f_total_kN)}</span>
                             <div className="flex-1 h-2 bg-[#f1f5f9] rounded-full overflow-hidden min-w-[80px]">
                               <div 
                                 className="h-full bg-[#2b5a9e] rounded-full group-hover:bg-[#3b82f6] transition-all"

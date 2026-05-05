@@ -2,6 +2,7 @@
 
 import React from "react";
 import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Tab {
   id: string;
@@ -21,21 +22,21 @@ export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" 
 
   return (
     <aside className={cn(
-      "col-span-12 rounded-[40px] border p-5 transition-all duration-700 lg:col-span-3",
+      "col-span-12 rounded-[30px] border p-2 transition-all duration-700",
       isProfessional 
         ? "border-white/5 bg-[#16191f]/80 backdrop-blur-2xl shadow-blue-900/5" 
         : "border-slate-200 bg-white/70 shadow-slate-200/50"
     )}>
-      <div className="mb-6 px-4">
-        <p className={cn(
-          "text-[10px] font-black uppercase tracking-[0.3em]",
-          isProfessional ? "text-blue-400/60" : "text-slate-400"
-        )}>
-          Navegação Lab
-        </p>
-      </div>
+      <nav className="flex flex-row items-center gap-2 overflow-x-auto pb-2 scrollbar-hide px-2">
+        <div className="hidden lg:flex items-center px-4 border-r border-white/5 mr-2">
+           <p className={cn(
+            "text-[9px] font-black uppercase tracking-[0.3em] whitespace-nowrap",
+            isProfessional ? "text-blue-400/60" : "text-slate-400"
+          )}>
+            Módulos
+          </p>
+        </div>
 
-      <nav className="space-y-3">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -45,7 +46,7 @@ export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" 
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "group flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left text-sm font-black transition-all",
+                "group flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-left text-xs font-black transition-all",
                 isActive
                   ? (isProfessional 
                       ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" 
@@ -56,14 +57,14 @@ export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" 
               )}
             >
               <div className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-xl transition-transform group-hover:scale-110",
+                "flex h-6 w-6 items-center justify-center rounded-lg transition-transform group-hover:scale-110",
                 isActive 
                   ? (isProfessional ? "bg-white/20" : "bg-white/10")
                   : (isProfessional ? "bg-white/5" : "bg-slate-100")
               )}>
-                <Icon className={cn("h-4 w-4", isActive ? "text-white" : (isProfessional ? "text-white/40" : "text-slate-500"))} />
+                <Icon className={cn("h-3 w-3", isActive ? "text-white" : (isProfessional ? "text-white/40" : "text-slate-500"))} />
               </div>
-              {tab.label}
+              <span className="whitespace-nowrap">{tab.label}</span>
             </button>
           );
         })}

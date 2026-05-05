@@ -95,7 +95,7 @@ export function ForensicLabView({ apiBaseUrl, config }: ForensicLabViewProps) {
     const binSize = (max - min) / nBins;
     
     const bins = Array.from({ length: nBins }).map((_, i) => ({
-      range: `${(min + i * binSize).toFixed(1)}-${(min + (i+1) * binSize).toFixed(1)}`,
+      range: `${formatNumberBR(min + i * binSize, 1)}-${formatNumberBR(min + (i+1) * binSize, 1)}`,
       count: 0,
       mid: min + (i + 0.5) * binSize
     }));
@@ -296,11 +296,11 @@ export function ForensicLabView({ apiBaseUrl, config }: ForensicLabViewProps) {
                     <div className="space-y-4">
                       <div className="flex justify-between items-end">
                         <span className="text-sm font-bold text-[#6a7485]">Média (w_max):</span>
-                        <span className="text-xl font-black">{mcResults.summary.w_max_mean.toFixed(2)} mm</span>
+                        <span className="text-xl font-black">{formatNumberBR(mcResults.summary.w_max_mean)} mm</span>
                       </div>
                       <div className="flex justify-between items-end">
                         <span className="text-sm font-bold text-[#6a7485]">Desvio Padrão:</span>
-                        <span className="text-xl font-black text-indigo-600">± {mcResults.summary.w_max_std.toFixed(3)} mm</span>
+                        <span className="text-xl font-black text-indigo-600">± {formatNumberBR(mcResults.summary.w_max_std, 3)} mm</span>
                       </div>
                     </div>
                   </div>
@@ -311,7 +311,7 @@ export function ForensicLabView({ apiBaseUrl, config }: ForensicLabViewProps) {
                       <h4 className="text-xs font-black uppercase text-amber-700">Parecer Pericial</h4>
                     </div>
                     <p className="text-xs font-medium text-amber-800 leading-relaxed">
-                      A análise probabilística indica uma chance de <strong>{(mcResults.data.filter((d:any)=>d.w_max_mm > 30).length/nSims*100).toFixed(1)}%</strong> da flecha exceder o limite normativo (30mm), sugerindo a necessidade de revisão da rigidez do solo ou espessura da laje.
+                      A análise probabilística indica uma chance de <strong>{formatNumberBR(mcResults.data.filter((d:any)=>d.w_max_mm > 30).length/nSims*100, 1)}%</strong> da flecha exceder o limite normativo (30mm), sugerindo a necessidade de revisão da rigidez do solo ou espessura da laje.
                     </p>
                   </div>
                 </div>
@@ -339,12 +339,12 @@ export function ForensicLabView({ apiBaseUrl, config }: ForensicLabViewProps) {
                   <div className="p-6 rounded-3xl border border-[#e0e7ef] bg-[#f8fafc] flex flex-col justify-center gap-4">
                     <div>
                       <p className="text-[10px] font-black uppercase text-[#6a7485]">Erro RMSE</p>
-                      <p className="text-2xl font-black">{calibResults.rmse_mm.toFixed(3)} mm</p>
+                      <p className="text-2xl font-black">{formatNumberBR(calibResults.rmse_mm, 3)} mm</p>
                     </div>
                     <div className="h-px bg-[#e0e7ef]" />
                     <div>
                       <p className="text-[10px] font-black uppercase text-[#6a7485]">Erro MAE</p>
-                      <p className="text-2xl font-black">{calibResults.mae_mm.toFixed(3)} mm</p>
+                      <p className="text-2xl font-black">{formatNumberBR(calibResults.mae_mm, 3)} mm</p>
                     </div>
                   </div>
                 </div>
@@ -352,7 +352,7 @@ export function ForensicLabView({ apiBaseUrl, config }: ForensicLabViewProps) {
                 <div className="p-6 rounded-2xl border border-blue-100 bg-blue-50">
                   <h4 className="text-xs font-black text-blue-800 uppercase mb-2">Próximos Passos</h4>
                   <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                    A calibração sugere que o solo real é <strong>{(calibResults.best_kv/config.kv*100-100).toFixed(1)}%</strong> {(calibResults.best_kv > config.kv) ? "mais rígido" : "menos rígido"} do que o modelo inicial. Recomenda-se atualizar o parâmetro de projeto para garantir a precisão do detalhamento.
+                    A calibração sugere que o solo real é <strong>{formatNumberBR(calibResults.best_kv/config.kv*100-100, 1)}%</strong> {(calibResults.best_kv > config.kv) ? "mais rígido" : "menos rígido"} do que o modelo inicial. Recomenda-se atualizar o parâmetro de projeto para garantir a precisão do detalhamento.
                   </p>
                 </div>
               </div>

@@ -6,9 +6,9 @@ import { formatNumberBR, cn } from "@/lib/utils";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Stage, PerspectiveCamera } from "@react-three/drei";
 import { StructuralAuditAgent } from "@/agents/StructuralAuditAgent";
-import { ModuleContainer } from "@/components/ui/ModuleContainer";
 import { BimExporter } from "@/lib/bimExporter";
 import { OptimizationEngine } from "@/lib/optimizationEngine";
+import { MemorialHtmlView } from "./MemorialHtmlView";
 
 function Cable3D({ length }: { length: number }) {
   const points = useMemo(() => {
@@ -52,6 +52,7 @@ export function TensionProView() {
   const [results, setResults] = useState<any>(null);
   const [auditResult, setAuditResult] = useState<any>(null);
   const [optimizationSuggestion, setOptimizationSuggestion] = useState<any>(null);
+  const [showHtmlMemorial, setShowHtmlMemorial] = useState(false);
 
   // Parâmetros de Física Avançada (Fase 5)
   const [ageOfLoading, setAgeOfLoading] = useState(28); // dias
@@ -114,7 +115,7 @@ export function TensionProView() {
       solverType="Rust Core"
       auditResult={auditResult}
       onBimExport={handleBimExport}
-      onExport={() => alert("Gerando Memorial Técnico...")}
+      onExport={() => results && setShowHtmlMemorial(true)}
       optimizationSuggestion={optimizationSuggestion}
     >
       <div className="grid grid-cols-12 gap-6">
@@ -214,8 +215,8 @@ export function TensionProView() {
 
         <div className="col-span-12 space-y-6 lg:col-span-8">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <MetricCard label="Perda por Atrito" value={results ? `${((1 - results.p_x / p0) * 100).toFixed(2)}%` : "--"} subValue={results ? `${(p0 - results.p_x).toFixed(1)} kN` : ""} icon={Target} color="orange" />
-            <MetricCard label="Força no Final" value={results ? `${results.p_x.toFixed(1)}` : "--"} subValue="kN" icon={Scale} color="blue" />
+            <MetricCard label="Perda por Atrito" value={results ? `${formatNumberBR((1 - results.p_x / p0) * 100)}%` : "--"} subValue={results ? `${formatNumberBR(p0 - results.p_x, 1)} kN` : ""} icon={Target} color="orange" />
+            <MetricCard label="Força no Final" value={results ? `${formatNumberBR(results.p_x, 1)}` : "--"} subValue="kN" icon={Scale} color="blue" />
             <MetricCard label="Eficiência Global" value={results ? "91.2%" : "--"} subValue="Optimized" icon={ShieldCheck} color="green" />
           </div>
 
@@ -247,6 +248,13 @@ export function TensionProView() {
           </div>
         </div>
       </div>
+      {showHtmlMemorial && results && (
+        <MemorialHtmlView 
+          results={results} 
+          input={{ fck, p0, mu, k, length, humidity, ageOfLoading }} 
+          onClose={() => setShowHtmlMemorial(false)} 
+        />
+      )}
     </ModuleContainer>
   );
 }

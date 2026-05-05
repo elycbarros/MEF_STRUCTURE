@@ -22,7 +22,7 @@ export interface OptimizationResult {
   suggestedB: number;
   suggestedH: number;
   suggestedFck: number;
-  estimatedWeightReduction: number; // Porcentagem
+  weightReduction: number; // Porcentagem
   explanation: string;
   isOptimized: boolean;
 }
@@ -86,7 +86,7 @@ export class OptimizationEngine {
       suggestedB,
       suggestedH,
       suggestedFck,
-      estimatedWeightReduction: weightReduction,
+      weightReduction: weightReduction,
       explanation,
       isOptimized
     };
@@ -110,7 +110,7 @@ export class OptimizationEngine {
         suggestedB: params.currentB,
         suggestedH: params.currentH,
         suggestedFck: params.currentFck + 10,
-        estimatedWeightReduction: 0,
+        weightReduction: 0,
         explanation: "Aumentar apenas o FCK mantém a geometria e aumenta a reserva de segurança significativamente.",
         isOptimized: true
       });

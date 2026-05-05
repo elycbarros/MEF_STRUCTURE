@@ -25,6 +25,9 @@ export interface BeamInput {
   supports: SupportType[]; // size = spans + 1
   eGPa: number;
   defaultInertiaCm4: number;
+  sectionB?: number; // cm
+  sectionH?: number; // cm
+  fck?: number; // MPa
   tolerance?: number;
   maxIterations?: number;
 }
