@@ -63,29 +63,29 @@ class SpecialElementsSolver:
         return SpecialElementsEngine.solve_helical_stairs(radius, angle_total_deg, h_step, thick, q_acid)
 
     @staticmethod
-    def solve_beam(L: float, b: float, h: float, q_kN_m: float, fck: float) -> dict:
-        """Solução acadêmica rápida para vigas."""
+    def solve_beam(L: float, b: float, h: float, q_kN_m: float, fck: float, asymmetric_offset: float = 0.0) -> dict:
+        """Solução profissional para vigas com suporte a assimetria."""
         from beam_solver import run_beam_analysis
-        # Mapeia para o solver profissional com parâmetros básicos
         return run_beam_analysis(
-            L=L, 
-            b=b, 
-            h=h, 
-            fck=fck, 
-            supports=[
-                {'x': 0, 'type': 'pinned'},
-                {'x': L, 'type': 'pinned'}
-            ],
-            distributed_loads=[{'x_start': 0, 'x_end': L, 'q_start': q_kN_m, 'q_end': q_kN_m}]
+            L=L, b=b, h=h, fck=fck, 
+            supports=[{'x': 0, 'type': 'pinned'}, {'x': L, 'type': 'pinned'}],
+            distributed_loads=[{'x_start': 0, 'x_end': L, 'q_start': q_kN_m, 'q_end': q_kN_m}],
+            asymmetric_offset=asymmetric_offset
         )
 
     @staticmethod
-    def solve_column(b: float, h: float, Nd_kN: float, fck: float, L_free: float) -> dict:
-        """Solução profissional para pilares."""
+    def solve_column(b: float, h: float, Nd_kN: float, fck: float, L_free: float, Mxd_kNm: float = 0.0, Myd_kNm: float = 0.0, caa: int = 2) -> dict:
+        """Solução profissional para pilares com flexo-compressão biaxial."""
         from column_solver import ColumnSection, ColumnLoads, solve_column_section
-        sec = ColumnSection(b=b, h=h, fck=fck, L_free=L_free)
-        loads = ColumnLoads(Nd_kN=Nd_kN)
+        sec = ColumnSection(b=b, h=h, fck=fck, L_free=L_free, caa=caa)
+        loads = ColumnLoads(Nd_kN=Nd_kN, Mxd_kNm=Mxd_kNm, Myd_kNm=Myd_kNm)
         return solve_column_section(sec, loads)
+
+    @staticmethod
+    def solve_building_core(n_floors: int = 40, building_Lx: float = 24.0, building_Ly: float = 24.0, fck: float = 35.0) -> dict:
+        """Solução Elite para núcleos de rigidez e estabilidade global."""
+        from building_core import run_core_analysis
+        return run_core_analysis(n_floors=n_floors, building_Lx=building_Lx, building_Ly=building_Ly, fck=fck)
 
     @staticmethod
     def solve_footing(Nd_kN: float, sigma_adm_kPa: float, ap: float, bp: float, fck: float) -> dict:

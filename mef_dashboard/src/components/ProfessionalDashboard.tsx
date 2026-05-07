@@ -56,10 +56,28 @@ export default function ProfessionalDashboard({ memorial, config, mode = "profes
       show: mode !== "academic"
     },
     {
+      label: "Aço Detalhado (UFO)",
+      value: memorial.detailing_summary ? `${formatNumberBR(memorial.detailing_summary.total_steel_kg)} kg` : "N/D",
+      sub: "Detalhamento Executivo",
+      icon: Layers,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      show: true
+    },
+    {
+      label: "Análise Sísmica (RSA)",
+      value: memorial.seismic ? "Auditado" : "N/D",
+      sub: memorial.seismic ? `Base Shear: ${formatNumberBR(memorial.seismic.total_base_shear_x)} kN` : "Sem Carregamento Sísmico",
+      icon: Activity,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+      show: true
+    },
+    {
       label: isLaje ? "Peso da Estrutura" : "Eficiência de Material",
       value: isLaje ? `${formatNumberBR(config.Lx * config.Ly * config.h * 25)} kN` : `${materialEfficiency}%`,
       sub: isLaje ? "Peso Próprio Estimado" : "Design vs Normativo",
-      icon: Layers,
+      icon: Award,
       color: "text-indigo-500",
       bg: "bg-indigo-50",
       show: true

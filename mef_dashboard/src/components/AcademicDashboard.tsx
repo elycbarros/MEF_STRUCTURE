@@ -14,6 +14,7 @@ import {
   Layers3,
   Layers,
   Share2,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAcademicBacklogProgress } from "@/components/AcademicBacklogView";
@@ -60,6 +61,24 @@ export function AcademicDashboard({ setActiveTab, setSystemType }: AcademicDashb
       icon: Share2,
       accent: "bg-indigo-600",
       onClick: () => setActiveTab("vigacross")
+    },
+    {
+      id: "porticos",
+      label: "PÓRTICOS",
+      subLabel: "Cálculo Matricial",
+      description: "Análise de pórticos planos e espaciais via rigidez direta. Exibe montagem de matrizes e equilíbrio.",
+      icon: Layers3,
+      accent: "bg-blue-600",
+      onClick: () => setActiveTab("porticos")
+    },
+    {
+      id: "trelicas",
+      label: "TRELIÇAS",
+      subLabel: "Sistemas Articulados",
+      description: "Dimensionamento e análise de treliças metálicas (Pratt, Howe, Warren). Foco em esforços axiais e flambagem.",
+      icon: LayoutGrid,
+      accent: "bg-teal-500",
+      onClick: () => setActiveTab("trelicas")
     },
     {
       id: "especiais",

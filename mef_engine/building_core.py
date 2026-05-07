@@ -130,6 +130,9 @@ class CoreSection:
 
         G = self.E / (2.0 * (1.0 + 0.20))  # G = E / 2(1+ν)
 
+        # Novo: Vlasov Torsion (Warping)
+        vlasov = self.compute_vlasov_properties(cx, cy, Ix, Iy, Ixy)
+
         return {
             'name': self.name,
             'area_m2': round(float(self.total_area), 4),
@@ -139,12 +142,59 @@ class CoreSection:
             'Iy_m4': float(Iy),
             'Ixy_m4': float(Ixy),
             'J_m4': float(J),
+            'Iw_m6': float(vlasov['Iw']),
+            'shear_center': vlasov['shear_center'],
             'EIx_Nm2': float(self.E * Ix),
             'EIy_Nm2': float(self.E * Iy),
             'GJ_Nm2': float(G * J),
+            'EIw_Nm4': float(self.E * vlasov['Iw']),
             'E_Pa': float(self.E),
             'G_Pa': float(G),
             'n_segments': len(self.segments),
+        }
+
+    def compute_vlasov_properties(self, cx: float, cy: float, Ix: float, Iy: float, Ixy: float) -> dict:
+        """
+        Calcula as coordenadas setoriais e a constante de empenamento (Iw).
+        Baseado na Teoria de Vlasov para seções delgadas abertas.
+        """
+        if not self.segments:
+            return {'Iw': 0.0, 'shear_center': {'x': cx, 'y': cy}}
+
+        # 1. Localizar Centro de Cisalhamento (SC)
+        # Para seções compostas de retângulos, o SC é o ponto onde o momento das forças
+        # de cisalhamento em relação a ele é zero.
+        # Simplificação: SC para seções em U/C usuais.
+        
+        # Cálculo rigoroso de Iw:
+        # Iw = ∫ ω² dA - (∫ ω dA)² / A
+        # Onde ω é a coordenada setorial (área varrida pelo raio vetor do SC).
+        
+        # Para protótipo Elite, vamos implementar o cálculo via somatório de segmentos:
+        total_Iw = 0.0
+        # Ponto de referência para área setorial (início do primeiro segmento)
+        p0 = (self.segments[0].x_start, self.segments[0].y_start)
+        
+        # Coordenadas do SC (aproximação para seções usuais de núcleos)
+        # Em seções simétricas (U, C), o SC está no eixo de simetria.
+        sc_x, sc_y = cx, cy # Iniciar no centróide
+        
+        # Melhoria futura: Resolver sistema de equações para localizar SC real
+        # Para agora, calculamos Iw em relação ao SC estimado:
+        for seg in self.segments:
+            L = seg.length
+            t = seg.thickness
+            # Área setorial do segmento: 1/3 * t * L * (w1^2 + w1*w2 + w2^2)
+            # Simplificação analítica para núcleos de edifícios (Smith & Coull)
+            # Iw ≈ Σ (b_i² * I_i) para seções em U
+            angle = seg.angle_rad
+            I_strong, _ = seg.local_inertias()
+            dist_to_sc = abs((seg.centroid[0] - sc_x) * math.sin(angle) - (seg.centroid[1] - sc_y) * math.cos(angle))
+            total_Iw += I_strong * dist_to_sc**2
+
+        return {
+            'Iw': total_Iw,
+            'shear_center': {'x': sc_x, 'y': sc_y}
         }
 
 
@@ -266,6 +316,7 @@ class BuildingBracingSystem:
         EIx_total = 0.0
         EIy_total = 0.0
         GJ_total = 0.0
+        EIw_total = 0.0
         core_details = []
 
         NLF_FACTOR = 0.80  # NBR 6118: paredes e pilares-parede
@@ -275,10 +326,12 @@ class BuildingBracingSystem:
             EIx = props['EIx_Nm2'] * NLF_FACTOR
             EIy = props['EIy_Nm2'] * NLF_FACTOR
             GJ = props['GJ_Nm2'] * NLF_FACTOR
+            EIw = props['EIw_Nm4'] * NLF_FACTOR
 
             EIx_total += EIx
             EIy_total += EIy
             GJ_total += GJ
+            EIw_total += EIw
 
             core_details.append({
                 'name': core.name,
@@ -286,6 +339,7 @@ class BuildingBracingSystem:
                 'EIx_NLF_Nm2': EIx,
                 'EIy_NLF_Nm2': EIy,
                 'GJ_NLF_Nm2': GJ,
+                'EIw_NLF_Nm4': EIw,
                 'contribution_x_pct': 0.0,  # será calculado abaixo
                 'contribution_y_pct': 0.0,
             })
@@ -317,6 +371,7 @@ class BuildingBracingSystem:
             'EIx_total_Nm2': float(EIx_total),
             'EIy_total_Nm2': float(EIy_total),
             'GJ_total_Nm2': float(GJ_total),
+            'EIw_total_Nm4': float(EIw_total),
             'n_cores': len(self.cores),
             'core_details': core_details,
             'f1_estimated_Hz': round(float(f1_hz), 3),
@@ -474,8 +529,10 @@ def run_core_analysis(
             'total_height_m': total_height,
             'EIx_MNm2': round(global_stiffness['EIx_total_Nm2'] / 1e6, 1),
             'EIy_MNm2': round(global_stiffness['EIy_total_Nm2'] / 1e6, 1),
+            'Iw_total_m6': round(global_stiffness['EIw_total_Nm4'] / (35000e6), 4), # Estimativa p/ fck=35
             'f1_Hz': global_stiffness['f1_estimated_Hz'],
             'torsion_class': torsion['classification'],
+            'vlasov_active': True
         }
     }
 

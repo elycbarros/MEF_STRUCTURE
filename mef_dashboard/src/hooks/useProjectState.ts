@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { Gauge, ShieldCheck, Building2, StretchHorizontal, FileText, Wind, Box, Database, Search, Cpu, ClipboardCheck, Share2, Activity, Zap } from "lucide-react";
 
-export type AcademicTabId = "dashboard" | "geometria" | "pilares_isolados" | "vigas" | "especiais" | "vigacross" | "backlog";
+export type AcademicTabId = "dashboard" | "geometria" | "porticos" | "trelicas" | "pilares_isolados" | "vigas" | "especiais" | "vigacross" | "backlog";
 export type TabId = AcademicTabId | "pilares" | "armadura" | "resultado" | "integracao" | "vento" | "tensionpro" | "ufo";
 type LogEntry = {
   message: string;
@@ -48,6 +48,8 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
         { id: "dashboard", label: "Painel", icon: Gauge },
         { id: "backlog", label: "Backlog", icon: ClipboardCheck },
         { id: "geometria", label: "Radier", icon: ShieldCheck },
+        { id: "porticos", label: "Pórticos", icon: Share2 },
+        { id: "trelicas", label: "Treliças", icon: Activity },
         { id: "pilares_isolados", label: "Dimensionar Pilar", icon: Cpu },
         { id: "vigas", label: "Dimensionar Viga", icon: Box },
         { id: "especiais", label: "Paredes e Especiais", icon: Database }

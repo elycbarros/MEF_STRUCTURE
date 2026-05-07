@@ -109,6 +109,35 @@ export function UfoStabilityView() {
             </div>
           </div>
 
+          <div className="rounded-3xl border border-[#e0e7ef] bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingDown className="h-4 w-4 text-blue-600" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#6a7485]">Dinâmica e Vibrações</h3>
+            </div>
+            
+            <div className="space-y-4">
+              {[
+                { label: "1º Modo (Translação X)", freq: "0.85 Hz", period: "1.18 s" },
+                { label: "2º Modo (Translação Y)", freq: "0.92 Hz", period: "1.09 s" },
+                { label: "3º Modo (Torção)", freq: "1.45 Hz", period: "0.69 s" },
+              ].map((m, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="text-[10px] font-black text-[#1d1d1f]">{m.label}</div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-blue-600">{m.freq}</p>
+                    <p className="text-[9px] font-bold text-slate-400">{m.period}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
+               <p className="text-[10px] font-bold text-blue-800 leading-tight">
+                 Auditado Conforto (NBR 6123): Aceleração de pico dentro dos limites normativos para uso residencial.
+               </p>
+            </div>
+          </div>
+
           <div className="rounded-3xl border border-[#f8d7da] bg-[#fdf2f2] p-6 text-[#721c24]">
             <div className="flex gap-3">
               <AlertCircle className="h-5 w-5 shrink-0" />

@@ -115,8 +115,8 @@ class MemorialEngine:
             formula=r"f_{cd} = \frac{f_{ck}}{1{,}4}, \quad f_{yd} = \frac{f_{yk}}{1{,}15}, \quad E_{cs} = 0{,}8 \cdot 5600\sqrt{f_{ck}}",
             substitution=rf"f_{{cd}} = \frac{{{self._fmt(fck, 1)}}}{{1{{,}}4}},\quad f_{{yd}} = \frac{{{self._fmt(fyk, 1)}}}{{1{{,}}15}}",
             result=rf"f_{{cd}} = {self._fmt(fcd, 2)}\,MPa,\quad f_{{yd}} = {self._fmt(fyd, 2)}\,MPa,\quad E_{{cs}} \approx {self._fmt(ecs, 0)}\,MPa",
-            explanation="As resistencias e o modulo de elasticidade sao a base para as verificacoes de ELU e ELS.",
-            norm="NBR 6118, Itens 8.2 e 8.3"
+            explanation="As resistencias e o modulo de elasticidade seguem os critérios do Prof. Libânio (Módulos 3-4) para ELU e ELS.",
+            norm="NBR 6118:2023, Itens 8.2 e 8.3"
         )
 
     def add_durability_step(self, caa: int, cover_mm: int):
@@ -134,20 +134,20 @@ class MemorialEngine:
             formula=rf"CAA = {caa} \rightarrow c_{{nom}} \geq {cover_mm}\,mm",
             substitution=rf"\text{{Classe: }} {env_desc}",
             result=rf"c_{{nom}} = {cover_mm}\,mm",
-            explanation="O cobrimento nominal garante a protecao das armaduras contra a corrosao durante a vida util.",
-            norm="NBR 6118, Tabela 6.1 e 7.2"
+            explanation="O cobrimento nominal garante a proteção das armaduras conforme NBR 6118:2023, Tabela 6.1.",
+            norm="NBR 6118:2023, 6.4 e 7.2"
         )
 
     def add_standard_info(self):
         """Adiciona informacoes sobre a norma vigente."""
         return self.add_step(
             id="normative",
-            title="Referencia Normativa",
+            title="Referência Normativa",
             formula=r"\text{NBR 6118:2023}",
             substitution=r"\text{Projeto de Estruturas de Concreto}",
             result=r"\text{Vigente}",
-            explanation="Todos os calculos seguem rigorosamente os criterios de seguranca e servico da norma brasileira.",
-            norm="Referencia Principal"
+            explanation="Cálculos realizados com base na NBR 6118:2023 e na metodologia de dimensionamento do Prof. Libânio.",
+            norm="NBR 6118:2023"
         )
 
     def add_geometry_step(self, b_m: float, h_m: float, d_m: Optional[float] = None):
@@ -159,8 +159,8 @@ class MemorialEngine:
             formula=r"b_w \times h, \quad d \approx h - d'",
             substitution=rf"{self._fmt(b_m)} \times {self._fmt(h_m)}, \quad d = {self._fmt(d_val)}",
             result=rf"A_c = {self._fmt(b_m * h_m, 3)}\,m^2",
-            explanation="Definição das dimensões geométricas e altura útil da seção.",
-            norm="NBR 6118"
+            explanation="Definição das dimensões geométricas conforme padronização de projeto (Libânio, Módulo 2).",
+            norm="NBR 6118:2023"
         )
 
     def build(self) -> Dict[str, Any]:

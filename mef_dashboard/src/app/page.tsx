@@ -32,6 +32,8 @@ import { MainSidebar } from "@/components/MainSidebar";
 import { SupportLocationSection } from "@/components/SupportLocationSection";
 import { AcademicDashboard } from "@/components/AcademicDashboard";
 import { AcademicBacklogView } from "@/components/AcademicBacklogView";
+import { AcademicPorticoView } from "@/components/AcademicPorticoView";
+import { AcademicTrussView } from "@/components/AcademicTrussView";
 import { 
   asRecord, 
   asRecordArray, 
@@ -1251,6 +1253,14 @@ export default function Home() {
                 setActiveTab={setActiveTab}
                 setSystemType={setSystemType}
               />
+            )}
+
+            {activeTab === "porticos" && selectedMode === "academic" && (
+              <AcademicPorticoView />
+            )}
+
+            {activeTab === "trelicas" && selectedMode === "academic" && (
+              <AcademicTrussView />
             )}
 
             {activeTab === "pilares" && (

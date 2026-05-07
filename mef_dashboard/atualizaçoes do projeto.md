@@ -22,5 +22,19 @@
 - Migração de todos os módulos para o contêiner unificado `ModuleContainer`.
 - Atualização da WelcomeScreen para experiência premium de primeiro acesso.
 
+## [2.0.0] - 2026-05-07
+### Adicionado
+- **UFO Universal Engine**: Expansão do motor 3D para suporte a sobrados, casas, galpões comerciais e edificações não usuais.
+- **Geotecnia Avançada (SSI)**: Implementação de curvas p-y (Reese/Matlock) para interação solo-estrutura não-linear em estacas.
+- **Detalhamento Global Automático**: Orquestrador de consumo de aço para todo o edifício, integrando esforços 3D com resumos executivos.
+- **Análise Sísmica (RSA)**: Implementação de Resposta Espectral (NBR 15421) com superposição SRSS.
+- **Auditoria de Conforto**: Verificação automática de aceleração de pico (NBR 6123) para conforto de usuários.
+- **Modo Mestre vs Modo UFO**: Diferenciação arquitetônica formal entre ensino pedagógico e auditoria profissional global.
+
+### Alterado
+- **WelcomeScreen V2.0**: Rebrand total com foco na separação MESTRE/UFO e novos escopos de edificação.
+- **Dashboard Profissional**: Inclusão de KPIs de consumo de aço e status sísmico auditado.
+- **UfoStabilityView**: Integração de análise modal (períodos e frequências) e auditoria de vibrações.
+
 ---
 *Regra de Versionamento VibeDoCode: V[MAJOR].[MINOR].[PATCH]*

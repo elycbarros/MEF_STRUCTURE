@@ -110,6 +110,45 @@ class StabilityEngine:
             is_divergent=p_delta_res['is_divergent']
         )
 
+    @staticmethod
+    def calculate_ufo_stability(nodes: list, members: list, loads: list, supports: dict, wind_v0: float = 30.0) -> dict:
+        """
+        Executa Auditoria UFO (Elite Tier) usando o motor de pórtico 3D.
+        Calcula Gama-Z e Alfa reais via P-Delta com redução de rigidez NBR 6118.
+        """
+        from frame_engine import Frame3DEngine
+        engine = Frame3DEngine(nodes, members)
+        indices = engine.calculate_stability_indices(loads, supports)
+        
+        # Auditoria de Conforto (Vibrações)
+        try:
+            modal = engine.modal_analysis(num_modes=1, supports=supports)
+            f1 = modal['modes'][0]['frequency_hz']
+            height = max(n.z for n in nodes)
+            # Aceleração simplificada (NBR 6123 - Vento)
+            v_serv = 0.7 * wind_v0
+            acc = (0.001 * (v_serv**2) * height) / (f1 * 100) # m/s2
+            comfort = "OK"
+            if acc > 0.1: comfort = "DESCONFORTO_LEVE"
+            if acc > 0.15: comfort = "CRITICO"
+        except Exception as e:
+            print(f"Modal fail in UFO: {str(e)}")
+            f1 = 0.0
+            acc = 0.0
+            comfort = "ANALISE_INDISPONIVEL"
+        
+        return {
+            'gamma_z': indices['gamma_z'],
+            'alpha': indices['alpha'],
+            'is_stable': indices['gamma_z'] < 1.3,
+            'p_delta_iterations': indices['p_delta_iterations'],
+            'f1_hz': round(f1, 3),
+            'peak_acceleration_ms2': round(acc, 4),
+            'comfort_status': comfort,
+            'recommendation': indices['recommendation'],
+            'standard': "NBR 6118:2023 §15 / NBR 6123"
+        }
+
 if __name__ == "__main__":
     # Exemplo: Prédio de 10 andares (30m)
     res = StabilityEngine.calculate_gamma_z(

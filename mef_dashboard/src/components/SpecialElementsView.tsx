@@ -7,6 +7,7 @@ import { PedagogicalStepsView } from "./PedagogicalStepsView";
 import { MemorialHtmlView } from "./MemorialHtmlView";
 import EffortDiagrams from "./EffortDiagrams";
 import { ElegantTooltip } from "./ui/ElegantTooltip";
+import { FiberSectionMap } from "./FiberSectionMap";
 
 interface SpecialElementsViewProps {
   apiBaseUrl: string;
@@ -301,6 +302,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
     L_right: 0.0,
     leftK: 10000,
     rightK: 10000,
+    asymmetric_offset: 0.0,
   });
   const [colParams, setColParams] = useState({ b: 0.40, h: 0.40, Nd: 1200, Mxd: 40, Myd: 15, L_free: 3.0, fck: 25, caa: 2 });
   const [footingParams, setFootingParams] = useState({ Nd: 800.0, sigma_adm: 250.0, ap: 0.20, bp: 0.40, fck: 25 });
@@ -389,7 +391,8 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
           n_elements: beamParams.nElements,
           include_self_weight: beamParams.includeSelfWeight,
           gamma_f: beamParams.gammaF,
-          redistribution_delta: beamParams.redistributionDelta
+          redistribution_delta: beamParams.redistributionDelta,
+          asymmetric_offset: beamParams.asymmetric_offset
         };
       } else {
         body = { type: activeTab, params };
@@ -1028,6 +1031,19 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                     <input type="number" min="2" max="500" value={beamParams.nElements} onChange={(e) => setBeamParams({ ...beamParams, nElements: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
                   </div>
                 </div>
+                <div className="pt-2">
+                  <ElegantTooltip content="Excentricidade geométrica adicional (e0) devido à assimetria da seção (L, C, etc.).">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[#98a2b3]">Offset Assimétrico (e0) [m]</label>
+                  </ElegantTooltip>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={beamParams.asymmetric_offset} 
+                    onChange={(e) => setBeamParams({ ...beamParams, asymmetric_offset: Number(e.target.value) })} 
+                    className="w-full mt-1 rounded-xl border border-blue-100 bg-blue-50/20 p-3 text-sm font-black text-blue-700 shadow-inner" 
+                  />
+                  <p className="mt-1 text-[9px] font-bold text-slate-400">Gera momentos torsores adicionais automáticos no motor MEF.</p>
+                </div>
               </div>
             </div>
           )}
@@ -1293,6 +1309,15 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                       </span>
                       <p className="text-xs text-[#667085]">Pilar verificado com roteiro didático. Se λ {">"} 35, os efeitos locais de 2ª ordem entram na análise.</p>
                     </div>
+                    {result.fiber_results?.fibers && (
+                      <div className="col-span-2">
+                        <FiberSectionMap 
+                          fibers={result.fiber_results.fibers} 
+                          b={colParams.b} 
+                          h={colParams.h} 
+                        />
+                      </div>
+                    )}
                   </>
                 )}
 

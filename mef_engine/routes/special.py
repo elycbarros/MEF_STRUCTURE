@@ -67,7 +67,8 @@ async def calculate_special(req: SpecialElementRequest):
             b=params.get('b', 0.20),
             h=params.get('h', 0.50),
             q_kN_m=params.get('q', 20.0),
-            fck=params.get('fck', 30.0)
+            fck=params.get('fck', 30.0),
+            asymmetric_offset=params.get('asymmetric_offset', 0.0)
         )
         
         # Injetar Detalhamento Módulo 6-7
@@ -104,7 +105,10 @@ async def calculate_special(req: SpecialElementRequest):
             h=params.get('h', 0.40),
             Nd_kN=params.get('Nd', 1000.0),
             fck=params.get('fck', 30.0),
-            L_free=params.get('L_free', 3.0)
+            L_free=params.get('L_free', 3.0),
+            Mxd_kNm=params.get('Mxd', 0.0),
+            Myd_kNm=params.get('Myd', 0.0),
+            caa=params.get('caa', 2)
         )
         blackboard = build_column_blackboard(res)
 

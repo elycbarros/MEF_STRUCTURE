@@ -650,10 +650,10 @@ def _durability_params(caa: int, member_type: str) -> dict:
     return {'caa': caa_int, 'cover_m': cover_mm / 1000.0, 'cover_mm': cover_mm, 'wk_limit_mm': wk_limits[caa_int]}
 
 
-def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, gamma_f=1.4):
+def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, gamma_f=1.4, asymmetric_offset=0.0):
     durability = _durability_params(caa, 'beam')
     cover_m = float(cover) if cover is not None else durability['cover_m']
-    section = BeamSection(b=b, h=h, fck=fck, bf=bf, hf=hf, cover=cover_m)
+    section = BeamSection(b=b, h=h, fck=fck, bf=bf, hf=hf, cover=cover_m, asymmetric_offset=asymmetric_offset)
     model = BeamModel(L=L, section=section, supports=[BeamSupport(**s) for s in supports],
                       distributed_loads=[DistributedLoad(**dl) for dl in (distributed_loads or [])],
                       point_loads=[PointLoad(**pl) for pl in (point_loads or [])], n_elements=n_elements,
@@ -681,6 +681,11 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
                      'x_nodes_m': result.x.tolist(), 'w_mm': (result.w*1000.0).tolist()},
         'classical_diagrams': classical_res,
         'classical_reactions': classical_res.get('reactions', []),
+        'torsion_audit': {
+            'asymmetric_offset': asymmetric_offset,
+            'is_asymmetric': asymmetric_offset != 0,
+            'citation': "NBR 6118:2023, 17.5 / Libânio Módulo 22"
+        },
         'debug_info': {
             'x1': classical_res.get('reactions', [{}])[0].get('x') if len(classical_res.get('reactions', [])) > 0 else None,
             'x2': classical_res.get('reactions', [{}, {}])[1].get('x') if len(classical_res.get('reactions', [])) > 1 else None,

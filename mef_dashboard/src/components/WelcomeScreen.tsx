@@ -47,20 +47,20 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
                   <GraduationCap className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">MESTRE LAB</h2>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Scientific Engine</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">MODO MESTRE</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Pedagogia & Elementos Isolados</p>
                 </div>
               </div>
 
               <p className="text-slate-500 font-bold leading-relaxed text-lg">
-                Foco pedagógico em elementos isolados, dimensionamento assistido e conformidade normativa rigorosa (NBR 6118).
+                Foco no ensino da engenharia estrutural: resolução passo-a-passo de vigas, lajes e pilares com provas didáticas e conformidade NBR 6118.
               </p>
 
               <div className="space-y-4">
                 {[
-                  { icon: BookOpen, text: "Resolução Passo-a-Passo" },
-                  { icon: Layers, text: "Vigas, Lajes e Pilares Isolados" },
-                  { icon: ShieldCheck, text: "Memoriais de Cálculo Didáticos" }
+                  { icon: BookOpen, text: "Memoriais de Cálculo Didáticos" },
+                  { icon: Layers, text: "Matriz de Rigidez Passo-a-Passo" },
+                  { icon: ShieldCheck, text: "Validação Normativa Transparente" }
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-4 text-sm font-black text-slate-700">
                     <div className="h-2 w-2 rounded-full bg-blue-600" />
@@ -90,20 +90,20 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
                   <Rocket className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black tracking-tight">UFO CORE</h2>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Professional Engine</p>
+                  <h2 className="text-3xl font-black tracking-tight">MODO UFO</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Análise Global & Profissional</p>
                 </div>
               </div>
 
               <p className="text-white/60 font-bold leading-relaxed text-lg">
-                Análise global de edifícios altos, estabilidade P-Delta e auditoria autônoma Ph.D. para projetos de alta complexidade.
+                Engenharia de alta performance para casas, sobrados, galpões e edifícios. Estabilidade P-Delta, RSA Sísmica e Detalhamento Automático.
               </p>
 
               <div className="space-y-4">
                 {[
-                  { icon: Cpu, text: "Engine Rust de Alta Performance" },
-                  { icon: Zap, text: "Simulação Global 3D & P-Delta" },
-                  { icon: ShieldCheck, text: "Auditoria Forense Automatizada" }
+                  { icon: Cpu, text: "Prédios, Galpões & Casas (3D)" },
+                  { icon: Zap, text: "Análise Dinâmica RSA & p-y SSI" },
+                  { icon: ShieldCheck, text: "Detalhamento Executivo Ph.D." }
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-4 text-sm font-black text-white/80">
                     <div className="h-2 w-2 rounded-full bg-blue-500 shadow-glow shadow-blue-500/50" />
@@ -113,7 +113,7 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
               </div>
 
               <div className="pt-4 flex items-center gap-3 text-blue-400 font-black text-sm uppercase tracking-widest group-hover:gap-6 transition-all">
-                Iniciar Projeto Profissional <ArrowRight className="h-5 w-5" />
+                Iniciar Projeto UFO <ArrowRight className="h-5 w-5" />
               </div>
             </div>
           </button>

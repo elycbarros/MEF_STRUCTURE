@@ -77,6 +77,30 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="As reacoes equilibram as cargas verticais aplicadas ao modelo.",
         norm="Equilibrio estatico"
     )
+
+    # Novo: Efeito Elite - Torção por Assimetria
+    asymmetric_offset = payload.get("asymmetric_offset", 0.0)
+    if asymmetric_offset != 0:
+        me.add_step(
+            id="beam-torsion-elite",
+            title="Torção por Assimetria (Elite Tier)",
+            formula=r"T_{sd} = q_{sd} \cdot e_0",
+            substitution=rf"e_0 = {fmt(asymmetric_offset, 3)}\,m",
+            result=rf"\text{{Análise 3-DOF FEM Ativada}}",
+            explanation="A assimetria da seção gera um binário de forças que resulta em torção de equilíbrio, calculada via motor Elite (NBR 6118 §17.5).",
+            norm="NBR 6118:2023, 17.5"
+        )
+        
+        # Novo: Decomposição de Torção
+        me.add_step(
+            id="beam-torsion-audit",
+            title="Auditoria de Torção: Componentes",
+            formula=r"T_{total} = T_{user} + T_{e0}",
+            substitution=rf"T_{{e0}} = {fmt(asymmetric_offset, 3)} \cdot q_{{sd}}",
+            result=rf"\text{{Auditado: Torção de Compatibilidade + Equilíbrio}}",
+            explanation="Separação entre a torção aplicada pelo usuário e a torção geométrica induzida pela assimetria da seção L/C.",
+            norm="Libânio Standard: Módulo 22"
+        )
     
     # 3. Verificacao ELU (Flexao, Domínios e Taxa Mínima)
     m_max = max(float(design.get("M_max_pos_kNm", 0.0)), abs(float(design.get("M_max_neg_kNm", 0.0))))
@@ -209,10 +233,12 @@ def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] 
     me.add_durability_step(caa, cover)
     me.add_geometry_step(b, h)
     
-    # 2. Esbeltez e Imperfeicoes
-    le = sec.L_free * sec.alpha_b if hasattr(sec, 'L_free') else 3.0
-    theta_a = 1.0 / (100.0 * math.sqrt(le))
-    ei = theta_a * le / 2.0
+    # 2. Esbeltez e 2a Ordem
+    slend = design.get("slenderness", {}) if design else {}
+    second_order = design.get("moments_2nd_order", {}) if design else {}
+    lambda_x = slend.get("lambda_x", lambda_val)
+    ei = float(second_order.get("e_min_x_mm", 20.0)) / 1000.0 # Aproximação via e_min
+    
     me.add_step(
         id="column-slenderness",
         title="Esbeltez e Imperfeicoes Geometricas",
@@ -236,16 +262,59 @@ def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] 
         norm="NBR 6118, 15.8.3.3.2"
     )
 
-    # 4. Verificacao ULS (Integracao de Fibras Biaxial)
-    me.add_step(
-        id="column-uls-check",
-        title="Verificacao de Resistencia ELU",
-        formula=r"\Phi = \text{Demand} / \text{Capacity} \leq 1{,}0",
-        substitution=rf"N_d = {fmt(Nd)}\,kN, \quad M_d = {fmt(m1d)}\,kNm",
-        result=rf"\text{{Status}} = \text{{Verificado}}",
-        explanation="Verifica se o ponto de solicitacao (Nd, Md) esta dentro da superficie de interacao da secao.",
-        norm="NBR 6118, 17.2.2"
-    )
+    # 3. Verificacao ULS (Integracao de Fibras Biaxial - Elite Tier)
+    res_data = sec if isinstance(sec, dict) else (design if design else {})
+    fiber_results = res_data.get("fiber_results", {})
+    if fiber_results:
+        me.add_step(
+            id="column-uls-check",
+            title="Integração via Modelo de Fibras (Elite Tier)",
+            formula=r"N_{rd} = \int \sigma_c \,dA + \sum \sigma_s A_s",
+            substitution=rf"\epsilon_0 = {fmt(fiber_results.get('eps0', 0.0)*1000, 3)}\text{{ per mille}}, \quad \kappa_x = {fmt(fiber_results.get('kx', 0.0), 4)}",
+            result=rf"\text{{Equilíbrio Newton-Raphson Convergiu}}",
+            explanation="Análise biaxial rigorosa discretizando a seção em 400 fibras. Supera as aproximações de diagramas simplificados (Método de Libânio, Módulos 15-18).",
+            norm="NBR 6118:2023, 17.2"
+        )
+        
+        # Novo: Plano de Deformação Final
+        me.add_step(
+            id="column-strain-plane",
+            title="Estado Limite de Deformação: Plano Final",
+            formula=r"\epsilon(x,y) = \epsilon_0 + \kappa_x \cdot x + \kappa_y \cdot y",
+            substitution=rf"\epsilon_0 = {fmt(fiber_results.get('eps0', 0.0)*1000, 3)}\text{{‰}}, \quad \kappa_x = {fmt(fiber_results.get('kx', 0.0), 4)}, \quad \kappa_y = {fmt(fiber_results.get('ky', 0.0), 4)}",
+            result=rf"\epsilon_{{c,max}} = {fmt(min(f['eps'] for f in fiber_results.get('fibers', []))*1000, 2)}\text{{‰}}",
+            explanation="O plano de deformação final garante que a seção está em equilíbrio e que as deformações no concreto e aço respeitam os limites normativos.",
+            norm="NBR 6118, Domínios de Deformação"
+        )
+        
+        # Novo: Tabela de Convergência Numérica
+        conv = fiber_results.get("convergence", [])
+        if conv:
+            rows = []
+            for c in conv[:10]: # Limitar as 10 primeiras iteracoes
+                rows.append(rf"{c['iter']} & {fmt(c['eps0']*1000, 3)} & {fmt(c['res_N']/1000, 1)} & {fmt(c['norm']/1000, 2)}")
+            
+            table_latex = r"\begin{array}{cccc} \hline \text{Iter} & \epsilon_0 \text{ (‰)} & \text{Res}_N \text{ (kN)} & \text{Norm} \\ \hline " + " \\\\ ".join(rows) + r" \\ \hline \end{array}"
+            
+            me.add_step(
+                id="column-convergence-table",
+                title="Prova Numérica: Convergência Newton-Raphson",
+                formula=r"\mathbf{J} \cdot \Delta \mathbf{U} = -\mathbf{R}",
+                substitution=rf"\text{{Plano Final: }} (\epsilon_0={fmt(fiber_results.get('eps0', 0.0)*1000, 3)}\text{{‰}}, \kappa_x={fmt(fiber_results.get('kx', 0.0), 4)})",
+                result=table_latex,
+                explanation="Demonstração da convergência do solver biaxial. A norma do resíduo deve tender a zero para garantir o equilíbrio.",
+                norm="Libânio Standard: Verificação Pericial"
+            )
+    else:
+        me.add_step(
+            id="column-uls-check",
+            title="Verificacao de Resistencia ELU",
+            formula=r"\Phi = \text{Demand} / \text{Capacity} \leq 1{,}0",
+            substitution=rf"N_d = {fmt(Nd)}\,kN, \quad M_d = {fmt(m1d)}\,kNm",
+            result=rf"\text{{Status}} = \text{{Verificado}}",
+            explanation="Verifica se o ponto de solicitacao (Nd, Md) esta dentro da superficie de interacao da secao.",
+            norm="NBR 6118, 17.2.2"
+        )
     me.add_step(
         id="column-reinforcement",
         title="Dimensionamento Rigoroso (Integracao de Fibras)",

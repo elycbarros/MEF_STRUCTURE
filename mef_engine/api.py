@@ -93,16 +93,27 @@ async def general_exception_handler(request, exc: Exception):
 
 # Include Modular Routers
 # Note: tags and prefixes are defined within the routers for better organization
-app.include_router(core.router)
-app.include_router(wind.router)
-app.include_router(stability.router)
-app.include_router(reports.router)
-app.include_router(elite.router)
-app.include_router(special.router)
-app.include_router(frame_router.router)   # C1: Frame 3D Premium (substitui StrucPy)
-app.include_router(loads.router)
-app.include_router(phd.router) # M5-PhD
-app.include_router(forensic.router) # M5-Forensic
+# --- MODO MESTRE (Análise Pedagógica e Segmentada) ---
+mestre_prefix = "/api/mestre"
+from routes import mestre_frame # New module
+app.include_router(core.router, prefix=mestre_prefix)
+app.include_router(mestre_frame.router, prefix=mestre_prefix)
+app.include_router(phd.router, prefix=mestre_prefix)
+app.include_router(reports.router, prefix=mestre_prefix)
+app.include_router(loads.router, prefix=mestre_prefix)
+app.include_router(special.router, prefix=mestre_prefix)
+
+# --- MODO UFO (Análise Global e Auditoria Profissional) ---
+ufo_prefix = "/api/ufo"
+from routes import seismic, ssi, ufo_detailing # Import late to ensure file exists
+app.include_router(frame_router.router, prefix=ufo_prefix) # C1: Frame 3D Premium
+app.include_router(stability.router, prefix=ufo_prefix)
+app.include_router(seismic.router, prefix=ufo_prefix)
+app.include_router(ssi.router, prefix=ufo_prefix)
+app.include_router(ufo_detailing.router, prefix=ufo_prefix)
+app.include_router(elite.router, prefix=ufo_prefix)
+app.include_router(forensic.router, prefix=ufo_prefix)
+app.include_router(wind.router, prefix=ufo_prefix)
 app.include_router(structural_rs.router, prefix="/rust")
 
 @app.get("/")

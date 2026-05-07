@@ -200,24 +200,58 @@ class FiberSectionIntegrator:
         # Vamos retornar como positivo para compressão para facilitar o solver
         return -(N_c + N_s), -(Mx_c + Mx_s), -(My_c + My_s)
 
+    def get_fiber_data(self, eps0: float, kx: float, ky: float) -> List[dict]:
+        """Retorna detalhes de cada fibra para visualização no frontend."""
+        eps_c = eps0 + kx * self.Y + ky * self.X
+        sig_c = np.zeros_like(eps_c)
+        mask1 = (eps_c < 0) & (eps_c >= -0.002)
+        sig_c[mask1] = 0.85 * self.fcd * (1 - (1 - abs(eps_c[mask1])/0.002)**2)
+        mask2 = (eps_c < -0.002) & (eps_c >= -0.0035)
+        sig_c[mask2] = 0.85 * self.fcd
+        
+        fibers = []
+        for i in range(self.nx):
+            for j in range(self.ny):
+                fibers.append({
+                    'x': float(self.X[j, i]),
+                    'y': float(self.Y[j, i]),
+                    'eps': float(eps_c[j, i]),
+                    'sig_MPa': float(sig_c[j, i] / 1e6)
+                })
+        return fibers
+
 class BiaxialBendingSolver:
     @staticmethod
-    def find_equilibrium(integrator: FiberSectionIntegrator, loads: ColumnLoads, max_iter: int = 50, tol: float = 1e-3) -> Tuple[float, float, float, bool]:
+    def find_equilibrium(integrator: FiberSectionIntegrator, loads: ColumnLoads, max_iter: int = 50, tol: float = 1e-3) -> Tuple[float, float, float, bool, List[dict]]:
         """
         Encontra o plano de deformação (eps0, kx, ky) que equilibra os esforços loads.
         Usa Newton-Raphson com Matriz Jacobiana Numérica.
+        Retorna também o histórico de convergência.
         """
         # [eps0, kx, ky]
         U = np.array([-0.001, 0.0, 0.0]) 
         target = np.array([loads.Nd_kN * 1000.0, loads.Mxd_kNm * 1000.0, loads.Myd_kNm * 1000.0])
+        history = []
         
         for i in range(max_iter):
             # Forças atuais
             N, Mx, My = integrator.get_forces(U[0], U[1], U[2])
             R = np.array([N, Mx, My]) - target
+            res_norm = np.linalg.norm(R)
             
-            if np.linalg.norm(R) < tol * (np.linalg.norm(target) + 1.0):
-                return U[0], U[1], U[2], True
+            history.append({
+                'iter': i,
+                'eps0': float(U[0]),
+                'kx': float(U[1]),
+                'ky': float(U[2]),
+                'res_N': float(R[0]),
+                'res_Mx': float(R[1]),
+                'res_My': float(R[2]),
+                'norm': float(res_norm)
+            })
+
+            if res_norm < tol * (np.linalg.norm(target) + 1.0):
+                return U[0], U[1], U[2], True, history
                 
             # Jacobiana Numérica
             J = np.zeros((3, 3))
@@ -229,12 +263,11 @@ class BiaxialBendingSolver:
                 
             try:
                 dU = np.linalg.solve(J, -R)
-                # Amortecimento para evitar divergência (Line Search simplificado)
                 U += 0.5 * dU 
             except np.linalg.LinAlgError:
                 break
                 
-        return U[0], U[1], U[2], False
+        return U[0], U[1], U[2], False, history
 
     @staticmethod
     def solve_required_reinforcement(sec: ColumnSection, loads: ColumnLoads) -> float:
@@ -249,7 +282,7 @@ class BiaxialBendingSolver:
         # Testar se atende com omega mínimo
         for iteration in range(10):
             integrator = FiberSectionIntegrator(sec, omega * sec.area * (sec.fck/1.4) / (sec.fyk/1.15) * 1e4)
-            eps0, kx, ky, converged = BiaxialBendingSolver.find_equilibrium(integrator, loads)
+            eps0, kx, ky, converged, _ = BiaxialBendingSolver.find_equilibrium(integrator, loads)
             
             # Critério de Ruptura (NBR 6118)
             # eps_c_min >= -0.0035, eps_s_max <= 0.010
@@ -297,11 +330,15 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     # 3. Solver Biaxial Profissional
     omega = BiaxialBendingSolver.solve_required_reinforcement(sec, loads_total)
     
-    fcd = (sec.fck / 1.4) * 1000.0
-    fyd = (sec.fyk / 1.15) * 1000.0
-    Ac = sec.area
+    # 4. Recuperar estado final de equilíbrio para visualização
+    fcd = (sec.fck / 1.4) * 1e6
+    fyd = (sec.fyk / 1.15) * 1e6
+    as_total = omega * sec.area * fcd / fyd
+    integrator = FiberSectionIntegrator(sec, as_total * 1e4) # cm2 inside integrator
+    eps0, kx, ky, converged, history = BiaxialBendingSolver.find_equilibrium(integrator, loads_total)
     
-    As_calc = omega * Ac * fcd / fyd
+    Ac = sec.area
+    As_calc = as_total
     
     # Limites normativos (NBR 6118 §17.3.5 / §18.2.1)
     # As_min = 0.15 * Nd / fyd >= 0.4% Ac
@@ -338,7 +375,14 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
             'caa': sec.caa,
             'cover_ok': cover_adopted_mm >= cover_required_mm,
         },
-        'status': status
+        'status': status,
+        'fiber_results': {
+            'eps0': float(eps0) if 'eps0' in locals() else 0,
+            'kx': float(kx) if 'kx' in locals() else 0,
+            'ky': float(ky) if 'ky' in locals() else 0,
+            'fibers': integrator.get_fiber_data(eps0, kx, ky) if 'eps0' in locals() else [],
+            'convergence': history if 'history' in locals() else []
+        }
     }
 
 

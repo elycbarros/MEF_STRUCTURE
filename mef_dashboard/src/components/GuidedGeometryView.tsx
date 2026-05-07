@@ -141,6 +141,28 @@ export function GuidedGeometryView({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-black">{systemType === "radier" ? "Geometria e Solo" : "Geometria da Placa"}</h2>
+        
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+          {[
+            { id: 'house', label: 'Sobrado/Casa' },
+            { id: 'shed', label: 'Galpão' },
+            { id: 'building', label: 'Prédio Baixo' },
+            { id: 'special', label: 'Especial' }
+          ].map(type => (
+            <button
+              key={type.id}
+              className={cn(
+                "px-3 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all",
+                (params as any).building_type === type.id 
+                  ? "bg-white text-blue-600 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-700"
+              )}
+              onClick={() => updateParam("building_type" as any, type.id as any)}
+            >
+              {type.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Seletor de Tipo de Laje (Apenas se systemType === "laje") */}

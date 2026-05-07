@@ -125,7 +125,7 @@ class RadierAnalytical:
         # Esta função agora é legada, os resultados vêm do memorial
         return mef_results.get("memorial", {}).get("comparativo_metodologias", {})
 
-router = APIRouter(tags=["Core Analysis"])
+router = APIRouter(tags=["Mestre - Core"])
 
 @router.post("/calculate")
 async def calculate_radier(input_data: ConfigInput):

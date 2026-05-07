@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from stability_engine import StabilityEngine
 
-router = APIRouter(prefix="/calculate", tags=["Stability"])
+router = APIRouter(prefix="/calculate", tags=["UFO - Stability"])
 
 @router.post("/stability")
 async def calculate_stability(total_p_kN: float, height: float, m1_kNm: float, 

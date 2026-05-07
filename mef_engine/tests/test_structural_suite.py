@@ -378,3 +378,33 @@ class TestAPIRoutes:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+# ─────────────────────────────────────────────────────────────────
+# Building Core (Núcleos de Rigidez) — Vlasov Torsion
+# ─────────────────────────────────────────────────────────────────
+class TestBuildingCore:
+    def test_elevator_shaft_vlasov_active(self):
+        """Verifica se a constante de empenamento (Iw) é calculada para seções em U."""
+        from building_core import create_elevator_shaft
+        core = create_elevator_shaft(width=2.5, depth=2.5, wall_thickness=0.20, open_side='south')
+        props = core.compute_properties()
+        assert props['Iw_m6'] > 0, "Iw deve ser positivo para seções abertas em U"
+        assert 'vlasov_active' in props or 'shear_center' in props, "Metadados Vlasov devem estar presentes"
+
+    def test_global_stiffness_summation(self):
+        """Verifica se a rigidez global soma corretamente os núcleos."""
+        from building_core import create_elevator_shaft, BuildingBracingSystem
+        c1 = create_elevator_shaft(x0=0, y0=0, width=2.0, depth=2.0, name='C1')
+        c2 = create_elevator_shaft(x0=10, y0=0, width=2.0, depth=2.0, name='C2')
+        building = BuildingBracingSystem(cores=[c1, c2], total_height=60.0)
+        gs = building.compute_global_stiffness()
+        assert gs['n_cores'] == 2
+        assert gs['EIx_total_Nm2'] > 0
+        assert gs['EIw_total_Nm4'] > 0
+
+    def test_torsion_check_eccentricity(self):
+        """Verifica detecção de excentricidade e classificação de torção."""
+        from building_core import run_core_analysis
+        # Núcleo deslocado em relação ao CM (12, 12)
+        res = run_core_analysis(building_Lx=24.0, building_Ly=24.0, n_floors=10)
+        assert res['torsion_check']['classification'] in ['CRITICO', 'ATENCAO']
+        assert res['torsion_check']['eccentricity_x_m'] > 1.0

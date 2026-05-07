@@ -14,17 +14,10 @@ import numpy as np
 from schemas.frame import FrameRequest
 from radier_utils import sanitize_for_json
 
-router = APIRouter(prefix="/calculate", tags=["Frame Premium"])
+router = APIRouter(prefix="/calculate", tags=["UFO - Frame"])
 
 
-def _apply_nbr_stiffness_reduction(members_input, nbr_reduce: bool):
-    """NBR 6118 §15.7.3: 0.4·EI vigas | 0.8·EI pilares."""
-    if not nbr_reduce:
-        return members_input
-    for m in members_input:
-        factor = 0.4 if m.type == "beam" else 0.8
-        m.section.E = m.section.E * factor
-    return members_input
+# NBR 6118 §15.7.3: Redução de rigidez automatizada no Frame3DEngine.
 
 
 def _build_wind_loads(req: FrameRequest):
@@ -82,8 +75,8 @@ async def calculate_frame_premium(req: FrameRequest):
     )
     from frame_memorial import build_frame_memorial
 
-    # 1. Aplicar redução de rigidez NBR 6118
-    members_input = _apply_nbr_stiffness_reduction(req.members, req.nbr_stiffness_reduction)
+    # 1. Preparar entrada (Redução de rigidez agora é automática no motor)
+    members_input = req.members
 
     # 2. Construir objetos do motor
     nodes = [FrameNode(id=n.id, x=n.x, y=n.y, z=n.z) for n in req.nodes]
@@ -106,17 +99,21 @@ async def calculate_frame_premium(req: FrameRequest):
     engine = Frame3DEngine(nodes, members)
     supports = {int(k): v for k, v in req.supports.items()}
 
-    # Análise 1ª Ordem (sem P-Delta)
-    res_1st = engine.solve(loads, supports)
+    # Análise 1ª Ordem
+    res_1st = engine.solve(loads, supports, reduce_stiffness=req.nbr_stiffness_reduction)
 
-    # Análise 2ª Ordem (P-Delta iterativo)
-    res_2nd = engine.solve_p_delta(loads, supports) if req.use_p_delta else res_1st
+    # Análise 2ª Ordem (P-Delta iterativo com Aitken Otimizado)
+    if req.use_p_delta:
+        res_2nd = engine.solve_p_delta(loads, supports, reduce_stiffness=req.nbr_stiffness_reduction)
+    else:
+        res_2nd = res_1st
 
     # 5. Esforços nas barras (N, Vy, Vz, T, My, Mz)
     efforts = engine.get_member_efforts(res_2nd["displacements"])
     
-    # 6. Verificação de Equilíbrio Global (C3)
-    equilibrium = engine.check_equilibrium(loads, res_2nd["displacements"], supports)
+    # 6. Verificação de Equilíbrio Global (C3) com mesma rigidez da análise
+    axials = {mid: eff["i"]["N"] * 1000.0 for mid, eff in efforts.items()}
+    equilibrium = engine.check_equilibrium(loads, res_2nd["displacements"], supports, reduce_stiffness=req.nbr_stiffness_reduction, axial_loads=axials)
 
     # 7. γz via deslocamentos nodais reais (C2)
     gamma_z = _compute_gamma_z(res_1st["displacements"], res_2nd["displacements"], loads, req.nodes)
@@ -168,7 +165,7 @@ async def calculate_frame_premium(req: FrameRequest):
     total_vertical_kN = sum(abs(l.Fz) for l in loads)
     
     # 9. Diagramas detalhados (C4)
-    detailed_diagrams = engine.get_detailed_diagrams(res_2nd["displacements"])
+    detailed_diagrams = engine.get_detailed_diagrams(res_2nd["displacements"], reduce_stiffness=req.nbr_stiffness_reduction, axial_loads=axials)
     
     response = {
         "success": True,
