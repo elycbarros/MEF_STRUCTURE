@@ -29,8 +29,6 @@ async def export_pdf(request: ExportPDFRequest):
             media_type="application/pdf"
         )
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -76,8 +74,6 @@ async def export_academic_beam_pdf(request: BeamAnalysisRequest):
             media_type="application/pdf",
         )
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -107,8 +103,6 @@ async def export_academic_column_pdf(request: ColumnRequest):
             media_type="application/pdf",
         )
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -150,8 +144,6 @@ async def export_vigacross_pdf(request: VigaCrossPDFRequest):
             media_type="application/pdf",
         )
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 

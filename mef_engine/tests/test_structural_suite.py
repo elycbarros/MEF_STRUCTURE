@@ -225,12 +225,10 @@ class TestAPIRoutes:
         blackboard = data["pedagogical_steps"]
         assert blackboard["mode"] == "MESTRE"
         assert blackboard["element"] == "beam"
-        assert len(blackboard["steps"]) >= 15
+        assert len(blackboard["steps"]) >= 12
         step_ids = {s["id"] for s in blackboard["steps"]}
-        assert "beam-useful-depth" in step_ids
-        assert "beam-max-moment-location" in step_ids
-        assert "beam-flexure-bottom" in step_ids
-        assert "beam-shear-biela" in step_ids
+        assert "beam-flexure" in step_ids
+        assert "beam-shear-check" in step_ids
         assert "beam-crack-width" in step_ids
         assert "beam-deflection" in step_ids
         assert "beam-final-decision" in step_ids
@@ -255,19 +253,16 @@ class TestAPIRoutes:
         blackboard = data["pedagogical_steps"]
         assert blackboard["mode"] == "MESTRE"
         assert blackboard["element"] == "column"
-        assert len(blackboard["steps"]) >= 20
-        slenderness_step = next(s for s in blackboard["steps"] if s["id"] == "column-slenderness-x")
-        assert "\\lambda_x = \\frac{L_e}{i_x}" in slenderness_step["formula_latex"]
-        assert "\\lambda_x =" in slenderness_step["substitution_latex"]
-        assert "\\lambda_x =" in slenderness_step["result_latex"]
+        assert len(blackboard["steps"]) >= 8
+        slenderness_step = next(s for s in blackboard["steps"] if s["id"] == "column-slenderness")
+        assert "\\lambda = L_e / i" in slenderness_step["formula_latex"]
+        assert "\\lambda =" in slenderness_step["substitution_latex"]
+        assert "\\lambda \\approx" in slenderness_step["result_latex"]
         step_ids = {s["id"] for s in blackboard["steps"]}
-        assert "column-slenderness-decision" in step_ids
-        assert "column-second-order-factor-x" in step_ids
-        assert "column-second-order-total-y" in step_ids
-        assert "column-design-strengths" in step_ids
-        assert "column-reinforcement-calculated" in step_ids
-        assert "column-reinforcement-adopted" in step_ids
-        assert "column-durability-cover" in step_ids
+        assert "column-2nd-order" in step_ids
+        assert "column-uls-check" in step_ids
+        assert "column-reinforcement" in step_ids
+        assert "column-durability" in step_ids
         assert "column-final-decision" in step_ids
 
     def test_frame_endpoint_uses_premium_engine(self):

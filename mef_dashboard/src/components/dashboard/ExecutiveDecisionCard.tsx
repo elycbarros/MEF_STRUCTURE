@@ -26,9 +26,10 @@ interface ExecutiveDecisionProps {
     settlement_ratio?: number;
     kv_confidence?: number;
   };
+  isLaje?: boolean;
 }
 
-export function ExecutiveDecisionCard({ decision }: ExecutiveDecisionProps) {
+export function ExecutiveDecisionCard({ decision, isLaje = false }: ExecutiveDecisionProps) {
   const isGo = decision.go_no_go === "go_preliminar" || decision.go_no_go === "go";
   const isHold = decision.go_no_go === "hold" || decision.go_no_go === "conditional_go";
   const isNoGo = decision.go_no_go === "no_go" || decision.go_no_go === "estudar_alternativa";
@@ -126,9 +127,9 @@ export function ExecutiveDecisionCard({ decision }: ExecutiveDecisionProps) {
           <div className="rounded-apple-inner bg-white/40 p-4 border border-white/40 space-y-3">
              <p className="text-[11px] font-bold text-apple-muted uppercase tracking-wider">Métricas Chave</p>
              <div className="grid grid-cols-2 gap-4">
-                <MiniMetric label="Pressão" value={decision.pressure_ratio ? `${(decision.pressure_ratio * 100).toFixed(1)}%` : "N/D"} />
+                <MiniMetric label={isLaje ? "Flecha" : "Pressão"} value={isLaje ? (decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "N/D") : (decision.pressure_ratio ? `${(decision.pressure_ratio * 100).toFixed(1)}%` : "N/D")} />
                 <MiniMetric label="Punção" value={decision.punching_ratio ? `${(decision.punching_ratio * 100).toFixed(1)}%` : "N/D"} />
-                <MiniMetric label="Recalque" value={decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "N/D"} />
+                <MiniMetric label={isLaje ? "Efeito (L/d)" : "Recalque"} value={decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "N/D"} />
                 <MiniMetric label="Confiança" value={decision.kv_confidence ? `${(decision.kv_confidence * 100).toFixed(0)}%` : "N/D"} />
              </div>
           </div>

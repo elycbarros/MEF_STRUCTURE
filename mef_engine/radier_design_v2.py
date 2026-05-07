@@ -23,6 +23,8 @@ class DesignConfig:
     bar_diameter_x_mm: float = 12.5
     bar_diameter_y_mm: float = 12.5
     eta1: float = 2.25
+    system_type: str = 'radier'
+    gamma_f: float = 1.4
     
     
 def suggest_commercial_reinforcement(as_cm2_m: float, h_m: float = 0.50) -> str:
@@ -99,14 +101,52 @@ def design_flexure_from_elements(elements_csv: str, cfg: DesignConfig, out_csv: 
     df['My_bottom_Nm_per_m'] = np.maximum(df['my_Nm_per_m'], 0.0) + mxy_abs
     df['My_top_Nm_per_m'] = np.maximum(-df['my_Nm_per_m'], 0.0) + mxy_abs
 
-    denom = max(z * fyd * 1e6, 1e-9)
-    df['Asx_bottom_req_cm2_m'] = df['Mx_bottom_Nm_per_m'] / denom * 1e4
-    df['Asx_top_req_cm2_m'] = df['Mx_top_Nm_per_m'] / denom * 1e4
-    df['Asy_bottom_req_cm2_m'] = df['My_bottom_Nm_per_m'] / denom * 1e4
-    df['Asy_top_req_cm2_m'] = df['My_top_Nm_per_m'] / denom * 1e4
+    # Dimensionamento Preciso (Bloco Retangular NBR 6118)
+    fcd = cfg.fck / cfg.gamma_c
+    alpha_cc = 0.85
+    lambda_c = 0.8
+    psi = 0.4
+    if cfg.fck > 50:
+        lambda_c = 0.8 - (cfg.fck - 50) / 400
+        psi = 0.4 - (cfg.fck - 50) / 1000
+        alpha_cc = 0.85 * (1 - (cfg.fck - 50) / 200)
 
-    as_min_total_cm2_m = cfg.rho_min * 1.0 * cfg.h * 1e4
+    # Mrd = alpha_cc * fcd * bw * (lambda_c * x) * (d - psi * lambda_c * x)
+    # k = Md / (bw * d^2 * alpha_cc * fcd)
+    k_val_bottom_x = (df['Mx_bottom_Nm_per_m'] * 1.0) / (1.0 * d**2 * alpha_cc * (fcd * 1e6))
+    k_val_top_x = (df['Mx_top_Nm_per_m'] * 1.0) / (1.0 * d**2 * alpha_cc * (fcd * 1e6))
+    k_val_bottom_y = (df['My_bottom_Nm_per_m'] * 1.0) / (1.0 * d**2 * alpha_cc * (fcd * 1e6))
+    k_val_top_y = (df['My_top_Nm_per_m'] * 1.0) / (1.0 * d**2 * alpha_cc * (fcd * 1e6))
+
+    def solve_xi(k):
+        # k = lambda * xi * (1 - psi * lambda * xi)
+        # psi * lambda^2 * xi^2 - lambda * xi + k = 0
+        a = psi * lambda_c**2
+        b = -lambda_c
+        delta = b**2 - 4 * a * k
+        return np.where(delta >= 0, (-b - np.sqrt(np.maximum(delta, 0))) / (2 * a), 1.0)
+
+    xi_bx = solve_xi(k_val_bottom_x)
+    xi_tx = solve_xi(k_val_top_x)
+    xi_by = solve_xi(k_val_bottom_y)
+    xi_ty = solve_xi(k_val_top_y)
+
+    df['xi_x_bottom'] = xi_bx
+    df['xi_x_top'] = xi_tx
+    
+    # Armadura Necessária: As = Md / (fyd * d * (1 - psi * lambda * xi))
+    df['Asx_bottom_req_cm2_m'] = (df['Mx_bottom_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_bx))) * 1e4
+    df['Asx_top_req_cm2_m'] = (df['Mx_top_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_tx))) * 1e4
+    df['Asy_bottom_req_cm2_m'] = (df['My_bottom_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_by))) * 1e4
+    df['Asy_top_req_cm2_m'] = (df['My_top_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_ty))) * 1e4
+
+    # Taxa Mínima (NBR 6118 Tabela 19.1)
+    fctm = 0.3 * (cfg.fck ** (2/3)) if cfg.fck <= 50 else 2.12 * np.log(1 + 0.11 * cfg.fck)
+    # rho_min para lajes (estimativa por fctm/fyk)
+    rho_min = max(0.0015, 0.233 * fctm / cfg.fyk)
+    as_min_total_cm2_m = rho_min * 1.0 * cfg.h * 1e4
     as_min_face_cm2_m = as_min_total_cm2_m / 2.0
+    
     df['As_min_total_cm2_m'] = as_min_total_cm2_m
     df['As_min_face_cm2_m'] = as_min_face_cm2_m
 
@@ -407,7 +447,9 @@ def check_punching(
     alpha_v = 1.0 - cfg.fck / 250.0
     fcd = cfg.fck / cfg.gamma_c
     tau_rd2 = 0.27 * alpha_v * fcd
-    tau_rd1 = 0.13 * (1.0 + (20.0 / max(d_cm, 1e-9)) ** 0.5) * np.power(100.0 * rho * cfg.fck, 1.0 / 3.0)
+    # k limitado a 2.0 conforme NBR 6118:2023
+    k_factor = np.minimum(1.0 + np.sqrt(200.0 / np.maximum(d_cm * 10.0, 1e-9)), 2.0)
+    tau_rd1 = (0.18 / cfg.gamma_c) * k_factor * np.power(100.0 * rho * cfg.fck, 1.0 / 3.0)
     
     # Novas métricas de beta e wp
     betas = []

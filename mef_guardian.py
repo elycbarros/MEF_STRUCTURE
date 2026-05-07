@@ -7,8 +7,8 @@ import signal
 # Configurações
 BACKEND_DIR = "mef_engine"
 FRONTEND_DIR = "mef_dashboard"
-BACKEND_CMD = ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
-FRONTEND_CMD = ["npm", "run", "dev", "--", "--port", "3000"]
+BACKEND_CMD = ["python3", "api.py"]
+FRONTEND_CMD = ["npm", "run", "dev"]
 
 processes = {}
 

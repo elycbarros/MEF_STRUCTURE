@@ -35,3 +35,10 @@ class HoleInput(BaseModel):
     y_min: float = Field(..., description="Coordenada Y mínima da abertura (m)")
     x_max: float = Field(..., description="Coordenada X máxima da abertura (m)")
     y_max: float = Field(..., description="Coordenada Y máxima da abertura (m)")
+
+class AreaLoadInput(BaseModel):
+    x_min: float = Field(..., description="Coordenada X mínima da carga (m)")
+    y_min: float = Field(..., description="Coordenada Y mínima da carga (m)")
+    x_max: float = Field(..., description="Coordenada X máxima da carga (m)")
+    y_max: float = Field(..., description="Coordenada Y máxima da carga (m)")
+    q_kN: float = Field(..., description="Valor da carga distribuída (kN/m²)")

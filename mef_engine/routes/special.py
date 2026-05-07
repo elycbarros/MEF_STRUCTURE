@@ -34,7 +34,13 @@ async def calculate_special(req: SpecialElementRequest):
         build_beam_blackboard,
         build_column_blackboard,
         build_column_detailing_blackboard,
-        build_concrete_wall_blackboard
+        build_concrete_wall_blackboard,
+        build_retaining_wall_blackboard,
+        build_elevated_reservoir_blackboard,
+        build_corbel_blackboard,
+        build_gerber_tooth_blackboard,
+        build_deep_beam_blackboard,
+        build_helical_stairs_blackboard
     )
     from beam_detailing import BeamDetailer
     
@@ -122,6 +128,63 @@ async def calculate_special(req: SpecialElementRequest):
         )
         blackboard = build_concrete_wall_blackboard(res)
 
+    elif type == "retaining_wall":
+        res = solver.solve_retaining_wall(
+            h=params.get('h_wall', 4.0),
+            gamma=params.get('gamma_soil', 18.0),
+            phi=params.get('phi_soil', 30.0),
+            weight=params.get('weight_wall', 120.0),
+            base=params.get('b_base', 2.5),
+            surcharge=params.get('surcharge', 0.0)
+        )
+        blackboard = build_retaining_wall_blackboard(res)
+
+    elif type == "reservoir":
+        res = solver.solve_reservoir(
+            length=params.get('length', 5.0),
+            width=params.get('width', 3.0),
+            depth=params.get('depth', 3.0)
+        )
+        blackboard = build_elevated_reservoir_blackboard(res)
+
+    elif type == "corbel":
+        res = solver.solve_corbel(
+            fd_kN=params.get('fd_kN', 200.0),
+            a_dist=params.get('a_dist', 0.25),
+            d_eff=params.get('d_eff', 0.45),
+            fck=params.get('fck', 30.0)
+        )
+        blackboard = build_corbel_blackboard(res)
+
+    elif type == "gerber_tooth":
+        res = solver.solve_gerber_tooth(
+            vd_kN=params.get('vd_kN', 150.0),
+            hd_kN=params.get('hd_kN', 30.0),
+            a_dist=params.get('a_dist', 0.15),
+            d_eff=params.get('d_eff', 0.40),
+            b_width=params.get('b_width', 0.20),
+            fck=params.get('fck', 30.0)
+        )
+        blackboard = build_gerber_tooth_blackboard(res)
+
+    elif type == "deep_beam":
+        res = solver.solve_deep_beam(
+            fd_kN_m=params.get('L', 100.0), # Simplificado: usando L como carga para teste
+            l_span=params.get('L', 4.0),
+            height=params.get('h', 3.0)
+        )
+        blackboard = build_deep_beam_blackboard(res)
+
+    elif type == "helical_stairs":
+        res = solver.solve_helical_stairs(
+            radius=params.get('radius', 2.5),
+            angle_total_deg=params.get('angle_total_deg', 180.0),
+            h_step=params.get('h_step', 0.18),
+            thick=params.get('thick', 0.15),
+            q_acid=params.get('q_acid', 3.0)
+        )
+        blackboard = build_helical_stairs_blackboard(res)
+
     return {
         "success": True if res else False, 
         "result": res, 
@@ -149,22 +212,36 @@ async def calculate_spt(req: Dict):
         "pedagogical_steps": blackboard
     }
 
-@router.post("/calculate/stability")
-async def calculate_stability(req: Dict):
+@router.post("/calculate/stability-mestre")
+async def calculate_stability_mestre(req: Dict):
     from wind_engine import WindEngine, WindConfig
     from master_pedagogy import build_stability_blackboard
     
+    v0 = float(req.get('v0', 30.0))
+    height = float(req.get('height', 30.0))
+    width_x = float(req.get('width_x', 12.0))
+    
     cfg = WindConfig(
-        v0=req.get('v0', 30.0),
-        height=req.get('height', 30.0),
-        width_x=req.get('width_x', 12.0)
+        v0=v0,
+        height=height,
+        width_x=width_x
     )
     
     engine = WindEngine()
     wind_data = engine.calculate_dynamic_pressure(cfg)
     gamma_z = engine.estimate_gamma_z(cfg.height, 10000, 50)
     
-    res = {**wind_data, "gamma_z": gamma_z}
+    # Extrair pressão característica para o memorial
+    q0_kN_m2 = (wind_data['profile'][-1]['q_Pa'] if wind_data['profile'] else 0) / 1000.0
+    
+    res = {
+        **wind_data, 
+        "gamma_z": gamma_z, 
+        "v0": v0, 
+        "height": height, 
+        "width_x": width_x,
+        "q0_kN_m2": q0_kN_m2
+    }
     blackboard = build_stability_blackboard(res)
     
     return {

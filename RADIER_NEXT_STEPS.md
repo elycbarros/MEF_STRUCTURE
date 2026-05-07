@@ -219,6 +219,17 @@ Leitura para o Radier Lab:
   - estacas
   - redistribuição de carga
 
+## Estratégia de Performance e Escalabilidade
+
+### Otimização Atual (Fase 1: Sparse Engine)
+- Migração completa de todos os motores FEM (`radier`, `lajes`, `frame_engine`, `beam_solver`) para arquitetura de **Matrizes Esparsas (CSR format)** usando `SciPy Sparse`.
+- Ganhos esperados: Redução exponencial de memória e tempo de processamento para modelos de edifícios altos e malhas refinadas.
+- Manutenibilidade: Mantido em Python para agilidade, utilizando solvers compilados em C/Fortran (SciPy).
+
+### Próximo Passo Lógico (Fase 2: Rust Integration)
+- Para modelos ultra-complexos com **milhões de nós**, a migração dos kernels de assemblagem e resolução para **Rust** é o próximo passo planejado.
+- O uso de Rust permitirá paralelismo massivo e gerenciamento de memória "zero-cost", essencial para análises de grandes núcleos estruturais e cidades digitais.
+
 ## Prioridade sugerida
 
 1. calibrar diagnóstico

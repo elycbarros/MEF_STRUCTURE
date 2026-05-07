@@ -48,13 +48,19 @@ def _collect_failed_items(memorial: dict) -> list[str]:
 
 
 def _render_executive_summary(memorial: dict) -> str:
+    is_laje = memorial.get('system_type') == 'laje'
+    system_label = memorial.get('system_label', 'Radier')
+    
     geotech = memorial['verificacoes_geotecnicas']
     structural = memorial['verificacoes_estruturais']
     service = memorial['verificacoes_de_servico']
     score = memorial.get('maturity_score', {})
     checklist = memorial.get('checklist_profissional', {})
     failed_items = _collect_failed_items(memorial)
-    q_ratio = geotech['pressao_max_modelo_kPa'] / max(geotech['tensao_admissivel_kPa'], 1e-9)
+    
+    q_ratio = 0.0
+    if not is_laje:
+        q_ratio = geotech['pressao_max_modelo_kPa'] / max(geotech['tensao_admissivel_kPa'], 1e-9)
 
     if checklist.get('status') == 'nao_apto_requer_revisao_tecnica':
         decision = 'Nao apto para detalhamento ate revisao tecnica dos bloqueios normativos.'
@@ -73,21 +79,26 @@ def _render_executive_summary(memorial: dict) -> str:
         main_recommendation = executive_decision.get('main_recommendation') or foundation_recommendation.get('main_recommendation', 'n/d')
         next_step = executive_decision.get('next_step', 'n/d')
         recommendation_lines = (
-            f"- decisao da fundacao: `{executive_label}`\n"
-            f"- classificacao da fundacao: `{classification}`\n"
+            f"- decisao: `{executive_label}`\n"
+            f"- classificacao: `{classification}`\n"
             f"- go/no-go: `{executive_decision.get('go_no_go', 'n/d')}`\n"
-            f"- recomendacao principal da fundacao: `{main_recommendation}`\n"
+            f"- recomendacao principal: `{main_recommendation}`\n"
             f"- proximo passo executivo: `{next_step}`\n"
         )
+
+    soil_line = ""
+    if not is_laje:
+        soil_line = f"- pressao maxima / admissivel: `{q_ratio:.3f}` ({_status_label(geotech.get('atende_pressao_max_modelo'))})\n"
+
+    service_label = "recalque" if not is_laje else "flecha"
 
     return f"""## Resumo Executivo
 
 - decisao tecnica: `{decision}`
 - status profissional: `{checklist.get('status', 'n/d')}`
 - score de maturidade: `{score.get('score_0_5', 'n/d')}/5` (`{score.get('level', 'n/d')}`)
-- pressao maxima / admissivel: `{q_ratio:.3f}` ({_status_label(geotech.get('atende_pressao_max_modelo'))})
-- puncao: `{_status_label(structural.get('puncao', {}).get('atende'))}` | ratio max `{_fmt(structural.get('puncao', {}).get('ratio_max'))}`
-- servico: recalque max `{_fmt(service.get('w_max_mm'), 3, ' mm')}`, diferencial `{_fmt(service.get('w_diff_mm'), 3, ' mm')}`, fissuracao x/y `{_status_label(service.get('wk_x_ok'))}/{_status_label(service.get('wk_y_ok'))}`
+{soil_line}- puncao: `{_status_label(structural.get('puncao', {}).get('atende'))}` | ratio max `{_fmt(structural.get('puncao', {}).get('ratio_max'))}`
+- servico: {service_label} max `{_fmt(service.get('w_max_mm'), 3, ' mm')}`, fissuracao x/y `{_status_label(service.get('wk_x_ok'))}/{_status_label(service.get('wk_y_ok'))}`
 {recommendation_lines}
 
 ### Acoes Tecnicas Recomendadas
@@ -97,6 +108,9 @@ def _render_executive_summary(memorial: dict) -> str:
 
 
 def _render_foundation_recommendation(memorial: dict, master: dict) -> str:
+    is_laje = memorial.get('system_type') == 'laje'
+    system_label = memorial.get('system_label', 'Radier')
+    
     recommendation = memorial.get('foundation_recommendation') or master.get('foundation_recommendation') or {}
     executive_decision = memorial.get('executive_decision') or master.get('executive_decision') or {}
     if not recommendation:
@@ -130,18 +144,22 @@ def _render_foundation_recommendation(memorial: dict, master: dict) -> str:
 | Decisao | `{executive_decision.get('executive_label', 'n/d')}` |
 | Proximo passo | `{executive_decision.get('next_step', 'n/d')}` |
 | Primeira acao | `{executive_decision.get('first_priority_action', 'n/d')}` |
-| Confianca do kv | `{_fmt(executive_decision.get('kv_confidence'))}` |
 """
+        if not is_laje:
+            executive_block += f"| Confianca do kv | `{_fmt(executive_decision.get('kv_confidence'))}` |\n"
 
-    return f"""## Diagnostico da Solucao de Fundacao
+    soil_line = ""
+    if not is_laje:
+        soil_line = f"- qmax / sigma_adm: `{_fmt(metrics.get('pressure_ratio'))}`\n"
+
+    return f"""## Diagnostico da Solucao de {system_label}
 
 - decisao executiva: `{recommendation.get('executive_label', 'n/d')}`
 - classificacao: `{recommendation.get('classification', 'sem_diagnostico')}`
 - recomendacao principal: `{recommendation.get('main_recommendation', 'n/d')}`
 - calibracao do diagnostico: `{diagnostic_profile.get('label', 'n/d')}`
 - pilares considerados: `{not bool(input_policy.get('ignore_pillars', False))}`
-- qmax / sigma_adm: `{_fmt(metrics.get('pressure_ratio'))}`
-- h / h_ref: `{_fmt(metrics.get('thickness_ratio'))}`
+{soil_line}- h / h_ref: `{_fmt(metrics.get('thickness_ratio'))}`
 - pilar maximo (kN): `{_fmt(metrics.get('max_pillar_load_kN'))}`
 - alertas: `{trigger_counts.get('alerta', 0)}`
 - restricoes: `{trigger_counts.get('restricao', 0)}`
@@ -213,6 +231,7 @@ def _render_soil_methodology(memorial: dict) -> str:
 
 
 def _render_service_criteria(memorial: dict) -> str:
+    is_laje = memorial.get('system_type') == 'laje'
     service = memorial.get('verificacoes_de_servico', {})
     criteria = service.get('criterios_recalque', {})
     checks = criteria.get('checks', [])
@@ -222,7 +241,10 @@ def _render_service_criteria(memorial: dict) -> str:
     )
     if not rows:
         rows = '| n/d | n/d | n/d | n/d | N/D |'
-    return f"""## Criterios de Servico
+    
+    label_verificacao = "Criterios de Servico (Flechas)" if is_laje else "Criterios de Servico (Recalques)"
+    
+    return f"""## {label_verificacao}
 
 | Verificacao | Valor | Limite | Unidade | Status |
 | :--- | ---: | ---: | :--- | :--- |
@@ -293,6 +315,7 @@ def _render_artifact_traceability(master: dict) -> str:
 
 
 def render_analytical_comparison(memorial: dict) -> str:
+    is_laje = memorial.get('system_type') == 'laje'
     comp = memorial.get('comparativo_metodologias', {})
     if not comp:
         return "## Comparativo de Metodologias\n\nNao disponivel para este processamento.\n"
@@ -304,13 +327,19 @@ def render_analytical_comparison(memorial: dict) -> str:
         diff_str = f"{diff:+.1f}%" if diff is not None else "n/d"
         punching_rows += f"| {p['local']} | {p['mef_ratio']:.3f} | {p['analytical_ratio']:.3f} | {diff_str} |\n"
 
+    soil_rows = ""
+    if not is_laje:
+        soil_rows = f"| Pressao Media (kPa) | {memorial['verificacoes_geotecnicas']['pressao_media_kPa']:.2f} | {comp['pressao_media_analitica_kPa']:.2f} | {comp['ratio_pressao_media']:.2f} |\n"
+        soil_rows += f"| Pressao Maxima (kPa) | {memorial['verificacoes_geotecnicas']['pressao_max_modelo_kPa']:.2f} | {comp['pressao_max_analitica_kPa']:.2f} | {comp['ratio_pressao_max']:.2f} |\n"
+    else:
+        # Para lajes podemos mostrar o momento máximo como comparativo se disponível
+        soil_rows = f"| Momento Max (kNm/m) | {comp.get('mef', {}).get('m_max_kNm_m', 0.0):.2f} | {comp.get('analytical', {}).get('m_ref_kNm_m', 0.0):.2f} | {comp.get('ratio_momento', 1.0):.2f} |\n"
+
     return f"""## Comparativo de Metodologias (MEF vs. Analitico)
 
-| Grandeza | MEF (Mindlin-Winkler) | Placa Rigida (Analitico) | Razao (MEF/An) |
+| Grandeza | MEF | Analitico (Rigido) | Razao (MEF/An) |
 | :--- | :--- | :--- | :--- |
-| Pressao Media (kPa) | {memorial['verificacoes_geotecnicas']['pressao_media_kPa']:.2f} | {comp['pressao_media_analitica_kPa']:.2f} | {comp['ratio_pressao_media']:.2f} |
-| Pressao Maxima (kPa) | {memorial['verificacoes_geotecnicas']['pressao_max_modelo_kPa']:.2f} | {comp['pressao_max_analitica_kPa']:.2f} | {comp['ratio_pressao_max']:.2f} |
-
+{soil_rows}
 ### Comparativo de Puncao (NBR 6118)
 
 | Local do Pilar | Ratio MEF | Ratio Analitico | Diferenca (%) |
@@ -318,7 +347,7 @@ def render_analytical_comparison(memorial: dict) -> str:
 {punching_rows}
 
 > [!NOTE]
-> O calculo analitico adota a hipotese de placa rigida e distribuicao linear de pressoes, enquanto o MEF considera a flexibilidade da laje e do solo. Divergencias sao esperadas e indicam o ganho de precisao do modelo numerico.
+> O calculo analitico adota a hipotese de {"placa rigida" if not is_laje else "metodo das faixas/tabelas"} simplificado, enquanto o MEF considera a flexibilidade real do elemento. Divergencias sao esperadas e indicam o ganho de precisao do modelo numerico.
 """
 
 
@@ -358,10 +387,12 @@ def _render_geotech_calibration_matrix(memorial: dict) -> str:
 - governanca: `{matrix.get('governance_note', 'n/d')}`
 """
 
-
 def build_didactic_guide(config, master: dict, output_dir: str | Path) -> str:
     out = Path(output_dir)
     memorial = load_memorial(master['memorial_summary_file'])
+    is_laje = memorial.get('system_type') == 'laje'
+    system_label = memorial.get('system_label', 'Radier')
+    
     guide_path = out / f'{config.base_name}_guia_didatico.md'
     geotech = memorial.get('verificacoes_geotecnicas', {})
     predim = memorial.get('pre_dimensionamento', {})
@@ -373,39 +404,9 @@ def build_didactic_guide(config, master: dict, output_dir: str | Path) -> str:
     actions = memorial.get('acoes_e_combinacoes', {})
     soil = memorial.get('dados_do_solo', {})
 
-    text = f"""# Guia Didatico de Dimensionamento de Radier
-
-## Finalidade
-
-Este texto e um anexo de consulta opcional. Ele explica, em linguagem tecnica e didatica, como o modulo percorre o dimensionamento preliminar de um radier liso sobre base de Winkler. Nao substitui o memorial de calculo nem a revisao do engenheiro responsavel.
-
-## 1. Conceito estrutural adotado
-
-O radier e tratado como uma laje de fundacao que distribui as cargas da superestrutura ao solo. No modelo atual, a laje trabalha sobre molas verticais de Winkler, o que significa que a reacao do solo cresce com o recalque local conforme o parametro `k_v`.
-
-- geometria do caso: `{config.Lx:.2f} m x {config.Ly:.2f} m`
-- espessura adotada: `{config.h:.3f} m`
-- concreto: `fck = {config.fck:.2f} MPa`
-- aco: `fyk = {config.fyk:.2f} MPa`
-
-## 2. Entradas principais do problema
-
-O fluxo usa quatro grupos de entrada:
-
-1. geometria do radier
-2. materiais
-3. carregamentos
-4. rigidez e limite admissivel do solo
-
-No caso atual:
-
-- carga distribuida de servico: `{config.q:.2f} Pa`
-- carga total de servico: `{_fmt(actions.get('carga_total_servico_kN'), 3)} kN`
-- carga de pilares considerada: `{_fmt(actions.get('carga_pilares_kN'), 3)} kN`
-- `k_v`: `{_fmt(soil.get('kv_N_m3'), 1)} N/m3`
-- `sigma_adm`: `{_fmt(soil.get('sigma_adm_kPa'), 2)} kPa`
-
-## 3. Analise de servico no solo
+    soil_section = ""
+    if not is_laje:
+        soil_section = f"""## 3. Analise de servico no solo
 
 Primeiro o solver calcula deslocamentos, pressoes de contato e esforcos fletores para a combinacao de servico. Essa etapa responde perguntas basicas:
 
@@ -424,7 +425,58 @@ Interpretacao didatica:
 
 - se a pressao maxima se aproxima muito de `sigma_adm`, o radier pode ainda funcionar estruturalmente, mas o solo passa a comandar a viabilidade
 - se os recalques sobem demais, a preocupacao deixa de ser apenas resistencia e passa a ser desempenho em servico
+"""
+    else:
+        soil_section = f"""## 3. Analise de Servico (Flechas)
 
+O solver calcula os deslocamentos verticais (flechas) considerando a rigidez do elemento. Em lajes elevadas, a verificação de serviço é focada no conforto visual e integridade das alvenarias.
+
+Resultados sinteticos:
+
+- flecha maxima elástica: `{_fmt(service.get('w_max_mm'), 3)} mm`
+- flecha diferida (longo prazo): `{_fmt(service.get('w_max_mm_total', 0.0), 3)} mm`
+- atende limite normativo: `{service.get('criterios_recalque', {}).get('atende_global')}`
+"""
+
+    text = f"""# Guia Didatico de Dimensionamento de {system_label}
+
+## Finalidade
+
+Este texto e um anexo de consulta opcional. Ele explica, em linguagem tecnica e didatica, como o modulo percorre o dimensionamento de uma {system_label.lower()} em concreto armado. Nao substitui o memorial de calculo nem a revisao do engenheiro responsavel.
+
+## 1. Conceito estrutural adotado
+
+{"O radier e tratado como uma laje de fundacao que distribui as cargas da superestrutura ao solo." if not is_laje else "A laje é tratada como um elemento estrutural suspenso apoiado em pilares/vigas."}
+No modelo atual, {"a laje trabalha sobre molas verticais de Winkler" if not is_laje else "a laje trabalha com apoios discretos rigidamente vinculados"}.
+
+- geometria do caso: `{config.Lx:.2f} m x {config.Ly:.2f} m`
+- espessura adotada: `{config.h:.3f} m`
+- concreto: `fck = {config.fck:.2f} MPa`
+- aco: `fyk = {config.fyk:.2f} MPa`
+
+## 2. Entradas principais do problema
+
+O fluxo usa quatro grupos de entrada:
+
+1. geometria
+2. materiais
+3. carregamentos
+4. {"rigidez e limite admissivel do solo" if not is_laje else "vínculos de apoio"}
+
+No caso atual:
+
+- carga distribuida de servico: `{config.q:.2f} Pa`
+- carga total de servico: `{_fmt(actions.get('carga_total_servico_kN'), 3)} kN`
+- carga de pilares considerada: `{_fmt(actions.get('carga_pilares_kN'), 3)} kN`
+"""
+    if not is_laje:
+        text += f"""- `k_v`: `{_fmt(soil.get('kv_N_m3'), 1)} N/m3`
+- `sigma_adm`: `{_fmt(soil.get('sigma_adm_kPa'), 2)} kPa`
+"""
+
+    text += soil_section
+
+    text += f"""
 ## 4. Pre-dimensionamento da espessura
 
 Antes do detalhamento de armadura, o sistema compara a espessura adotada com uma referencia preliminar baseada no nivel de carregamento por area.
@@ -433,7 +485,7 @@ Antes do detalhamento de armadura, o sistema compara a espessura adotada com uma
 - espessura adotada: `{_fmt(predim.get('espessura_adotada_m'), 3)} m`
 - atende referencia preliminar: `{predim.get('atende_referencia_preliminar')}`
 
-Didaticamente, essa comparacao nao encerra o projeto. Ela serve como triagem inicial. Mesmo uma espessura acima da referencia pode ser inadequada se houver punção, recalque ou construtibilidade ruim.
+Didaticamente, essa comparacao nao encerra o projeto. Ela serve como triagem inicial. Mesmo uma espessura acima da referencia pode ser inadequada se houver punção, {"recalque" if not is_laje else "flecha"} ou construtibilidade ruim.
 
 ## 5. Combinacoes para verificacoes
 
@@ -442,10 +494,10 @@ O modulo registra combinacoes de servico e ELU para rastreabilidade:
 - servico rara: `{combos.get('service_rare', 'n/d')}`
 - ELU: `{combos.get('ultimate', 'n/d')}`
 
-Em termos de ensino, isso mostra que o radier nao e verificado apenas com uma unica fotografia de carga. A leitura correta separa:
+Em termos de ensino, isso mostra que o elemento nao e verificado apenas com uma unica fotografia de carga. A leitura correta separa:
 
-- servico: recalque, fissuracao e comportamento global
-- ELU: resistencia a flexao e punção
+- servico: {"recalque" if not is_laje else "flecha"}, fissuracao e comportamento global
+- ELU: resistencia a flexao e {"punção" if not is_laje else "punção/cisalhamento"}
 
 ## 6. Flexao e armadura
 
@@ -464,7 +516,7 @@ Ponto didatico importante:
 
 ## 7. Punção
 
-A punção e uma verificacao critica em radiers com cargas concentradas. O sistema calcula a razao entre solicitacao e resistencia normativa.
+A punção e uma verificacao critica em elementos com cargas concentradas. O sistema calcula a razao entre solicitacao e resistencia normativa.
 
 - razao maxima de punção: `{_fmt(structural.get('puncao', {}).get('ratio_max'), 3)}`
 - atende: `{structural.get('puncao', {}).get('atende')}`
@@ -474,25 +526,25 @@ Interpretacao didatica:
 
 - `ratio < 1.0` indica atendimento no criterio adotado
 - valores altos, mesmo abaixo de 1.0, sugerem estudar reforcos locais, pedestais, cogumelos ou engrossamentos
-- quando a punção governa, a solucao deixa de ser um simples radier liso economico
+- quando a punção governa, a solucao deixa de ser um simples elemento maciço economico
 
 ## 8. Verificacoes de servico
 
-O radier nao deve ser lido apenas pela resistencia. O modulo tambem verifica desempenho em uso:
+{"O radier" if not is_laje else "A laje"} nao deve ser lida apenas pela resistencia. O modulo tambem verifica desempenho em uso:
 
 - fissuracao em X atende: `{service.get('wk_x_ok')}`
 - fissuracao em Y atende: `{service.get('wk_y_ok')}`
-- criterio global de recalque atende: `{service.get('criterios_recalque', {}).get('atende_global')}`
+- criterio global de {"recalque" if not is_laje else "deformação"} atende: `{service.get('criterios_recalque', {}).get('atende_global')}`
 
 Ensino pratico:
 
-- um radier pode atender a flexao e ainda ser ruim em recalque
-- um radier pode ter pressao no solo aceitavel e ainda demandar revisao por punção local
+- um elemento pode atender a flexao e ainda ser ruim em {"recalque" if not is_laje else "flecha"}
+- um elemento pode ter {"pressao no solo" if not is_laje else "armadura"} aceitavel e ainda demandar revisao por punção local
 - e a combinacao dessas leituras que sustenta a decisao tecnica final
 
 ## 9. Diagnostico final da solucao
 
-Ao fim da cadeia, o sistema consolida um diagnostico orientativo para a viabilidade do radier liso.
+Ao fim da cadeia, o sistema consolida um diagnostico orientativo para a viabilidade da solucao.
 
 - classificacao: `{foundation_recommendation.get('classification', 'sem_diagnostico')}`
 - recomendacao principal: `{foundation_recommendation.get('main_recommendation', 'n/d')}`
@@ -500,45 +552,45 @@ Ao fim da cadeia, o sistema consolida um diagnostico orientativo para a viabilid
 
 Como ler esse diagnostico:
 
-- `viavel preliminarmente` significa que o caminho do radier liso segue aberto
+- `viavel preliminarmente` significa que o caminho segue aberto
 - `viavel com alertas` indica que ainda e uma opcao, mas com pontos de atencao
 - `viavel com restricoes` mostra que a solucao exige comparacao com alternativas
-- `nao recomendado` ou `estudar solucao alternativa` indica que o radier liso perdeu protagonismo tecnico no caso
+- `nao recomendado` ou `estudar solucao alternativa` indica que a solucao perdeu protagonismo tecnico no caso
 
 ## 10. Quando estudar outra tipologia
 
-Didaticamente, o projetista deve sair do radier liso quando o caso mostrar sinais como:
+Didaticamente, o projetista deve sair da solucao atual quando o caso mostrar sinais como:
 
 - espessura muito alta para manter desempenho
-- pressao de contato muito proxima ou acima da admissivel
+{"- pressao de contato muito proxima ou acima da admissivel" if not is_laje else ""}
 - punção em margem curta ou nao atendente
-- recalques ou distorcoes incompatíveis com a estrutura
-- riscos de campo ou de solo que inviabilizam fundacao rasa simples
+- {"recalques" if not is_laje else "flechas"} ou distorcoes incompatíveis com a estrutura
+{"- riscos de campo ou de solo que inviabilizam fundacao rasa simples" if not is_laje else ""}
 
 Alternativas tipicas:
 
-- sapatas
-- radier com reforcos locais
-- radier nervurado
-- radier estaqueado
-- fundacao profunda
+{"- sapatas" if not is_laje else "- laje nervurada"}
+{"- radier com reforcos locais" if not is_laje else "- laje com capitéis"}
+{"- radier nervurado" if not is_laje else "- laje alveolar"}
+{"- radier estaqueado" if not is_laje else "- laje protendida"}
+{"- fundacao profunda" if not is_laje else ""}
 
 ## 11. Limites deste guia
 
 Este texto e propositalmente pedagogico. Ele explica o racional do modulo atual, mas nao substitui:
 
 - verificacoes normativas complementares
-- julgamento geotecnico da obra real
+{"- julgamento geotecnico da obra real" if not is_laje else ""}
 - detalhamento executivo de armaduras
 - compatibilizacao com a superestrutura e com a execucao
 
 ## 12. Fechamento
 
-Em resumo, dimensionar um radier nao e apenas escolher uma espessura e calcular aço. O processo correto passa por:
+Em resumo, dimensionar uma {system_label.lower()} nao e apenas escolher uma espessura e calcular aço. O processo correto passa por:
 
-1. entender cargas e solo
-2. modelar a interacao laje-solo
-3. verificar pressoes e recalques
+1. entender cargas {"e solo" if not is_laje else ""}
+2. modelar a interacao laje-{"solo" if not is_laje else "apoio"}
+3. verificar {"pressoes e recalques" if not is_laje else "flechas"}
 4. dimensionar flexao
 5. verificar punção
 6. consolidar um diagnostico tecnico da viabilidade da solucao
@@ -547,16 +599,16 @@ Esse e exatamente o encadeamento que o modulo procura ensinar neste caso.
 """
     guide_path.write_text(text, encoding='utf-8')
     return str(guide_path)
-
-
 def build_markdown_report(config, master: dict, output_dir: str | Path) -> str:
     out = Path(output_dir)
     det_summary_path = Path(master['deterministic_summary_file'])
     det = pd.read_json(det_summary_path, typ='series').to_dict()
     batch = pd.read_csv(master['batch_kpis_file'])
-    bayes = master['bayesian_summary']
-    inverse = master['inverse_and_uq_summary']
     memorial = load_memorial(master['memorial_summary_file'])
+    
+    is_laje = memorial.get('system_type') == 'laje'
+    system_label = memorial.get('system_label', 'Radier')
+    
     report_path = out / f'{config.base_name}_report.md'
     manifest_path = out / f'{config.base_name}_artifacts.json'
     master_for_report = {
@@ -566,7 +618,33 @@ def build_markdown_report(config, master: dict, output_dir: str | Path) -> str:
     }
 
     worst_batch = batch.sort_values('w_max_mm', ascending=False).iloc[0].to_dict()
-    report = f"""# Relatorio Radier Lab
+    
+    soil_data_block = ""
+    if not is_laje:
+        soil_data_block = f"""## Dados do Solo
+
+- `kv`: `{config.kv:.2f} N/m³`
+- `sigma_adm`: `{config.sigma_adm_kPa:.2f} kPa`
+- modelo: `Winkler vertical`
+
+{_render_soil_methodology(memorial)}
+"""
+
+    geotech_ver_block = ""
+    if not is_laje:
+        geotech_ver_block = f"""## Verificacoes Geotecnicas
+
+- `pressao_media_kPa`: `{memorial['verificacoes_geotecnicas']['pressao_media_kPa']:.3f}`
+- `pressao_max_modelo_kPa`: `{memorial['verificacoes_geotecnicas']['pressao_max_modelo_kPa']:.3f}`
+- atende pressao media: `{memorial['verificacoes_geotecnicas']['atende_pressao_media']}`
+- atende pressao maxima: `{memorial['verificacoes_geotecnicas']['atende_pressao_max_modelo']}`
+
+{_render_geotech_calibration_matrix(memorial)}
+"""
+
+    service_label = "recalque" if not is_laje else "flecha"
+
+    report = f"""# Relatorio {system_label} Lab
 
 {_render_executive_summary(memorial)}
 
@@ -593,13 +671,7 @@ def build_markdown_report(config, master: dict, output_dir: str | Path) -> str:
 - `fyk`: `{config.fyk:.2f} MPa`
 - cobrimento: `{config.cover:.3f} m`
 
-## Dados do Solo
-
-- `kv`: `{config.kv:.2f} N/m³`
-- `sigma_adm`: `{config.sigma_adm_kPa:.2f} kPa`
-- modelo: `Winkler vertical`
-
-{_render_soil_methodology(memorial)}
+{soil_data_block}
 
 ## Acoes e Combinacoes
 
@@ -608,21 +680,18 @@ def build_markdown_report(config, master: dict, output_dir: str | Path) -> str:
 
 ## Caso Deterministico
 
-- `w_max_mm`: `{det['w_max_mm']:.3f}`
-- `qsoil_max_kPa`: `{det['qsoil_max_kPa']:.3f}`
-- `mx_abs_max_kNm_m`: `{det['mx_abs_max_kNm_m']:.3f}`
+- `{service_label}_max_mm`: `{det['w_max_mm']:.3f}`
+"""
+    if not is_laje:
+        report += f"- `qsoil_max_kPa`: `{det['qsoil_max_kPa']:.3f}`\n"
+        
+    report += f"""- `mx_abs_max_kNm_m`: `{det['mx_abs_max_kNm_m']:.3f}`
 - `my_abs_max_kNm_m`: `{det['my_abs_max_kNm_m']:.3f}`
 - `residual_ratio`: `{det['residual_ratio']:.3e}`
 
-## Verificacoes Geotecnicas
-
-- `pressao_media_kPa`: `{memorial['verificacoes_geotecnicas']['pressao_media_kPa']:.3f}`
-- `pressao_max_modelo_kPa`: `{memorial['verificacoes_geotecnicas']['pressao_max_modelo_kPa']:.3f}`
-- atende pressao media: `{memorial['verificacoes_geotecnicas']['atende_pressao_media']}`
-- atende pressao maxima: `{memorial['verificacoes_geotecnicas']['atende_pressao_max_modelo']}`
+{geotech_ver_block}
 
 {render_analytical_comparison(memorial)}
-{_render_geotech_calibration_matrix(memorial)}
 
 {_render_foundation_recommendation(memorial, master)}
 

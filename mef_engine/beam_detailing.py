@@ -143,6 +143,8 @@ class BeamDetailer:
         lb_basic_sup = cls.calculate_anchorage(det_sup['phi_mm'], fck)
         lb_nec_sup = cls.calculate_lb_nec(lb_basic_sup, As_sup_calc, det_sup['area_cm2'], phi_mm=det_sup['phi_mm'])
 
+        Asl_torsion = design_res.get('shear', {}).get('Asl_torsion_cm2', 0.0)
+
         return {
             "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": d_cm, "al_cm": al},
             "inf": {
@@ -164,5 +166,9 @@ class BeamDetailer:
                 "lb_nec": lb_nec_sup
             },
             "skin": cls.calculate_skin_reinforcement(h_cm, b_cm),
+            "torsion": {
+                "Asl_cm2": Asl_torsion,
+                "status": "REQUERIDA" if Asl_torsion > 0 else "NÃO REQUERIDA"
+            },
             "stirrups": design_res.get('shear', {}).get('stirrup_spec', "N/A")
         }

@@ -95,7 +95,7 @@ class RadierDXFEngine:
         
         # Textos
         self.msp.add_text("PROJETO ESTRUTURAL", dxfattribs={'layer': 'TEXTO', 'height': 0.25}).set_placement((x0+0.2, y0+h-0.4))
-        self.msp.add_text(project_name.upper(), dxfattribs={'layer': 'TEXTO', 'height': 0.4, 'bold': 1}).set_placement((x0+0.2, y0+h-0.9))
+        self.msp.add_text(project_name.upper(), dxfattribs={'layer': 'TEXTO', 'height': 0.4}).set_placement((x0+0.2, y0+h-0.9))
         
         self.msp.add_text(f"CLIENTE: {client}", dxfattribs={'layer': 'TEXTO', 'height': 0.2}).set_placement((x0+0.2, y0+h-1.6))
         self.msp.add_text(f"RESPONSÁVEL: {author}", dxfattribs={'layer': 'TEXTO', 'height': 0.2}).set_placement((x0+0.2, y0+h-2.1))
@@ -109,7 +109,7 @@ class RadierDXFEngine:
         steel_data: [{'phi': 12.5, 'n': 20, 'len': 12.4, 'weight': 150.5}, ...]
         """
         x0, y0 = self.Lx + 1, 5
-        self.msp.add_text("TABELA DE AÇO (RESUMO)", dxfattribs={'layer': 'TEXTO', 'height': 0.35, 'bold': 1}).set_placement((x0, y0 + 4.5))
+        self.msp.add_text("TABELA DE AÇO (RESUMO)", dxfattribs={'layer': 'TEXTO', 'height': 0.35}).set_placement((x0, y0 + 4.5))
         
         headers = ["BITOLA", "QTD", "COMP(m)", "PESO(kg)"]
         col_w = [1.5, 1.0, 2.0, 2.0]
@@ -117,7 +117,7 @@ class RadierDXFEngine:
         # Cabeçalho
         for i, h in enumerate(headers):
             x_pos = x0 + sum(col_w[:i])
-            self.msp.add_text(h, dxfattribs={'layer': 'TEXTO', 'height': 0.18, 'bold': 1}).set_placement((x_pos, y0 + 3.8))
+            self.msp.add_text(h, dxfattribs={'layer': 'TEXTO', 'height': 0.18}).set_placement((x_pos, y0 + 3.8))
         
         self.msp.add_line((x0, y0+3.6), (x0+sum(col_w), y0+3.6), dxfattribs={'layer': 'GEOMETRIA'})
 
@@ -136,7 +136,7 @@ class RadierDXFEngine:
             self.msp.add_text(f"{weight:.2f}", dxfattribs={'layer': 'TEXTO', 'height': 0.18}).set_placement((x0 + col_w[0] + col_w[1] + col_w[2], y))
 
         self.msp.add_line((x0, y0-0.2), (x0+sum(col_w), y0-0.2), dxfattribs={'layer': 'GEOMETRIA'})
-        self.msp.add_text(f"PESO TOTAL: {total_weight:.2f} kg", dxfattribs={'layer': 'TEXTO', 'height': 0.25, 'bold': 1}).set_placement((x0, y0 - 0.7))
+        self.msp.add_text(f"PESO TOTAL: {total_weight:.2f} kg", dxfattribs={'layer': 'TEXTO', 'height': 0.25}).set_placement((x0, y0 - 0.7))
 
     def draw_dimensions(self):
         """Adiciona cotas principais."""
@@ -149,9 +149,62 @@ class RadierDXFEngine:
         self.doc.saveas(self.filename)
         print(f"✅ DXF Executivo salvo: {self.filename}")
 
+class SpecialElementsDXFEngine:
+    """Gerador de Desenhos Técnicos para Elementos Especiais."""
+    def __init__(self, filename: str):
+        self.doc = ezdxf.new('R2010')
+        self.msp = self.doc.modelspace()
+        self.filename = filename
+        self._setup_layers()
+
+    def _setup_layers(self):
+        self.doc.layers.add('GEOMETRIA', color=7)
+        self.doc.layers.add('ARMADURA', color=1)
+        self.doc.layers.add('TEXTO', color=2)
+
+    def draw_retaining_wall(self, h_wall: float, b_base: float, thick_wall: float):
+        """Desenha corte transversal de muro de arrimo."""
+        # Geometria do Muro (Corte)
+        p = [
+            (0, 0), (b_base, 0), (b_base, 0.4), # Base
+            (thick_wall + 0.2, 0.4), (thick_wall, h_wall), # Parede
+            (0, h_wall), (0, 0)
+        ]
+        self.msp.add_lwpolyline(p, dxfattribs={'layer': 'GEOMETRIA'})
+        self.msp.add_text("CORTE MURO DE ARRIMO", dxfattribs={'layer': 'TEXTO', 'height': 0.2}).set_placement((0, h_wall + 0.5))
+
+    def draw_stair_section(self, l_horiz: float, h_vert: float, steps: int):
+        """Desenha corte de escada."""
+        x, y = 0, 0
+        dh = l_horiz / steps
+        dv = h_vert / steps
+        points = [(0, 0)]
+        for _ in range(steps):
+            points.append((x, y + dv))
+            points.append((x + dh, y + dv))
+            x += dh
+            y += dv
+        # Fundo da laje
+        points.append((x, y - 0.15))
+        points.append((0, -0.15))
+        points.append((0, 0))
+        
+        self.msp.add_lwpolyline(points, dxfattribs={'layer': 'GEOMETRIA'})
+        self.msp.add_text("DETALHE ESCADA", dxfattribs={'layer': 'TEXTO', 'height': 0.2}).set_placement((0, h_vert + 0.5))
+
+    def save(self):
+        self.doc.saveas(self.filename)
+        print(f"✅ DXF Especial salvo: {self.filename}")
+
 if __name__ == "__main__":
-    # Teste rápido
+    # Teste Radier
     engine = RadierDXFEngine("output/test_detailing.dxf", 24, 24)
     engine.draw_outline()
     engine.draw_mesh('ARM_INF', 0.15, "phi 12.5 c/ 15 INF")
     engine.save()
+    
+    # Teste Especiais
+    spec_engine = SpecialElementsDXFEngine("output/test_especiais.dxf")
+    spec_engine.draw_retaining_wall(4.0, 2.5, 0.25)
+    spec_engine.draw_stair_section(4.0, 3.0, 16)
+    spec_engine.save()

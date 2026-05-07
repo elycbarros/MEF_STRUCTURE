@@ -25,6 +25,7 @@ class BeamSection:
     fck: float = 30.0     # MPa
     fyk: float = 500.0    # MPa
     E: float = 0.0        # Pa — se 0, calcula via fck
+    asymmetric_offset: float = 0.0 # m (distancia do centroide ao centro de torção, p/ seções L)
 
     def __post_init__(self):
         if self.bf <= 0:
@@ -32,18 +33,27 @@ class BeamSection:
         if self.E <= 0:
             self.E = 5600.0 * (self.fck ** 0.5) * 1e6  # NBR 6118: Eci
             
-        # Momento de inércia (Considerando Seção T)
+        # Momento de inércia e torção
         if self.bf > self.b and self.hf > 0:
             area_f = (self.bf - self.b) * self.hf
             area_w = self.b * self.h
             y_cg = (area_f * (self.hf / 2.0) + area_w * (self.h / 2.0)) / (area_f + area_w)
             self.I = (self.bf * self.hf**3 / 12.0 + area_f * (y_cg - self.hf/2.0)**2 +
                       self.b * self.h**3 / 12.0 + area_w * (self.h/2.0 - y_cg)**2)
+            # Torção simplificada para seção T (Soma dos retângulos)
+            self.J = (1/3.0) * (self.bf * self.hf**3 + self.b * (self.h - self.hf)**3)
         else:
             self.I = self.b * self.h**3 / 12.0
+            # Torção retangular (aproximação de St. Venant)
+            # J = beta * b * h^3 (onde b > h)
+            b_max = max(self.b, self.h)
+            h_min = min(self.b, self.h)
+            self.J = (b_max * h_min**3) * (1/3.0 - 0.21 * (h_min/b_max) * (1 - (h_min**4)/(12 * b_max**4)))
             
         self.d = self.h - self.cover - 0.010  # altura útil
+        self.G = self.E / (2 * (1 + 0.2)) # v=0.2
         self.EI = self.E * self.I
+        self.GJ = self.G * self.J
         self.area = self.b * self.h + (self.bf - self.b) * self.hf
 
 
@@ -60,6 +70,7 @@ class PointLoad:
     x: float         
     P: float = 0.0   
     M: float = 0.0   
+    eccentricity: float = 0.0 # m (offset lateral)
 
 
 @dataclass
@@ -68,6 +79,7 @@ class DistributedLoad:
     x_end: float         
     q_start: float       
     q_end: Optional[float] = None   
+    eccentricity: float = 0.0 # m (offset lateral)
 
     def __post_init__(self):
         if self.q_end is None:
@@ -97,12 +109,14 @@ class BeamResult:
     theta: np.ndarray          
     V: np.ndarray              
     M: np.ndarray              
+    T: np.ndarray              # Torsional Moment (kNm)
     x_elem: np.ndarray         
     reactions: dict             
     n_elements: int
     max_deflection_mm: float
     max_moment_kNm: float
     max_shear_kN: float
+    max_torsion_kNm: float
 
 
 # ──────────────────────── FEM Solver ────────────────────────
@@ -114,7 +128,7 @@ class BeamFEMSolver:
         self.model = model
         self.n_elem = model.n_elements
         self.n_nodes = self.n_elem + 1
-        self.ndof = 2 * self.n_nodes
+        self.ndof = 3 * self.n_nodes # w, theta, phi
         self.Le = model.L / self.n_elem
         self.x_nodes = np.linspace(0, model.L, self.n_nodes)
         self.x_elem = (self.x_nodes[:-1] + self.x_nodes[1:]) / 2.0
@@ -126,34 +140,62 @@ class BeamFEMSolver:
     def _element_stiffness(self, inertia: float | None = None) -> np.ndarray:
         Ie = inertia if inertia is not None else self.model.section.I
         EI = self.model.section.E * Ie
+        GJ = self.model.section.GJ
         L = self.Le
-        k = EI / L**3
-        return k * np.array([
+        
+        # Rigidez Flexão
+        kf = (EI / L**3) * np.array([
             [ 12,    6*L,   -12,    6*L  ],
             [  6*L,  4*L**2, -6*L,  2*L**2],
             [-12,   -6*L,    12,   -6*L  ],
             [  6*L,  2*L**2, -6*L,  4*L**2],
         ])
+        
+        # Rigidez Torção
+        kt = (GJ / L) * np.array([
+            [ 1, -1],
+            [-1,  1]
+        ])
+        
+        # Combinar 3 DOFs por nó (w, theta, phi)
+        ke = np.zeros((6, 6))
+        # Flexão (w, theta) -> indices 0,1 e 3,4
+        for i, idx_i in enumerate([0, 1, 3, 4]):
+            for j, idx_j in enumerate([0, 1, 3, 4]):
+                ke[idx_i, idx_j] = kf[i, j]
+        # Torção (phi) -> indices 2 e 5
+        for i, idx_i in enumerate([2, 5]):
+            for j, idx_j in enumerate([2, 5]):
+                ke[idx_i, idx_j] = kt[i, j]
+                
+        return ke
 
-    def _element_load_uniform(self, q: float) -> np.ndarray:
-        """Equivalente nodal para carga uniforme q (N/m)."""
+    def _element_load_uniform(self, q: float, eccentricity: float = 0.0) -> np.ndarray:
+        """Equivalente nodal para carga uniforme q (N/m) com excentricidade e (m)."""
         L = self.Le
-        # q positivo = para baixo (gravidade)
-        # Nodal: F_y (N), M (Nm)
-        # f1_y = -qL/2, M1 = qL^2/12, f2_y = -qL/2, M2 = -qL^2/12
-        return np.array([-q*L/2, q*L**2/12, -q*L/2, -q*L**2/12])
+        e_total = eccentricity + self.model.section.asymmetric_offset
+        return np.array([
+            -q*L/2.0,    q*L**2/12.0,  q*e_total*L/2.0, # Node 1: w, theta, phi
+            -q*L/2.0,   -q*L**2/12.0,  q*e_total*L/2.0  # Node 2: w, theta, phi
+        ])
 
-    def _assemble(self, inertias: np.ndarray | None = None) -> Tuple[np.ndarray, np.ndarray]:
-        K = np.zeros((self.ndof, self.ndof))
+    def _assemble(self, inertias: np.ndarray | None = None):
+        from scipy.sparse import coo_matrix
+        row_idx = []
+        col_idx = []
+        data_val = []
         F = np.zeros(self.ndof)
 
         for e in range(self.n_elem):
             Ie = inertias[e] if inertias is not None else None
             Ke = self._element_stiffness(inertia=Ie)
-            dofs = [2*e, 2*e+1, 2*e+2, 2*e+3]
-            for i in range(4):
-                for j in range(4):
-                    K[dofs[i], dofs[j]] += Ke[i, j]
+            # dofs: [w1, theta1, phi1, w2, theta2, phi2]
+            dofs = [3*e, 3*e+1, 3*e+2, 3*e+3, 3*e+4, 3*e+5]
+            for i_local in range(6):
+                for j_local in range(6):
+                    row_idx.append(dofs[i_local])
+                    col_idx.append(dofs[j_local])
+                    data_val.append(Ke[i_local, j_local])
 
         # Cargas distribuídas
         element_q = np.zeros(self.n_elem)
@@ -172,92 +214,121 @@ class BeamFEMSolver:
                 q_elemental = q_avg * coverage
                 element_q[e] += q_elemental
                 
-                fe = self._element_load_uniform(q_elemental)
-                dofs = [2*e, 2*e+1, 2*e+2, 2*e+3]
-                for i in range(4): F[dofs[i]] += fe[i]
+                fe = self._element_load_uniform(q_elemental, eccentricity=dl.eccentricity)
+                dofs = [3*e, 3*e+1, 3*e+2, 3*e+3, 3*e+4, 3*e+5]
+                for i in range(6): F[dofs[i]] += fe[i]
 
         # Peso próprio
         if getattr(self.model, "include_self_weight", True):
             pp = self.model.section.area * 25000.0
             for e in range(self.n_elem):
                 element_q[e] += pp
-                fe = self._element_load_uniform(pp)
-                for i in range(4): F[2*e + i] += fe[i]
+                fe = self._element_load_uniform(pp) # pp sem excentricidade
+                dofs = [3*e, 3*e+1, 3*e+2, 3*e+3, 3*e+4, 3*e+5]
+                for i in range(6): F[dofs[i]] += fe[i]
         
         self.element_q = element_q
 
         # Cargas concentradas
         for pl in self.model.point_loads:
             node = int(np.clip(np.round(pl.x / self.Le), 0, self.n_nodes - 1))
-            F[2 * node] -= pl.P # P positivo = para baixo
-            F[2 * node + 1] += pl.M # M positivo = anti-horário
+            F[3 * node] -= pl.P 
+            e_total = pl.eccentricity + self.model.section.asymmetric_offset
+            F[3 * node + 2] += pl.P * e_total  # Torsor por excentricidade
+            F[3 * node + 1] += pl.M             # Momento fletor concentrado
+            # pl.eccentricity já está em e_total, não somar de novo!
 
-        # Apoios
+        # Apoios (Penalidade)
+        penalty = 1e16
         for sup in self.model.supports:
             node = int(np.clip(np.round(sup.x / self.Le), 0, self.n_nodes - 1))
-            dof_w, dof_t = 2*node, 2*node+1
-            penalty = 1e16
+            dof_w, dof_t, dof_p = 3*node, 3*node+1, 3*node+2
             if sup.type in ('pinned', 'roller', 'fixed'):
-                K[dof_w, dof_w] += penalty
+                row_idx.append(dof_w); col_idx.append(dof_w); data_val.append(penalty)
+                # Restringir torção (phi) em apoios pinned/roller para evitar instabilidade global
+                if sup.type in ('pinned', 'fixed'):
+                    row_idx.append(dof_p); col_idx.append(dof_p); data_val.append(penalty)
             if sup.type == 'fixed':
-                K[dof_t, dof_t] += penalty
+                row_idx.append(dof_t); col_idx.append(dof_t); data_val.append(penalty)
             if sup.type == 'spring':
-                K[dof_w, dof_w] += sup.k_vertical
-                if sup.k_rotational > 0: K[dof_t, dof_t] += sup.k_rotational
+                row_idx.append(dof_w); col_idx.append(dof_w); data_val.append(sup.k_vertical)
+                if sup.k_rotational > 0:
+                    row_idx.append(dof_t); col_idx.append(dof_t); data_val.append(sup.k_rotational)
 
+        K = coo_matrix((data_val, (row_idx, col_idx)), shape=(self.ndof, self.ndof)).tocsr()
         return K, F
+
+    def _solve_linear_system(self, K, F: np.ndarray) -> np.ndarray:
+        from scipy.sparse.linalg import spsolve
+        from scipy.sparse import eye
+        ndof = len(F)
+        K_reg = K + eye(ndof, format='csr') * 1e-9
+        return spsolve(K_reg, F)
 
     def solve(self, inertias: np.ndarray | None = None) -> BeamResult:
         K, F_load = self._assemble(inertias=inertias)
         try:
-            U = np.linalg.solve(K, F_load)
-        except np.linalg.LinAlgError:
-            raise UnstableModelError("Matriz de rigidez singular. Verifique os apoios.", module="beam_solver")
+            U = self._solve_linear_system(K, F_load)
+        except Exception as e:
+            raise UnstableModelError(f"Erro na resolução da viga: {str(e)}. Verifique os apoios.", module="beam_solver")
         
-        w, theta = U[0::2], U[1::2]
-        V_res, M_res = np.zeros(self.n_elem), np.zeros(self.n_elem)
+        w, theta, phi = U[0::3], U[1::3], U[2::3]
+        V_res, M_res, T_res = np.zeros(self.n_elem), np.zeros(self.n_elem), np.zeros(self.n_elem)
         
         for e in range(self.n_elem):
             Ie = inertias[e] if inertias is not None else None
             Ke = self._element_stiffness(inertia=Ie)
-            ue = U[2*e:2*e+4]
-            fe = self._element_load_uniform(self.element_q[e])
+            ue = U[3*e:3*e+6]
+            # Encontrar excentricidade média do elemento se houver carga distribuída
+            ecc = 0.0
+            for dl in self.model.distributed_loads:
+                if dl.x_start <= self.x_elem[e] <= dl.x_end:
+                    ecc = dl.eccentricity
+                    break
+            
+            fe = self._element_load_uniform(self.element_q[e], eccentricity=ecc)
             
             # Esforços na face esquerda (Início do elemento)
             f_int = Ke @ ue - fe
             
             # Convenção estrutural: V positivo = para cima na face esquerda
-            # M positivo = tração nas fibras inferiores (para baixo no gráfico)
+            # M positivo = tração nas fibras inferiores
+            # T positivo = momento torsor
             V_res[e] = f_int[0]
             M_res[e] = -f_int[1]
+            T_res[e] = -f_int[2] # Momento Torsor no início do elemento
 
-        # Reações de apoio (R = k_penalty * (u_target - u_actual))
+        # Reações de apoio
         reactions = {}
         for sup in self.model.supports:
             node = int(np.clip(np.round(sup.x / self.Le), 0, self.n_nodes - 1))
-            dof_w, dof_t = 2*node, 2*node+1
+            dof_w, dof_t, dof_p = 3*node, 3*node+1, 3*node+2
             
-            Rv, Rm = 0.0, 0.0
+            Rv, Rm, Rt = 0.0, 0.0, 0.0
             penalty = 1e16
             
             if sup.type in ('pinned', 'roller', 'fixed'):
-                Rv = -penalty * w[node]
-            elif sup.type == 'spring':
-                Rv = -sup.k_vertical * w[node]
-            
+                Rv = penalty * (0 - U[dof_w])
             if sup.type == 'fixed':
-                Rm = -penalty * theta[node]
-            elif sup.type == 'spring' and sup.k_rotational > 0:
-                Rm = -sup.k_rotational * theta[node]
-                
-            reactions[sup.x] = {'V_kN': round(float(Rv / 1000), 2), 'M_kNm': round(float(Rm / 1000), 2)}
+                Rm = penalty * (0 - U[dof_t])
+                Rt = penalty * (0 - U[dof_p])
+            if sup.type == 'spring':
+                Rv = sup.k_vertical * U[dof_w]
+            
+            reactions[node] = {'R': round(float(Rv)/1000.0, 2), 'M': round(float(Rm)/1000.0, 2), 'T': round(float(Rt)/1000.0, 2)}
+
+        max_deflection = np.max(np.abs(w)) * 1000.0
+        max_moment = np.max(np.abs(M_res))
+        max_shear = np.max(np.abs(V_res))
+        max_torsion = np.max(np.abs(T_res))
 
         return BeamResult(
-            x=self.x_nodes, w=w, theta=theta, V=V_res, M=M_res, x_elem=self.x_elem,
-            reactions=reactions, n_elements=self.n_elem,
-            max_deflection_mm=round(float(np.max(np.abs(w)) * 1000), 3),
-            max_moment_kNm=round(float(np.max(np.abs(M_res)) / 1000), 2),
-            max_shear_kN=round(float(np.max(np.abs(V_res)) / 1000), 2),
+            x=self.x_nodes, w=w, theta=theta, V=V_res, M=M_res, T=T_res,
+            x_elem=self.x_elem, reactions=reactions, n_elements=self.n_elem,
+            max_deflection_mm=max_deflection,
+            max_moment_kNm=max_moment/1000.0,
+            max_shear_kN=max_shear/1000.0,
+            max_torsion_kNm=max_torsion/1000.0
         )
 
 
@@ -291,20 +362,44 @@ class NonlinearBeamEngine:
 
 class BeamDesigner:
     @staticmethod
-    def design_flexure(M_sd_kNm: float, section: BeamSection, gamma_c: float = 1.4, gamma_s: float = 1.15) -> dict:
-        bw, bf, d = section.b, section.bf, section.d
+    def design_flexure(M_sd_kNm: float, section: BeamSection, N_sd_kN: float = 0.0, gamma_c: float = 1.4, gamma_s: float = 1.15) -> dict:
+        """
+        Dimensionamento a flexão simples ou composta (NBR 6118).
+        Inclui excentricidade mínima se N_sd for compressão.
+        """
+        bw, bf, d, h = section.b, section.bf, section.d, section.h
         fcd_Pa, fyd_Pa = (section.fck / gamma_c) * 1e6, (section.fyk / gamma_s) * 1e6
-        M_sd = abs(M_sd_kNm) * 1000.0
+        
+        # 1. Excentricidade Mínima (NBR 6118 §11.3.3.4.1)
+        e_min = 0.015 + 0.03 * h
+        M_sd = abs(M_sd_kNm)
+        if N_sd_kN > 0: # Compressão
+            M_sd += abs(N_sd_kN) * e_min
+            
+        M_sd_Pa = M_sd * 1000.0
         bw_eff = bf if (M_sd_kNm > 0 and bf > bw) else bw
         
-        k = M_sd / (bw_eff * d**2 * fcd_Pa) if (bw_eff * d**2 * fcd_Pa) > 0 else 0
+        k = M_sd_Pa / (bw_eff * d**2 * fcd_Pa) if (bw_eff * d**2 * fcd_Pa) > 0 else 0
         discriminant = 1.0 - 2.94 * k
         if discriminant < 0: return {'status': 'SEÇÃO_INSUFICIENTE', 'As_cm2': 0, 'x_over_d': 1.0, 'domain': '4'}
+        
         x_d = (1.0 - np.sqrt(discriminant)) / 0.8
-        As_cm2 = (M_sd / (fyd_Pa * d * (1.0 - 0.4 * x_d))) * 1e4
+        As_m2 = (M_sd_Pa / (fyd_Pa * d * (1.0 - 0.4 * x_d)))
+        
+        # Ajuste para força axial (N_sd > 0 é compressão, subtrai As; N_sd < 0 é tração, soma As)
+        As_m2 -= (N_sd_kN * 1000.0) / fyd_Pa
+        
+        As_cm2 = As_m2 * 1e4
         As_min = max(0.15/100.0, 0.04 * (section.fck/gamma_c)/(section.fyk/gamma_s)) * bw * d * 1e4
-        return {'As_cm2': round(float(max(As_cm2, As_min)), 2), 'As_min_cm2': round(As_min, 2),
-                'x_over_d': round(x_d, 4), 'domain': '2' if x_d <= 0.259 else ('3' if x_d <= 0.45 else '4')}
+        As_final = max(As_cm2, As_min)
+        
+        return {
+            'As_cm2': round(float(As_final), 2),
+            'As_min_cm2': round(As_min, 2),
+            'x_over_d': round(x_d, 4),
+            'domain': '2' if x_d <= 0.259 else ('3' if x_d <= 0.45 else '4'),
+            'M_sd_total_kNm': round(M_sd, 2)
+        }
 
     @staticmethod
     def design_crack_width(M_sk_kNm: float, As_cm2: float, section: BeamSection) -> float:
@@ -314,18 +409,53 @@ class BeamDesigner:
         return round(float(wk), 3)
 
     @staticmethod
-    def design_shear(V_sd_kN: float, section: BeamSection, gamma_c: float = 1.4) -> dict:
-        b, d, fck = section.b, section.d, section.fck
+    def design_shear_torsion(V_sd_kN: float, T_sd_kNm: float, section: BeamSection, gamma_c: float = 1.4) -> dict:
+        b, h, d, fck = section.b, section.h, section.d, section.fck
         fcd = fck / gamma_c
         V_sd = abs(V_sd_kN)
+        T_sd = abs(T_sd_kNm)
+        
+        # 1. Parâmetros da Seção Vazada Equivalente (NBR 6118 §17.5)
+        u = 2 * (b + h)
+        A = b * h
+        he = max(A / u, 2 * section.cover) # espessura da parede
+        Ae = (b - he) * (h - he)
+        ue = 2 * ((b - he) + (h - he))
+        
+        # 2. Verificação de Esmagamento (Diagonais de Concreto)
         Vrd2 = 0.27 * (1.0 - fck/250.0) * fcd * b * d * 1000.0
+        Trd2 = 0.50 * (1.0 - fck/250.0) * fcd * Ae * he * 1000.0 * 2 # Simplificado para theta=45
+        
+        check_diagonal = (V_sd / Vrd2) + (T_sd / Trd2)
+        
+        # 3. Armadura Transversal (Estribos)
         Vc = 0.6 * (0.15 * (fck**(2/3))/gamma_c) * b * d * 1000.0
         Vsw = max(V_sd - Vc, 0.0)
-        Asw_cm2_m = (Vsw * 1000.0 / (0.9 * d * min(section.fyk/gamma_c, 435.0))) * 1e-2 # cm2/m
+        Asw_v = (Vsw * 1000.0 / (0.9 * d * min(section.fyk/gamma_c, 435.0))) * 1e-2 # cm2/m
+        
+        # Torção: Asw,t / s = Tsd / (2 * Ae * fyd)
+        fyd = min(section.fyk/1.15, 435.0)
+        Asw_t = (T_sd * 1000.0 / (2 * Ae * fyd)) * 1e-2 # cm2/m (por ramo)
+        
+        # Asw_total = Asw_v/2 + Asw_t (para estribos de 2 ramos)
+        Asw_final = (Asw_v/2.0 + Asw_t) * 2.0 # cm2/m (total)
+        
+        # Taxa mínima
         Asw_min = 0.2 * (fck**0.5) / section.fyk * b * 1e4
-        Asw_final = max(Asw_cm2_m, Asw_min)
-        return {'Vsd_kN': round(V_sd, 2), 'Vrd2_kN': round(Vrd2, 2), 'Asw_cm2_m': round(Asw_final, 2),
-                'stirrup_spec': _suggest_stirrup(Asw_final, b), 'biela_status': 'OK' if V_sd <= Vrd2 else 'ESMAGAMENTO'}
+        Asw_final = max(Asw_final, Asw_min)
+        
+        # 4. Armadura Longitudinal de Torção
+        Asl_t = (T_sd * 1000.0 * ue / (2 * Ae * fyd)) * 1e-4 # m2 -> cm2
+        
+        return {
+            'Vsd_kN': round(V_sd, 2), 'Tsd_kNm': round(T_sd, 2),
+            'Vrd2_kN': round(Vrd2, 2), 'Trd2_kNm': round(Trd2, 2),
+            'interaction_diag': round(check_diagonal, 3),
+            'Asw_cm2_m': round(Asw_final, 2),
+            'Asl_torsion_cm2': round(Asl_t * 1e4, 2),
+            'stirrup_spec': _suggest_stirrup(Asw_final, b),
+            'biela_status': 'OK' if check_diagonal <= 1.0 else 'ESMAGAMENTO'
+        }
 
     @staticmethod
     def design_anchorage(phi_mm: float, section: BeamSection, gamma_c: float = 1.4, gamma_s: float = 1.15) -> dict:
@@ -357,10 +487,11 @@ class BeamDesigner:
         M_design = cls.apply_moment_redistribution(result.M, support_nodes, delta=redistribution_delta)
         M_max_pos, M_max_neg = np.max(M_design)/1000.0*model.gamma_f, np.min(M_design)/1000.0*model.gamma_f
         V_max = np.max(np.abs(result.V))/1000.0*model.gamma_f
+        T_max = np.max(np.abs(result.T))/1000.0*model.gamma_f
         
         flex_bottom = cls.design_flexure(M_max_pos, model.section)
         flex_top = cls.design_flexure(abs(M_max_neg), model.section)
-        shear = cls.design_shear(V_max, model.section)
+        shear = cls.design_shear_torsion(V_max, T_max, model.section)
         wk = cls.design_crack_width(np.max(np.abs(result.M))/1000.0, max(flex_bottom['As_cm2'], flex_top['As_cm2']), model.section)
         
         mass_pp = model.section.area * 2500.0 

@@ -14,7 +14,15 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Pronto.");
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [systemType, setSystemType] = useState<"radier" | "laje">(mode === "academic" ? "laje" : "radier");
+  const [systemType, setSystemType] = useState<"radier" | "laje">("radier");
+  const [slabType, setSlabType] = useState<"solid" | "ribbed" | "hollow_core" | "prestressed" | "trussed">("solid");
+  const [fillerType, setFillerType] = useState<"ceramic" | "eps">("ceramic");
+  const [b_nerv, setBNerv] = useState(0.10);
+  const [dist_nerv, setDistNerv] = useState(0.50);
+  const [h_mesa, setHMesa] = useState(0.05);
+  const [area_voids, setAreaVoids] = useState(0.04);
+  const [p_force, setPForce] = useState(200.0);
+  const [ecc, setEcc] = useState(0.05);
 
   const [docMeta, setDocMeta] = useState({
     obra: mode === "academic" ? "Exercicio Acadêmico 01" : "Edifício Torre Central",
@@ -39,7 +47,7 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
       return [
         { id: "dashboard", label: "Painel", icon: Gauge },
         { id: "backlog", label: "Backlog", icon: ClipboardCheck },
-        { id: "geometria", label: "Lajes e Radier", icon: ShieldCheck },
+        { id: "geometria", label: "Radier", icon: ShieldCheck },
         { id: "pilares_isolados", label: "Dimensionar Pilar", icon: Cpu },
         { id: "vigas", label: "Dimensionar Viga", icon: Box },
         { id: "especiais", label: "Paredes e Especiais", icon: Database }
@@ -74,8 +82,17 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
     addLog,
     systemType,
     setSystemType,
+    slabType,
+    setSlabType,
     docMeta,
     setDocMeta,
-    tabs
+    tabs,
+    b_nerv, setBNerv,
+    dist_nerv, setDistNerv,
+    h_mesa, setHMesa,
+    area_voids, setAreaVoids,
+    p_force, setPForce,
+    ecc, setEcc,
+    fillerType, setFillerType
   };
 }

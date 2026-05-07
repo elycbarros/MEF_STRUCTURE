@@ -1,9 +1,11 @@
 """radier_lab_v24.py – Orquestrador integrado para pesquisa e perícia."""
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from slab_design_engine import SlabDesignEngine, SlabDesignConfig
+from slab_serviceability import SlabServiceabilityEngine, ServiceabilityConfig
 from errors import InvalidInputError, NumericalFailureError, UnstableModelError
 
 from radier_solver_v2 import (
@@ -11,6 +13,7 @@ from radier_solver_v2 import (
     Soil,
     PlateModel,
     RadierMindlinWinklerV2,
+    AreaLoad,
     write_example_column_csv,
     read_column_loads_csv,
 )
@@ -58,6 +61,8 @@ class LabConfig:
     spt_csv: str | None = None
     spt_correlation_level: str = 'medio'
     spt_default_soil_type: str = 'misto'
+    area_loads: list = field(default_factory=list)
+    pillars: list[PillarSupport] = field(default_factory=list)
     geotech_project_type: str = 'edificios_altos'
     geotech_profile_overrides: dict[str, float] | None = None
     ssi_enabled: bool = False
@@ -78,9 +83,64 @@ class LabConfig:
     h_map_csv: str | None = None         # CSV com espessura por elemento
     openings_csv: str | None = None      # CSV com máscara de aberturas
 
+    def __post_init__(self):
+        # Converter pilares se forem passados como dicts (API)
+        if self.pillars and isinstance(self.pillars, list):
+            new_pillars = []
+            for p in self.pillars:
+                if isinstance(p, dict):
+                    # Tenta converter support_type string para Enum se necessário
+                    from lajes_solver import PillarSupport, SupportType
+                    st = p.get('support_type', 'pinned')
+                    if isinstance(st, str):
+                        try:
+                            st = SupportType(st)
+                        except:
+                            st = SupportType.PINNED
+                    new_pillars.append(PillarSupport(
+                        id=p['id'], x=p['x'], y=p['y'], 
+                        p_kN=p.get('p_kN', 0.0),
+                        bx=p.get('bx', 0.5), by=p.get('by', 0.5),
+                        support_type=st, k_spring=p.get('k_spring', 0.0)
+                    ))
+                else:
+                    new_pillars.append(p)
+            self.pillars = new_pillars
+
+        # Converter area_loads se forem passados como dicts (API)
+        if self.area_loads and isinstance(self.area_loads, list):
+            new_al = []
+            for al in self.area_loads:
+                if isinstance(al, dict):
+                    # Aqui area_loads no LabConfig ainda são dicts, 
+                    # eles serão convertidos para objetos AreaLoad no _build_solver
+                    # mas para manter consistência podemos deixá-los como dicts 
+                    # ou criar uma estrutura aqui. 
+                    # Como _build_solver já espera dicts/objetos, vamos apenas garantir 
+                    # que os campos básicos existam.
+                    pass
+            # Por enquanto, mantemos como dicts para o _build_solver processar
+
 
 def _resolve_columns_csv(config: LabConfig) -> Path:
     out = ensure_directory(config.output_dir)
+    if config.pillars:
+        # Se houver pilares na lista, gera um CSV temporário
+        columns_csv = out / f"{config.base_name}_temp_pillars.csv"
+        data = []
+        for p in config.pillars:
+            data.append({
+                'id': p.id,
+                'x': p.x,
+                'y': p.y,
+                'p': getattr(p, 'p_kN', 0.0) * 1000.0, # Converte kN para N
+                'bx': p.bx,
+                'by': p.by
+            })
+        df = pd.DataFrame(data)
+        df.to_csv(columns_csv, index=False)
+        return columns_csv
+
     if config.columns_csv:
         columns_csv = Path(config.columns_csv)
         validate_columns_csv(columns_csv)
@@ -144,7 +204,11 @@ def _build_solver(config: LabConfig, kv: float | None = None, q: float | None = 
     mat = Material(E=config.E, nu=config.nu, h=config.h)
     
     # Se for laje, kv é zero (não há solo)
+    # API envia kN/m³, solver quer N/m³
     soil_kv = 0.0 if is_laje else (kv if kv is not None else config.kv)
+    if soil_kv < 1e6: # Heurística: se for < 1M, provavelmente está em kN/m³
+        soil_kv *= 1000.0
+        
     soil = Soil(
         kv=soil_kv, 
         tensionless=config.tensionless if not is_laje else False,
@@ -191,17 +255,26 @@ def _build_solver(config: LabConfig, kv: float | None = None, q: float | None = 
                 q_limit=soil.q_limit,
                 kv_map=kv_map
             ),
-            supports=supports
+            supports=supports,
+            area_loads=[AreaLoad(
+                x_min=al['x_min'], 
+                y_min=al['y_min'], 
+                x_max=al['x_max'], 
+                y_max=al['y_max'], 
+                q_Pa=al['q_kN'] * 1000.0
+            ) for al in config.area_loads] if config.area_loads else None
         )
     )
     
-    # Peso próprio do radier: h(m) * 25 kN/m³ * 1000 = N/m²
+    # Peso próprio do radier: h(m) * 25 kN/m³ * 1000 = Pa
     g_pp = config.h * 25.0 * 1000.0
     
-    if q is None:
-        solver._q_uniform = config.q + g_pp
-    else:
-        solver._q_uniform = q
+    # Carga acidental: se for < 1000, provavelmente está em kN/m² (API)
+    q_val = q if q is not None else config.q
+    if q_val < 1000.0:
+        q_val *= 1000.0
+
+    solver._q_uniform = q_val + g_pp
         
     return solver
 
@@ -403,7 +476,7 @@ def run_design_checks(config: LabConfig) -> dict:
     validate_lab_config(config)
     out = ensure_directory(config.output_dir)
     results = {}
-
+    is_laje = config.module_name.lower() in ['laje', 'lajes']
     design_cfg = DesignConfig(fck=config.fck, fyk=config.fyk, h=config.h, cover=config.cover)
     columns_csv = _resolve_columns_csv(config)
     nodes_csv = out / 'radier_v2_nodes.csv'
@@ -509,15 +582,35 @@ def run_design_checks(config: LabConfig) -> dict:
             nodes_csv=str(nodes_csv),
             flexure_design_csv=str(out / 'radier_design_flexure_v2.csv'),
         )
-        # 5. Distorção Angular (NBR 6122)
-        from radier_design_v2 import check_angular_distortion
-        check_angular_distortion(
-            str(design_columns_csv),
-            str(nodes_csv),
-            out_csv=str(out / 'radier_angular_distortion_v2.csv')
-        )
         results['punching_check_file'] = str(out / 'radier_punching_check_v2.csv')
         results['design_columns_file'] = str(design_columns_csv)
+
+    # 5.5 Refinamento de Lajes (NBR 6118:2023) — Se for Laje
+    if is_laje:
+        from slab_design_engine import SlabDesignEngine, SlabDesignConfig
+        from slab_serviceability import SlabServiceabilityEngine, ServiceabilityConfig
+        
+        # Recalcular flecha com Branson
+        if results.get('serviceability_check_file'):
+            df_serv = pd.read_csv(results['serviceability_check_file'])
+            # Exemplo: aplicando Branson no ponto de flecha máxima
+            # No futuro iterar sobre todos os elementos para mapa de rigidez
+            max_w_idx = df_serv['w_m'].idxmax()
+            ma_max = df_serv.loc[max_w_idx, 'mx_Nm_per_m'] / 1000.0 # kNm/m
+            as_max = df_serv.loc[max_w_idx, 'Asx_bottom_adot_cm2_m']
+            
+            serv_cfg = ServiceabilityConfig(fck=config.fck, h=config.h)
+            branson = SlabServiceabilityEngine.calculate_branson_inertia(ma_max, as_max, serv_cfg)
+            alpha_f = SlabServiceabilityEngine.get_alpha_f()
+            
+            results['branson_audit'] = {
+                'ma_kNm_m': ma_max,
+                'as_cm2_m': as_max,
+                'Ie_Ic_ratio': branson['reduction_factor'],
+                'alpha_f_creep': alpha_f,
+                'flecha_imediata_corr_mm': df_serv.loc[max_w_idx, 'w_m'] * 1000.0 / branson['reduction_factor'],
+                'flecha_longo_prazo_mm': (df_serv.loc[max_w_idx, 'w_m'] * 1000.0 / branson['reduction_factor']) * (1 + alpha_f)
+            }
     # 6. Geração de Prancha DXF (Detalhamento)
     try:
         from dxf_engine import RadierDXFEngine
@@ -644,6 +737,8 @@ def run_full_pipeline_demo(config: LabConfig | None = None) -> dict:
     inv_summary = run_inverse_and_uq(config)
     bayes_summary = run_bayesian(config)
 
+    det_summary = read_json(det_file)
+    is_laje = config.module_name.lower() in ['laje', 'lajes']
     master = {
         'pipeline_sequence': [
             'deterministic_service_analysis',
@@ -653,6 +748,21 @@ def run_full_pipeline_demo(config: LabConfig | None = None) -> dict:
             'inverse_and_uq',
             'bayesian_calibration',
         ],
+        # Keys para o frontend (Case Sensitive)
+        'Lx': config.Lx,
+        'Ly': config.Ly,
+        'h': config.h,
+        'kv': config.kv,
+        'lx': config.Lx,
+        'ly': config.Ly,
+        'fck': config.fck,
+        'area_m2': config.Lx * config.Ly,
+        'volume_m3': config.Lx * config.Ly * config.h,
+        'line_supports': [ls.model_dump() if hasattr(ls, 'model_dump') else ls for ls in (config.line_supports or [])],
+        'pillars': [p.model_dump() if hasattr(p, 'model_dump') else p for p in (config.pillars or [])],
+        'system_type': 'laje' if is_laje else 'radier',
+        'total_load_kN': det_summary.get('loads_total_kN', 0.0),
+        'total_p_kN': det_summary.get('column_load_kN', 0.0),
         'deterministic_summary_file': det_file,
         'sensitivity_envelope_file': sensitivity_file,
         'design_outputs': design_files,
@@ -660,26 +770,32 @@ def run_full_pipeline_demo(config: LabConfig | None = None) -> dict:
         'inverse_and_uq_summary': inv_summary,
         'bayesian_summary': bayes_summary,
     }
-
-    write_json(Path(config.output_dir, f'{config.base_name}_master_summary.json'), master)
-    det_summary = read_json(det_file)
-    is_laje = config.module_name == 'lajes'
-    geotechnical_profile = _build_geotechnical_profile(config) if not is_laje else None
+    print(f"DEBUG: Master Summary built for {master['system_type']} - Lx={master['Lx']}, h={master['h']}")
+    is_laje_internal = config.module_name.lower() in ['laje', 'lajes']
+    geotechnical_profile = _build_geotechnical_profile(config) if not is_laje_internal else None
 
     # Cálculo do Comparativo Analítico (Normativo Simplificado)
     analytical_comp = {}
-    if not is_laje:
-        try:
-            columns_path = _resolve_columns_csv(config)
-            column_loads = read_column_loads_csv(columns_path)
-            punching_df = pd.read_csv(design_files['punching_check_file']) if 'punching_check_file' in design_files else None
-            analytical_comp = analytical.calculate_analytical_comparison(
-                det_summary,
-                analytical.AnalyticalConfig(Lx=config.Lx, Ly=config.Ly, loads_kN=column_loads, q_uniform_Pa=config.q),
-                punching_mef_df=punching_df
-            )
-        except Exception as e:
-            print(f"Erro ao calcular comparativo analitico: {e}")
+    try:
+        punching_df = pd.read_csv(design_files['punching_check_file']) if 'punching_check_file' in design_files else None
+        # Carga total uniforme em kPa (Acidental + Peso Próprio)
+        q_accidental_kPa = config.q / 1000.0
+        q_self_weight_kPa = config.h * 25.0
+        q_total_kPa = q_accidental_kPa + q_self_weight_kPa
+        
+        analytical_comp = analytical.calculate_analytical_comparison(
+            det_summary,
+            analytical.AnalyticalConfig(
+                Lx=config.Lx, 
+                Ly=config.Ly, 
+                q_uniform_Pa=q_total_kPa * 1000.0,
+                pillars=config.pillars,
+                area_loads=config.area_loads
+            ),
+            punching_mef_df=punching_df
+        )
+    except Exception as e:
+        print(f"Erro ao calcular comparativo analitico: {e}")
 
     master['memorial_summary_file'] = write_memorial_summary(
         config, 

@@ -34,7 +34,7 @@ export default function ProfessionalDashboard({ memorial, config, mode = "profes
 
   const nlf = memorial.modelo_estrutural?.nlf_audit || null;
   const isNonlinear = !!config.concrete_nonlinear;
-  const isLaje = config.module_name === 'lajes';
+  const isLaje = config.module_name === 'laje' || config.module_name === 'lajes' || config.system_type === 'laje';
 
   const metrics = [
     {

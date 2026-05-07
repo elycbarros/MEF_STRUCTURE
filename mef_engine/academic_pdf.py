@@ -49,29 +49,31 @@ def _clean_text(value: Any) -> str:
 
 def _formula_text(value: Any) -> str:
     """Prepara texto para renderização LaTeX via Matplotlib."""
-    text = str(value or "")
+    text = str(value or "").strip().replace("\n", " ")
     if not text.startswith("$"):
         text = f"${text}$"
     return text
 
 
 def _render_latex(latex_str: str, filename: str, fontsize: int = 16):
-    """Renderiza uma string LaTeX para um arquivo de imagem usando Matplotlib com alta qualidade."""
-    plt.rc('text', usetex=False)
-    plt.rc('font', family='serif', serif=['Computer Modern Roman', 'DejaVu Serif', 'serif'])
+    # Configuração robusta para Mathtext
+    plt.rcParams.update({
+        "mathtext.fontset": "dejavusans",
+        "text.usetex": False
+    })
     
     # Criar figura com proporção melhor para fórmulas
     fig = plt.figure(figsize=(10, 1.2), dpi=300)
     plt.axis('off')
     
     try:
-        # Centralizado
-        print(f"DEBUG: Renderizando LaTeX: {latex_str}", flush=True)
-        plt.text(0.5, 0.5, latex_str, fontsize=fontsize, ha='center', va='center', color='#0f172a')
+        fig.text(0.5, 0.5, latex_str, fontsize=fontsize, ha='center', va='center', color='#0f172a')
         plt.savefig(filename, transparent=True, bbox_inches='tight', pad_inches=0.1)
     except Exception as e:
-        print(f"ERROR: Falha ao renderizar LaTeX: {e}", flush=True)
-        plt.text(0.5, 0.5, f"Formula Error", fontsize=10, color='red', ha='center', va='center')
+        fig.clear()
+        plt.axis('off')
+        plain_text = latex_str.replace("$", "").replace("\\mathrm", "").replace("{", "").replace("}", "").replace("\\ ", " ").replace("\\", "")
+        fig.text(0.5, 0.5, plain_text, fontsize=fontsize, ha='center', va='center', color='#0f172a')
         plt.savefig(filename, transparent=True, bbox_inches='tight', pad_inches=0.1)
     
     plt.close(fig)
@@ -84,42 +86,42 @@ class AcademicPDF(FPDF):
         self.set_auto_page_break(auto=True, margin=16)
 
     def header(self):
-        self.set_font("Arial", "B", 12)
+        self.set_font("Helvetica", "B", 12)
         self.set_text_color(20, 24, 32)
-        self.cell(0, 8, "Engine MESTRE - Memorial de Calculo Pedagogico", 0, 1, "L")
-        self.set_font("Arial", "", 8)
+        self.cell(0, 8, "Engine MESTRE - Memorial de Calculo Pedagogico", 0, new_x="LMARGIN", new_y="NEXT", align="L")
+        self.set_font("Helvetica", "", 8)
         self.set_text_color(95, 105, 120)
         disciplina = _clean_text(self.meta.get("disciplina", "Engenharia Civil"))
         professor = _clean_text(self.meta.get("professor", "Professor"))
-        self.cell(0, 5, f"{disciplina} | {professor}", 0, 1, "L")
+        self.cell(0, 5, f"{disciplina} | {professor}", 0, new_x="LMARGIN", new_y="NEXT", align="L")
         self.line(10, self.get_y() + 2, 200, self.get_y() + 2)
         self.ln(6)
 
     def footer(self):
         self.set_y(-14)
-        self.set_font("Arial", "I", 8)
+        self.set_font("Helvetica", "I", 8)
         self.set_text_color(120, 120, 120)
-        self.cell(0, 8, f"Pagina {self.page_no()} | Memorial pedagogico gerado automaticamente", 0, 0, "C")
+        self.cell(0, 8, f"Pagina {self.page_no()} | Memorial pedagogico gerado automaticamente", 0, new_x="RIGHT", new_y="TOP", align="C")
 
     def document_title(self, text: str):
-        self.set_font("Arial", "B", 15)
+        self.set_font("Helvetica", "B", 15)
         self.set_text_color(0, 0, 0)
         self.multi_cell(0, 8, _clean_text(text))
         self.ln(2)
 
     def section(self, text: str):
-        self.set_font("Arial", "B", 10)
+        self.set_font("Helvetica", "B", 10)
         self.set_fill_color(236, 240, 245)
         self.set_text_color(30, 35, 45)
-        self.cell(0, 7, f"  {_clean_text(text)}", 0, 1, "L", fill=True)
+        self.cell(0, 7, f"  {_clean_text(text)}", 0, new_x="LMARGIN", new_y="NEXT", align="L", fill=True)
         self.ln(2)
 
     def latex_callout(self, label: str, latex_text: str, step_idx: int, part_idx: int):
         if not latex_text: return
         
-        self.set_font("Arial", "B", 7)
+        self.set_font("Helvetica", "B", 7)
         self.set_text_color(100, 116, 139)
-        self.cell(0, 4, _clean_text(label).upper(), 0, 1)
+        self.cell(0, 4, _clean_text(label).upper(), 0, new_x="LMARGIN", new_y="NEXT")
         
         # Gerar imagem temporária em local seguro relativo ao script
         temp_dir = Path(__file__).parent / "temp_latex"
@@ -150,19 +152,19 @@ class AcademicPDF(FPDF):
     def callout(self, title: str, text: str):
         self.set_fill_color(248, 250, 252)
         self.set_draw_color(220, 226, 235)
-        self.set_font("Arial", "B", 8)
+        self.set_font("Helvetica", "B", 8)
         self.set_text_color(45, 55, 72)
-        self.cell(0, 5, _clean_text(title), 1, 1, "L", fill=True)
-        self.set_font("Arial", "", 9)
+        self.cell(0, 5, _clean_text(title), 1, new_x="LMARGIN", new_y="NEXT", align="L", fill=True)
+        self.set_font("Helvetica", "", 9)
         self.set_text_color(20, 24, 32)
         self.multi_cell(0, 5, _clean_text(text), 1, "L")
         self.ln(1)
 
     def label_value(self, label: str, value: Any):
-        self.set_font("Arial", "B", 8)
+        self.set_font("Helvetica", "B", 8)
         self.set_text_color(70, 75, 85)
-        self.cell(0, 5, _clean_text(label), 0, 1)
-        self.set_font("Arial", "", 8)
+        self.cell(0, 5, _clean_text(label), 0, new_x="LMARGIN", new_y="NEXT")
+        self.set_font("Helvetica", "", 8)
         self.set_text_color(20, 24, 32)
         self.multi_cell(0, 5, _clean_text(value) or "-")
         self.ln(1)
@@ -171,14 +173,14 @@ class AcademicPDF(FPDF):
         status = _clean_text(step.get("status", "INFO"))
         title = _clean_text(step.get("title", f"Passo {index}"))
         norm_ref = step.get("norm_ref", "")
-        self.set_font("Arial", "B", 10)
+        self.set_font("Helvetica", "B", 10)
         self.set_text_color(0, 0, 0)
         self.multi_cell(0, 6, f"Passo {index:02d} - {title}")
         self.ln(1)
 
-        self.set_font("Arial", "B", 8)
+        self.set_font("Helvetica", "B", 8)
         self.set_text_color(70, 75, 85)
-        self.cell(0, 5, f"Status pedagogico: {status}", 0, 1)
+        self.cell(0, 5, f"Status pedagogico: {status}", 0, new_x="LMARGIN", new_y="NEXT")
         if norm_ref:
             self.label_value("Referencia normativa / criterio", norm_ref)
             
@@ -196,15 +198,14 @@ class AcademicPDF(FPDF):
         self.ln(3)
 
     def add_diagram_image(self, title: str, img_path: str):
-        self.set_font("Arial", "B", 10)
-        self.set_text_color(30, 35, 45)
-        self.cell(0, 7, f"  {_clean_text(title)}", 0, 1, "L")
+        self.set_font("Helvetica", "B", 10)
+        self.set_text_color(0, 0, 0)
+        self.cell(0, 7, f"  {_clean_text(title)}", 0, new_x="LMARGIN", new_y="NEXT", align="L")
         if os.path.exists(img_path):
             # Centered image
             self.image(img_path, x=25, w=160)
             self.ln(5)
         else:
-            self.set_font("Arial", "I", 8)
             self.cell(0, 5, "[Erro ao carregar diagrama]", 0, 1)
 
 
@@ -215,43 +216,50 @@ def generate_academic_blackboard_pdf(
     diagrams: dict[str, Any] | None = None,
     classical_diagrams: dict[str, Any] | None = None,
 ) -> str:
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    shear_path = moment_path = deflection_path = None
+    try:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-    pdf = AcademicPDF(project_meta)
-    pdf.add_page()
+        pdf = AcademicPDF(project_meta)
+        pdf.add_page()
 
-    pdf.document_title(f"Memorial de Calculo Pedagogico - {blackboard.get('title', 'Roteiro didatico')}")
-    pdf.section("Objetivo do documento")
-    pdf.label_value(
-        "Finalidade",
-        "Apresentar o passo-a-passo analitico do dimensionamento, com formula, valores substituidos e conclusao de cada verificacao.",
-    )
-    pdf.label_value("Base", "NBR 6118 e criterios auxiliares indicados em cada passo.")
+        pdf.document_title(f"Memorial de Calculo Pedagogico - {blackboard.get('title', 'Roteiro didatico')}")
+        pdf.section("Objetivo do documento")
+        pdf.label_value(
+            "Finalidade",
+            "Apresentar o passo-a-passo analitico do dimensionamento, com formula, valores substituidos e conclusao de cada verificacao.",
+        )
+        pdf.label_value("Base", "NBR 6118 e criterios auxiliares indicados em cada passo.")
 
-    pdf.section("Dados do exercicio")
-    summary = blackboard.get("summary", {}) or {}
-    for key, value in summary.items():
-        pdf.label_value(str(key), value)
-    pdf.label_value("Data de emissao", datetime.now().strftime("%d/%m/%Y %H:%M"))
-    pdf.ln(4)
+        pdf.section("Dados do exercicio")
+        summary = blackboard.get("summary", {}) or {}
+        for key, value in summary.items():
+            pdf.label_value(str(key), value)
+        pdf.label_value("Data de emissao", datetime.now().strftime("%d/%m/%Y %H:%M"))
+        pdf.ln(4)
 
-    # Adicionar Diagramas se existirem
-    if classical_diagrams or diagrams:
-        pdf.section("Visualizacao de Esforços e Deformacoes")
-        output_dir = os.path.dirname(output_path)
-        shear_path, moment_path, deflection_path = _plot_structural_diagrams(classical_diagrams, diagrams, output_dir)
-        pdf.add_diagram_image("Diagrama de Esforços Cortantes V(x) [kN]", shear_path)
-        pdf.add_diagram_image("Diagrama de Momentos Fletores M(x) [kNm]", moment_path)
-        if deflection_path:
-            pdf.add_diagram_image("Diagrama de Deformacoes - Flecha y(x) [mm]", deflection_path)
+        # Adicionar Diagramas se existirem
+        if classical_diagrams or diagrams:
+            pdf.section("Visualizacao de Esforços e Deformacoes")
+            output_dir = os.path.dirname(output_path)
+            shear_path, moment_path, deflection_path = _plot_structural_diagrams(classical_diagrams, diagrams, output_dir)
+            pdf.add_diagram_image("Diagrama de Esforços Cortantes V(x) [kN]", shear_path)
+            pdf.add_diagram_image("Diagrama de Momentos Fletores M(x) [kNm]", moment_path)
+            if deflection_path:
+                pdf.add_diagram_image("Diagrama de Deformacoes - Flecha y(x) [mm]", deflection_path)
 
-    pdf.section("Resolucao passo a passo")
-    for index, step in enumerate(blackboard.get("steps", []) or [], start=1):
-        pdf.add_step(index, step)
+        pdf.section("Resolucao passo a passo")
+        for index, step in enumerate(blackboard.get("steps", []) or [], start=1):
+            pdf.add_step(index, step)
 
-    pdf.output(str(path))
-    return str(path)
+        pdf.output(str(path))
+        return str(path)
+    except Exception as e:
+        raise e
+    finally:
+        for f in [shear_path, moment_path, deflection_path]:
+            if f and os.path.exists(f): os.remove(f)
 
 
 def _plot_structural_diagrams(classical: dict | None, mef: dict | None, output_dir: str):
@@ -304,16 +312,29 @@ def _plot_structural_diagrams(classical: dict | None, mef: dict | None, output_d
 
     # Deflection Plot
     deflection_img = None
-    if (mef and 'delta_mm' in mef) or (classical and 'delta_mm' in classical):
+    if (mef and ('delta_mm' in mef or 'w_mm' in mef)) or (classical and ('delta_mm' in classical or 'w_mm' in classical)):
         plt.figure(figsize=(10, 3))
-        if mef and 'delta_mm' in mef:
-            xm, Dm = np.array(mef['x_m']), np.array(mef['delta_mm'])
-            plt.plot(xm, Dm, color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
-            plt.fill_between(xm, Dm, color='#2563eb', alpha=0.1)
-        elif classical and 'delta_mm' in classical:
-            xc, Dc = np.array(classical['x_m']), np.array(classical['delta_mm'])
-            plt.plot(xc, Dc, color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
-            plt.fill_between(xc, Dc, color='#2563eb', alpha=0.1)
+        if mef:
+            # Deflection is node-based (41 values)
+            # Element forces (V, M) are element-based (40 values)
+            if 'w_mm' in mef or 'delta_mm' in mef:
+                xm = np.array(mef.get('x_nodes_m', mef.get('x_m', [])))
+                Dm = np.array(mef.get('delta_mm', mef.get('w_mm', [])))
+            else:
+                xm = np.array(mef.get('x_m', []))
+                Dm = np.array(mef.get('delta_mm', []))
+
+            if len(xm) > 0 and len(Dm) > 0:
+                # Ensure they have same length
+                min_len = min(len(xm), len(Dm))
+                plt.plot(xm[:min_len], Dm[:min_len], color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
+                plt.fill_between(xm[:min_len], Dm[:min_len], color='#2563eb', alpha=0.1)
+        elif classical:
+            xc = np.array(classical['x_m'])
+            Dc = np.array(classical.get('delta_mm', classical.get('w_mm', [])))
+            if len(xc) > 0 and len(Dc) > 0:
+                plt.plot(xc, Dc, color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
+                plt.fill_between(xc, Dc, color='#2563eb', alpha=0.1)
 
         plt.axhline(0, color='black', linewidth=0.8)
         plt.gca().invert_yaxis() # Deformação para baixo positiva

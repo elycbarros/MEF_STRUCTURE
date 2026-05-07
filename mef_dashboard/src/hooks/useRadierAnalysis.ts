@@ -27,6 +27,15 @@ export interface Hole {
   h: number;
 }
 
+export interface AreaLoad {
+  id: string;
+  x_min: number;
+  y_min: number;
+  x_max: number;
+  y_max: number;
+  q_kN: number;
+}
+
 export type DiagnosticConservatism = "permissive" | "balanced" | "conservative";
 export type RiskSeverity = "green" | "yellow" | "red";
 export interface FieldRiskSummary {
@@ -64,6 +73,7 @@ export function useRadierAnalysis() {
   ]);
 
   const [holes, setHoles] = useState<Hole[]>([]);
+  const [areaLoads, setAreaLoads] = useState<AreaLoad[]>([]);
   const [results, setResults] = useState<any>(null);
 
   // Guided Mode State
@@ -85,6 +95,8 @@ export function useRadierAnalysis() {
     setLineSupports,
     holes,
     setHoles,
+    areaLoads,
+    setAreaLoads,
     results,
     setResults,
     foundationTypeId, setFoundationTypeId,

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowUpDown, ChevronRight, Plus, Ruler, Trash2, Layers, Zap, Box, Wind, Search, BookOpen } from "lucide-react";
+import { ArrowUpDown, ChevronRight, Plus, Ruler, Trash2, Layers, Zap, Box, Wind, Search, BookOpen, RotateCcw, Layers3, StretchHorizontal, Scissors, Layout, Cpu } from "lucide-react";
 import { cn, formatNumberBR } from "@/lib/utils";
 import { PedagogicalStepsView } from "./PedagogicalStepsView";
 import { MemorialHtmlView } from "./MemorialHtmlView";
@@ -10,6 +10,8 @@ import { ElegantTooltip } from "./ui/ElegantTooltip";
 
 interface SpecialElementsViewProps {
   apiBaseUrl: string;
+  isProfessionalMode?: boolean;
+  onGoBack?: () => void;
   type?: "viga" | "pilar" | "escada" | "parede" | "footing" | "spt" | "stability" | "reservatorio";
 }
 
@@ -251,8 +253,18 @@ function BeamLoadReactionChart({
 }
 
 export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewProps) {
-  const initialTab = type === "viga" ? "beam" : type === "pilar" ? "column" : type === "parede" ? "concrete_wall" : type === "footing" ? "footing" : type === "spt" ? "spt" : type === "stability" ? "stability" : "stair";
-  const [activeTab, setActiveTab] = useState<"stair" | "concrete_wall" | "beam" | "column" | "footing" | "spt" | "stability">(initialTab);
+  type SpecialTab = "stair" | "concrete_wall" | "beam" | "column" | "footing" | "spt" | "stability" | "retaining_wall" | "reservoir" | "corbel" | "gerber_tooth" | "deep_beam" | "helical_stairs";
+  const resolveInitialTab = (selectedType?: SpecialElementsViewProps["type"]): SpecialTab =>
+    selectedType === "parede" ? "concrete_wall" :
+    selectedType === "viga" ? "beam" :
+    selectedType === "pilar" ? "column" :
+    selectedType === "footing" ? "footing" :
+    selectedType === "spt" ? "spt" :
+    selectedType === "stability" ? "stability" :
+    selectedType === "reservatorio" ? "reservoir" :
+    "stair";
+  const initialTab = resolveInitialTab(type);
+  const [activeTab, setActiveTab] = useState<SpecialTab>(initialTab);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [useClassical, setUseClassical] = useState(true);
@@ -262,7 +274,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
   // Sync with prop if it changes
   React.useEffect(() => {
     if (type) {
-      setActiveTab(type === "viga" ? "beam" : type === "pilar" ? "column" : type === "parede" ? "concrete_wall" : type === "footing" ? "footing" : "stair");
+      setActiveTab(resolveInitialTab(type));
     }
   }, [type]);
 
@@ -292,6 +304,12 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
   });
   const [colParams, setColParams] = useState({ b: 0.40, h: 0.40, Nd: 1200, Mxd: 40, Myd: 15, L_free: 3.0, fck: 25, caa: 2 });
   const [footingParams, setFootingParams] = useState({ Nd: 800.0, sigma_adm: 250.0, ap: 0.20, bp: 0.40, fck: 25 });
+  const [retainingWallParams, setRetainingWallParams] = useState({ h_wall: 4.0, gamma_soil: 18.0, phi_soil: 30.0, weight_wall: 120.0, b_base: 2.5, surcharge: 10.0 });
+  const [reservoirParams, setReservoirParams] = useState({ length: 5.0, width: 3.0, depth: 3.0, thick: 0.20, fck: 30 });
+  const [corbelParams, setCorbelParams] = useState({ fd_kN: 200, a_dist: 0.25, d_eff: 0.45, fck: 30 });
+  const [gerberParams, setGerberParams] = useState({ vd_kN: 150, hd_kN: 30, a_dist: 0.15, d_eff: 0.40, b_width: 0.20, fck: 30 });
+  const [deepBeamParams, setDeepBeamParams] = useState({ L: 4.0, h: 3.0, b: 0.20, fck: 30 });
+  const [helicalStairParams, setHelicalStairParams] = useState({ radius: 2.5, angle_total_deg: 180, h_step: 0.18, thick: 0.15, q_acid: 3.0 });
   const [sptData, setSptData] = useState([
     { depth_m: 1.0, nspt: 2, soil_type: "Ateu" },
     { depth_m: 2.0, nspt: 5, soil_type: "Silte Argiloso" },
@@ -307,12 +325,16 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
     else if (activeTab === "beam") params = beamParams;
     else if (activeTab === "column") params = colParams;
     else if (activeTab === "footing") params = footingParams;
+    else if (activeTab === "retaining_wall") params = { ...retainingWallParams, type: "retaining_wall" };
+    else if (activeTab === "reservoir") params = { ...reservoirParams, type: "reservoir" };
+    else if (activeTab === "corbel") params = { ...corbelParams, type: "corbel" };
+    else if (activeTab === "gerber_tooth") params = { ...gerberParams, type: "gerber_tooth" };
+    else if (activeTab === "deep_beam") params = { ...deepBeamParams, type: "deep_beam" };
+    else if (activeTab === "helical_stairs") params = { ...helicalStairParams, type: "helical_stairs" };
 
     try {
       const isSpt = activeTab === "spt";
       const isStability = activeTab === "stability";
-      const isColumn = activeTab === "column";
-      const isBeam = activeTab === "beam";
 
       let body: any = {};
       let url = `${apiBaseUrl}/calculate/special-elements`;
@@ -321,47 +343,53 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
         url = `${apiBaseUrl}/calculate/spt`;
         body = { spt_data: sptData };
       } else if (isStability) {
-        url = `${apiBaseUrl}/calculate/stability`;
+        url = `${apiBaseUrl}/calculate/stability-mestre`;
         body = windParams;
-      } else if (isColumn) {
+      } else if (activeTab === "column") {
         url = `${apiBaseUrl}/calculate/column`;
         body = {
-          b: colParams.b,
-          h: colParams.h,
-          fck: colParams.fck,
-          caa: colParams.caa,
-          L_free: colParams.L_free,
+          ...colParams,
           Nd_kN: colParams.Nd,
           Mxd_kNm: colParams.Mxd,
           Myd_kNm: colParams.Myd,
+          n_floors_for_shortening: 10
         };
-      } else if (isBeam) {
-        const L_total = beamParams.L_left + beamParams.L + beamParams.L_right;
+      } else if (activeTab === "beam") {
         url = `${apiBaseUrl}/calculate/beam`;
+        const totalL = beamParams.L_left + beamParams.L + beamParams.L_right;
+        const supports = [];
+        
+        // Mapeamento inteligente de apoios para o solver de elementos finitos
+        if (beamParams.leftSupport !== "free") {
+          supports.push({ 
+            x: beamParams.L_left, 
+            type: beamParams.leftSupport === "spring" ? "spring" : (beamParams.leftSupport === "fixed" ? "fixed" : "pinned"),
+            k_vertical: beamParams.leftK
+          });
+        }
+        if (beamParams.rightSupport !== "free") {
+          supports.push({ 
+            x: beamParams.L_left + beamParams.L, 
+            type: beamParams.rightSupport === "spring" ? "spring" : (beamParams.rightSupport === "fixed" ? "fixed" : "pinned"),
+            k_vertical: beamParams.rightK
+          });
+        }
+
         body = {
-          L: L_total,
+          L: totalL,
           b: beamParams.b,
           h: beamParams.h,
           fck: beamParams.fck,
           caa: beamParams.caa,
-          cover: beamParams.coverCm / 100,
-          gamma_f: beamParams.gammaF,
-          redistribution_delta: beamParams.redistributionDelta,
+          supports: supports,
+          distributed_loads: beamParams.distributedLoads.length > 0 
+            ? beamParams.distributedLoads 
+            : [{ x_start: 0, x_end: totalL, q_start: beamParams.q, q_end: beamParams.q }],
+          point_loads: beamParams.pointLoads,
           n_elements: beamParams.nElements,
           include_self_weight: beamParams.includeSelfWeight,
-          supports: [
-            { x: beamParams.L_left, type: beamParams.leftSupport, k_vertical: beamParams.leftK * 1000 },
-            { x: beamParams.L_left + beamParams.L, type: beamParams.rightSupport, k_vertical: beamParams.rightK * 1000 },
-          ],
-          distributed_loads: beamParams.distributedLoads.length > 0 
-            ? beamParams.distributedLoads.map(dl => ({
-                x_start: dl.x_start,
-                x_end: dl.x_end,
-                q_start: dl.q_start * 1000,
-                q_end: dl.q_end * 1000,
-              }))
-            : (beamParams.q > 0 ? [{ x_start: 0, x_end: L_total, q_start: beamParams.q * 1000 }] : []),
-          point_loads: beamParams.pointLoads.map(p => ({ x: p.x, P: p.P * 1000 })),
+          gamma_f: beamParams.gammaF,
+          redistribution_delta: beamParams.redistributionDelta
         };
       } else {
         body = { type: activeTab, params };
@@ -389,32 +417,47 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
 
   return (
     <div className="flex flex-col gap-6">
-      {!type && (
-        <div className="flex flex-wrap gap-2">
-          {[
-            { id: "stair", label: "Escadas", icon: Ruler },
-            { id: "concrete_wall", label: "Parede Concreto", icon: Layers },
-            { id: "footing", label: "Sapatas", icon: Box },
-            { id: "spt", label: "Geotecnia", icon: Search },
-            { id: "stability", label: "Estabilidade", icon: Wind },
-            { id: "beam", label: "Vigas", icon: Zap },
-            { id: "column", label: "Pilares", icon: Zap },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition ${
-                activeTab === tab.id ? "bg-[#0071e3] text-white shadow-lg shadow-[#0071e3]/20" : "bg-white text-[#4d5360] hover:bg-gray-50 border border-black/5"
-              }`}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_1fr] gap-6">
+        {/* Sidebar de Elementos */}
+        {!type && (
+          <div className="lg:col-span-1 flex flex-col rounded-3xl border border-[#e0e7ef] bg-white overflow-hidden shadow-sm h-fit">
+            <div className="bg-[#f2f4f7] p-4 border-b border-[#e0e7ef]">
+              <h3 className="font-black text-sm text-[#4d5360] uppercase tracking-widest">Element</h3>
+            </div>
+            <div className="flex flex-col">
+              {[
+                { id: "retaining_wall", label: "Muros", icon: Layers3 },
+                { id: "stair", label: "Escadas", icon: Ruler },
+                { id: "helical_stairs", label: "Escada Helicoidal", icon: RotateCcw },
+                { id: "reservoir", label: "Tanques / Reservatórios", icon: Box },
+                { id: "corbel", label: "Consolos", icon: StretchHorizontal },
+                { id: "gerber_tooth", label: "Dentes Gerber", icon: Scissors },
+                { id: "deep_beam", label: "Vigas Parede", icon: Layout },
+                { id: "concrete_wall", label: "Parede de Concreto", icon: Layers },
+                { id: "footing", label: "Sapatas", icon: Box },
+                { id: "spt", label: "Sondagem SPT", icon: Search },
+                { id: "stability", label: "Estabilidade Gamma-Z", icon: Wind },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    setResult(null); // Limpar resultado ao trocar de elemento
+                  }}
+                  className={cn(
+                    "flex items-center gap-3 px-6 py-4 text-sm font-black transition-all border-b border-[#f2f4f7] last:border-0 text-left",
+                    activeTab === tab.id 
+                      ? "bg-[#0071e3] text-white shadow-inner" 
+                      : "text-[#4d5360] hover:bg-[#f9fafb] bg-white"
+                  )}
+                >
+                  <tab.icon className={cn("h-4 w-4", activeTab === tab.id ? "text-white" : "text-[#8a9ab0]")} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Coluna de Inputs */}
         <div className="lg:col-span-1 space-y-4 rounded-3xl border border-[#e0e7ef] bg-white p-6 shadow-sm">
           <h3 className="font-black text-lg text-[#101828]">Parâmetros</h3>
@@ -461,6 +504,170 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                     <label className="text-xs font-bold text-[#667085]">fck [MPa]</label>
                   </ElegantTooltip>
                   <input type="number" value={stairParams.fck} onChange={(e) => setStairParams({ ...stairParams, fck: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "helical_stairs" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-purple-700">Escada Helicoidal</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Análise 3D de torção e flexão em vigas curvas.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-[#667085]">Raio Médio [m]</label>
+                  <input type="number" value={helicalStairParams.radius} onChange={(e) => setHelicalStairParams({ ...helicalStairParams, radius: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[#667085]">Ângulo Total [graus]</label>
+                  <input type="number" value={helicalStairParams.angle_total_deg} onChange={(e) => setHelicalStairParams({ ...helicalStairParams, angle_total_deg: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Espessura [m]</label>
+                    <input type="number" step="0.01" value={helicalStairParams.thick} onChange={(e) => setHelicalStairParams({ ...helicalStairParams, thick: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Carga q [kN/m²]</label>
+                    <input type="number" value={helicalStairParams.q_acid} onChange={(e) => setHelicalStairParams({ ...helicalStairParams, q_acid: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "retaining_wall" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-orange-700">Muro de Arrimo</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Verificação de estabilidade (Tombamento e Deslizamento).
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Altura Muro [m]</label>
+                    <input type="number" value={retainingWallParams.h_wall} onChange={(e) => setRetainingWallParams({ ...retainingWallParams, h_wall: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Base [m]</label>
+                    <input type="number" value={retainingWallParams.b_base} onChange={(e) => setRetainingWallParams({ ...retainingWallParams, b_base: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">γ solo [kN/m³]</label>
+                    <input type="number" value={retainingWallParams.gamma_soil} onChange={(e) => setRetainingWallParams({ ...retainingWallParams, gamma_soil: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">φ solo [°]</label>
+                    <input type="number" value={retainingWallParams.phi_soil} onChange={(e) => setRetainingWallParams({ ...retainingWallParams, phi_soil: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "reservoir" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Reservatório Retangular</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Estanqueidade e controle de fissuração (w_k).
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Comp. [m]</label>
+                    <input type="number" value={reservoirParams.length} onChange={(e) => setReservoirParams({ ...reservoirParams, length: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Larg. [m]</label>
+                    <input type="number" value={reservoirParams.width} onChange={(e) => setReservoirParams({ ...reservoirParams, width: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Alt. [m]</label>
+                    <input type="number" value={reservoirParams.depth} onChange={(e) => setReservoirParams({ ...reservoirParams, depth: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "corbel" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-yellow-100 bg-yellow-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-yellow-700">Consolo Curto</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Modelo de Biela e Tirante (Strut-and-Tie).
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-[#667085]">Carga Fd [kN]</label>
+                  <input type="number" value={corbelParams.fd_kN} onChange={(e) => setCorbelParams({ ...corbelParams, fd_kN: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Braço a [m]</label>
+                    <input type="number" step="0.01" value={corbelParams.a_dist} onChange={(e) => setCorbelParams({ ...corbelParams, a_dist: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Alt. útil d [m]</label>
+                    <input type="number" step="0.01" value={corbelParams.d_eff} onChange={(e) => setCorbelParams({ ...corbelParams, d_eff: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "gerber_tooth" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-pink-100 bg-pink-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-pink-700">Dente Gerber</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Armadura de suspensão e tirantes horizontais.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Vd [kN]</label>
+                    <input type="number" value={gerberParams.vd_kN} onChange={(e) => setGerberParams({ ...gerberParams, vd_kN: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Hd [kN]</label>
+                    <input type="number" value={gerberParams.hd_kN} onChange={(e) => setGerberParams({ ...gerberParams, hd_kN: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "deep_beam" && (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-700">Viga Parede</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">
+                  Ajuste de braço de alavanca (z) para L/h ≤ 2.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Vão L [m]</label>
+                    <input type="number" value={deepBeamParams.L} onChange={(e) => setDeepBeamParams({ ...deepBeamParams, L: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#667085]">Altura h [m]</label>
+                    <input type="number" value={deepBeamParams.h} onChange={(e) => setDeepBeamParams({ ...deepBeamParams, h: Number(e.target.value) })} className="w-full mt-1 rounded-xl border border-[#e0e7ef] bg-[#f9fafb] p-3 text-sm font-bold" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -983,7 +1190,7 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
           >
             {loading ? "Calculando..." : <><Zap size={18} /> Dimensionar</>}
           </button>
-          {(activeTab === "beam" || activeTab === "column" || activeTab === "spt" || activeTab === "stability") && (
+          {(activeTab === "spt" || activeTab === "stability") && (
             <button
               type="button"
               onClick={() => setShowFullMemorial(true)}
@@ -1154,6 +1361,94 @@ export function SpecialElementsView({ apiBaseUrl, type }: SpecialElementsViewPro
                     <div className="rounded-2xl bg-[#f9fafb] p-5 border border-[#f2f4f7]">
                       <p className="text-xs font-bold text-[#667085] uppercase">Pressão Real</p>
                       <p className="mt-2 text-2xl font-black">{formatNumberBR(result.result?.sigma_real_kPa)} <span className="text-sm text-[#8a9ab0]">kPa</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "retaining_wall" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl bg-[#f0fdfa] p-5 border border-teal-100">
+                      <p className="text-xs font-bold text-teal-700 uppercase">Segurança Tombamento</p>
+                      <p className="mt-2 text-3xl font-black text-teal-900">{formatNumberBR(result.result?.fs_tomb, 2)}</p>
+                      <p className="text-[10px] font-bold text-teal-600 mt-1">Mínimo: 1.50</p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f0fdfa] p-5 border border-teal-100">
+                      <p className="text-xs font-bold text-teal-700 uppercase">Segurança Deslizamento</p>
+                      <p className="mt-2 text-3xl font-black text-teal-900">{formatNumberBR(result.result?.fs_desl, 2)}</p>
+                      <p className="text-[10px] font-bold text-teal-600 mt-1">Mínimo: 1.50</p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "reservoir" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl bg-blue-50 p-5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase">Momento Máximo</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{formatNumberBR(result.result?.m_max_kNm, 1)} <span className="text-sm">kNm/m</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-blue-50 p-5 border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase">Armadura Base</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{formatNumberBR(result.result?.as_base_cm2, 2)} <span className="text-sm">cm²/m</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-blue-50 p-5 border border-blue-100 text-center">
+                      <p className="text-xs font-bold text-blue-700 uppercase">Volume Útil</p>
+                      <p className="mt-2 text-2xl font-black text-blue-900">{formatNumberBR(result.result?.volume_m3, 1)} <span className="text-sm">m³</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "corbel" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl bg-orange-50 p-5 border border-orange-100">
+                      <p className="text-xs font-bold text-orange-700 uppercase">Tração no Tirante (Td)</p>
+                      <p className="mt-2 text-3xl font-black text-orange-900">{formatNumberBR(result.result?.f_tirante_kN, 1)} <span className="text-sm">kN</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-orange-50 p-5 border border-orange-100">
+                      <p className="text-xs font-bold text-orange-700 uppercase">As Principal</p>
+                      <p className="mt-2 text-3xl font-black text-orange-900">{formatNumberBR(result.result?.as_principal_cm2, 2)} <span className="text-sm">cm²</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "gerber_tooth" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl bg-purple-50 p-5 border border-purple-100">
+                      <p className="text-xs font-bold text-purple-700 uppercase">As Suspensão</p>
+                      <p className="mt-2 text-3xl font-black text-purple-900">{formatNumberBR(result.result?.as_suspensao_cm2, 2)} <span className="text-sm">cm²</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-purple-50 p-5 border border-purple-100">
+                      <p className="text-xs font-bold text-purple-700 uppercase">As Tirante (Ash)</p>
+                      <p className="mt-2 text-3xl font-black text-purple-900">{formatNumberBR(result.result?.as_tirante_cm2, 2)} <span className="text-sm">cm²</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "deep_beam" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl bg-slate-50 p-5 border border-slate-200">
+                      <p className="text-xs font-bold text-slate-700 uppercase">Braço Alavanca (z)</p>
+                      <p className="mt-2 text-2xl font-black text-slate-900">{formatNumberBR(result.result?.z_m, 2)} <span className="text-sm">m</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-5 border border-slate-200">
+                      <p className="text-xs font-bold text-slate-700 uppercase">As Tração</p>
+                      <p className="mt-2 text-2xl font-black text-slate-900">{formatNumberBR(result.result?.as_tracao_cm2, 2)} <span className="text-sm">cm²</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-5 border border-slate-200">
+                      <p className="text-xs font-bold text-slate-700 uppercase">Tipo</p>
+                      <p className="mt-2 text-sm font-black text-slate-900">{result.result?.type === "single" ? "Bi-apoiada" : "Contínua"}</p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "helical_stairs" && (
+                  <div className="col-span-2 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl bg-rose-50 p-5 border border-rose-100">
+                      <p className="text-xs font-bold text-rose-700 uppercase">Torção Máxima (Tk)</p>
+                      <p className="mt-2 text-3xl font-black text-rose-900">{formatNumberBR(result.result?.t_max_kNm, 1)} <span className="text-sm">kNm</span></p>
+                    </div>
+                    <div className="rounded-2xl bg-rose-50 p-5 border border-rose-100">
+                      <p className="text-xs font-bold text-rose-700 uppercase">Momento Máximo (Mk)</p>
+                      <p className="mt-2 text-3xl font-black text-rose-900">{formatNumberBR(result.result?.m_max_kNm, 1)} <span className="text-sm">kNm</span></p>
                     </div>
                   </div>
                 )}

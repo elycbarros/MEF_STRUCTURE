@@ -37,6 +37,15 @@ class Soil:
 
 
 @dataclass
+class AreaLoad:
+    x_min: float
+    y_min: float
+    x_max: float
+    y_max: float
+    q_Pa: float
+
+
+@dataclass
 class PlateModel:
     Lx: float = 24.0
     Ly: float = 24.0
@@ -45,6 +54,7 @@ class PlateModel:
     material: Material = field(default_factory=Material)
     soil: Soil = field(default_factory=Soil)
     supports: Optional[list[dict]] = None # [{'x': 1.0, 'y': 2.0, 'kz': 1e12, 'krx': 1e12, 'kry': 1e12}]
+    area_loads: Optional[list[AreaLoad]] = None
 
     def validate(self) -> None:
         if self.Lx <= 0 or self.Ly <= 0:
@@ -217,17 +227,21 @@ class RadierMindlinWinklerV2:
         h_per_element: Optional[np.ndarray] = None,
         opening_mask: Optional[np.ndarray] = None
     ):
+        from scipy.sparse import coo_matrix
         n_nodes = len(self.nodes)
         ndof = 3 * n_nodes
         m = self.model
-        K = np.zeros((ndof, ndof))
+        
+        row_idx = []
+        col_idx = []
+        data_val = []
         F = np.zeros(ndof)
         nodal_column_loads = np.zeros(n_nodes, dtype=float)
 
         if stiffness_factors is None:
             stiffness_factors = np.ones(len(self.elements))
 
-        # Identificar nós ativos (que pertencem a pelo menos um elemento não-vazio)
+        # Identificar nós ativos
         active_node_mask = np.zeros(n_nodes, dtype=bool)
         if opening_mask is not None:
             for ie, el in enumerate(self.elements):
@@ -238,7 +252,6 @@ class RadierMindlinWinklerV2:
         self._active_node_mask = active_node_mask
 
         for ie, el in enumerate(self.elements):
-            # Novo: Ignorar aberturas (vazios na laje)
             if opening_mask is not None and opening_mask[ie]:
                 continue
                 
@@ -246,44 +259,65 @@ class RadierMindlinWinklerV2:
             h_el = h_per_element[ie] if h_per_element is not None else m.material.h
             Ke = self._element_stiffness(coords, stiffness_factor=stiffness_factors[ie], h=h_el)
             dofs = np.array([3*n + d for n in el for d in range(3)])
-            K[np.ix_(dofs, dofs)] += Ke
+            
+            # Coletar dados para matriz esparsa
+            for i_local in range(12):
+                for j_local in range(12):
+                    row_idx.append(dofs[i_local])
+                    col_idx.append(dofs[j_local])
+                    data_val.append(Ke[i_local, j_local])
 
         if active_springs is None:
             active_springs = np.ones(n_nodes, dtype=bool)
         
-        # Usar kv_nodal passado ou o do modelo
         kv_eff = kv_nodal if kv_nodal is not None else (m.soil.kv_map if m.soil.kv_map is not None else np.full(n_nodes, m.soil.kv))
 
         for i in range(n_nodes):
             if not self._active_node_mask[i]:
-                # Nó fantasma (dentro de abertura) - Trava para evitar singularidade
-                K[3*i, 3*i] += 1e12
-                K[3*i+1, 3*i+1] += 1e12
-                K[3*i+2, 3*i+2] += 1e12
+                # Nó fantasma
+                for d in range(3):
+                    row_idx.append(3*i+d)
+                    col_idx.append(3*i+d)
+                    data_val.append(1e12)
             elif active_springs[i]:
-                K[3*i, 3*i] += kv_eff[i] * self._tributary_areas[i]
+                row_idx.append(3*i)
+                col_idx.append(3*i)
+                data_val.append(kv_eff[i] * self._tributary_areas[i])
 
         # Adicionar rigidez das estacas
         if piles:
             for p in piles:
                 nodes4, weights4 = self._find_cell_and_shape_weights(p.x, p.y)
-                k_pile = getattr(p, 'stiffness_kN_m', 0.0) * 1000.0 # N/m
+                k_pile = getattr(p, 'stiffness_kN_m', 0.0) * 1000.0
                 for n, w in zip(nodes4, weights4):
-                    K[3*n, 3*n] += k_pile * (w**2)
+                    row_idx.append(3*n)
+                    col_idx.append(3*n)
+                    data_val.append(k_pile * (w**2))
 
-        # Adicionar apoios discretos (Pilares em Lajes Elevadas)
+        # Adicionar apoios discretos
         if m.supports:
             for sup in m.supports:
                 nodes4, weights4 = self._find_cell_and_shape_weights(sup['x'], sup['y'])
-                kz = sup.get('kz', 1e15) # Rigidez vertical (default muito alta = rigido)
-                krx = sup.get('krx', 0.0) # Rigidez a rotacao X
-                kry = sup.get('kry', 0.0) # Rigidez a rotacao Y
+                kz = sup.get('kz', 1e15)
+                krx = sup.get('krx', 0.0)
+                kry = sup.get('kry', 0.0)
                 for n, w in zip(nodes4, weights4):
-                    K[3*n, 3*n] += kz * (w**2)
-                    if krx > 0: K[3*n+1, 3*n+1] += krx * (w**2)
-                    if kry > 0: K[3*n+2, 3*n+2] += kry * (w**2)
+                    row_idx.append(3*n)
+                    col_idx.append(3*n)
+                    data_val.append(kz * (w**2))
+                    if krx > 0:
+                        row_idx.append(3*n+1)
+                        col_idx.append(3*n+1)
+                        data_val.append(krx * (w**2))
+                    if kry > 0:
+                        row_idx.append(3*n+2)
+                        col_idx.append(3*n+2)
+                        data_val.append(kry * (w**2))
 
-        # Adicionar rigidez da superestrutura (SSI Avançado)
+        # Criar matriz esparsa inicial
+        K = coo_matrix((data_val, (row_idx, col_idx)), shape=(ndof, ndof)).tocsr()
+
+        # Rigidez da superestrutura
         if superstructure_stiffness:
             from ssi_advanced import apply_superstructure_stiffness
             column_nodes = []
@@ -291,8 +325,6 @@ class RadierMindlinWinklerV2:
                 for row in np.asarray(column_loads, dtype=float):
                     n4, _ = self._find_cell_and_shape_weights(row[0], row[1])
                     column_nodes.extend(n4.tolist())
-            
-            # Remove duplicatas
             column_nodes = list(set(column_nodes))
             params = superstructure_stiffness.get('params')
             K = apply_superstructure_stiffness(K, column_nodes, params)
@@ -310,6 +342,26 @@ class RadierMindlinWinklerV2:
             for n in el:
                 F[3*n] += fe
 
+        # Adicionar Cargas de Área Adicionais
+        if m.area_loads:
+            for al in m.area_loads:
+                for i, el in enumerate(self.elements):
+                    if opening_mask is not None and opening_mask[i]:
+                        continue
+                    coords = self.nodes[el, :]
+                    ex_min, ey_min = coords.min(axis=0)
+                    ex_max, ey_max = coords.max(axis=0)
+                    
+                    # Verificar se o elemento está (mesmo que parcialmente) dentro da área
+                    # Para simplificar: se o centro do elemento está dentro
+                    ecx, ecy = (ex_min + ex_max)/2, (ey_min + ey_max)/2
+                    if al.x_min <= ecx <= al.x_max and al.y_min <= ecy <= al.y_max:
+                        a_el = (ex_max - ex_min) * (ey_max - ey_min)
+                        fe = al.q_Pa * a_el / 4.0
+                        distributed_load_total += al.q_Pa * a_el
+                        for n in el:
+                            F[3*n] += fe
+
         column_load_total = 0.0
         if column_loads is not None:
             for row in np.asarray(column_loads, dtype=float):
@@ -319,16 +371,11 @@ class RadierMindlinWinklerV2:
                 
                 nodes4, weights4 = self._find_cell_and_shape_weights(x, y)
                 for node, w in zip(nodes4, weights4):
-                    # Força vertical
                     v_load = float(p) * float(w)
                     F[3*node] += v_load
                     nodal_column_loads[node] += v_load
-                    
-                    # Momentos (distribuídos pelos pesos da forma)
-                    # DOF 3*node + 1: theta_x, DOF 3*node + 2: theta_y
                     F[3*node + 1] += float(mx) * float(w)
                     F[3*node + 2] += float(my) * float(w)
-                    
                 column_load_total += float(p)
 
         self._last_nodal_column_loads = nodal_column_loads
@@ -336,13 +383,14 @@ class RadierMindlinWinklerV2:
         self._last_column_load_total = float(column_load_total)
         return K, F
 
-    def _solve_linear_system(self, K: np.ndarray, F: np.ndarray) -> np.ndarray:
+    def _solve_linear_system(self, K, F: np.ndarray) -> np.ndarray:
+        from scipy.sparse.linalg import spsolve
+        from scipy.sparse import eye
         ndof = len(F)
-        kmax = float(np.max(np.abs(np.diag(K)))) if K.size else 1.0
-        reg = max(1e-12 * kmax, 1e-9)
-        K_reg = K.copy()
-        K_reg[np.diag_indices(ndof)] += reg
-        return np.linalg.solve(K_reg, F)
+        # Regularização esparsa mínima para estabilidade numérica
+        reg = 1e-9
+        K_reg = K + eye(ndof, format='csr') * reg
+        return spsolve(K_reg, F)
 
     def solve(
         self,

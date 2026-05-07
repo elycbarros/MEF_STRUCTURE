@@ -8,9 +8,10 @@ from typing import Dict, Any
 # Garantir imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from laje_lab_v2 import LajeLabV2Config, run_laje_v2_pipeline
 from radier_lab_v24 import LabConfig, run_full_pipeline_demo
+from radier_utils import read_json
 from lajes_solver import PillarSupport
+from laje_lab_v2 import LajeLabV2Config, run_laje_v2_pipeline
 from stability_engine import StabilityEngine
 from wind_engine import WindEngine, WindConfig
 
@@ -78,6 +79,19 @@ def run_unified_analysis(frame_config: LajeLabV2Config, radier_config: LabConfig
     
     radier_results = run_full_pipeline_demo(radier_config)
     
+    # Empacotar resultados do radier no formato esperado pelo ReportView
+    out_dir = radier_config.output_dir
+    base_name = radier_config.base_name
+    det_file = os.path.join(out_dir, f"{base_name}_deterministic_summary.json")
+    memorial_file = os.path.join(out_dir, f"{base_name}_memorial_summary.json")
+    
+    radier_payload = {
+        "master": radier_results,
+        "deterministic": read_json(det_file) if os.path.exists(det_file) else {},
+        "deterministic_results": read_json(det_file) if os.path.exists(det_file) else {},
+        "memorial": read_json(memorial_file) if os.path.exists(memorial_file) else {},
+    }
+
     # 5. Passo: Estabilidade Global e Conforto
     print("--- FASE 4: Estabilidade e Conforto ---")
     stability_results = StabilityEngine.calculate_advanced_stability(
@@ -92,7 +106,7 @@ def run_unified_analysis(frame_config: LajeLabV2Config, radier_config: LabConfig
     return {
         "success": True,
         "frame": frame_results,
-        "radier": radier_results,
+        "radier": radier_payload,
         "wind": wind_res,
         "stability": stability_results.__dict__ if hasattr(stability_results, '__dict__') else stability_results,
         "special_elements": [stair, tank],

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Any, Optional
-from schemas.common import PillarInput, HoleInput, BeamInput, LineSupportInput
+from schemas.common import PillarInput, HoleInput, BeamInput, LineSupportInput, AreaLoadInput
 
 class ConfigInput(BaseModel):
     Lx: float = Field(32.5, gt=0.5, le=500.0, description="Comprimento X do radier/laje (m)")
@@ -24,12 +24,23 @@ class ConfigInput(BaseModel):
     ignore_pillars: bool = False
     soil_parameter_context: Optional[dict[str, Any]] = None
     system_type: str = "radier" # "radier" ou "laje"
+    slab_type: str = "solid" # "solid", "ribbed", "hollow_core", "prestressed", "trussed"
+    filler_type: str = "ceramic" # "ceramic", "eps"
+    
+    # Parâmetros Especiais de Lajes
+    b_nerv: float = Field(0.10, ge=0.05, le=0.30, description="Largura da nervura (m)")
+    dist_nerv: float = Field(0.50, ge=0.30, le=1.50, description="Distância entre eixos das nervuras (m)")
+    h_mesa: float = Field(0.05, ge=0.03, le=0.15, description="Espessura da mesa da nervurada (m)")
+    area_voids: float = Field(0.04, ge=0.01, le=0.20, description="Área de vazios da laje alveolar (m²)")
+    p_force: float = Field(200.0, ge=10.0, le=5000.0, description="Força de protensão (kN)")
+    ecc: float = Field(0.05, ge=0.01, le=0.50, description="Excentricidade do cabo (m)")
     
     # Novas opções para o solver de lajes
     supports: Optional[list[PillarInput]] = None
     line_supports: Optional[list[LineSupportInput]] = None
     holes: Optional[list[HoleInput]] = None
     beams: Optional[list[BeamInput]] = None
+    area_loads: Optional[list[AreaLoadInput]] = None
     slab_mesh_size: float = Field(0.5, gt=0.05, le=5.0, description="Tamanho alvo da malha de laje (m)")
     # Wind & Stability
     wind_v0: Optional[float] = Field(30.0, ge=0.0, le=80.0, description="Velocidade básica do vento (m/s)")
@@ -39,6 +50,7 @@ class ConfigInput(BaseModel):
     wind_is_dynamic: bool = False
     num_floors: int = Field(10, ge=1, le=200, description="Número de pavimentos")
     pillar_height: float = Field(3.0, gt=1.0, le=8.0, description="Altura típica de pilar/pavimento (m)")
+    enable_analytical_comparison: bool = True
 
     @field_validator("kv")
     @classmethod

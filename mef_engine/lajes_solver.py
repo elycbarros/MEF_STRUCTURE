@@ -40,6 +40,7 @@ class PillarSupport:
     id: str
     x: float
     y: float
+    p_kN: float = 0.0 # Carga concentrada
     bx: float = 0.5
     by: float = 0.5
     support_type: SupportType = SupportType.PINNED
@@ -101,6 +102,8 @@ class LajesSolverResult:
     mxy: np.ndarray
     tributary_areas: np.ndarray
     reactions: np.ndarray
+    vx: np.ndarray
+    vy: np.ndarray
     distributed_load_total: float
     reactions_total: float
     residual: float
@@ -255,19 +258,28 @@ class LajesMindlinSolver:
         return Ke
 
     def _assemble_global(self, combo_multiplier_pp=1.0, combo_multiplier_perm=1.0, combo_multiplier_acid=1.0):
+        from scipy.sparse import coo_matrix
         n_nodes = len(self.nodes)
         ndof = 3 * n_nodes
         m = self.model
-        K = np.zeros((ndof, ndof))
+        
+        row_idx = []
+        col_idx = []
+        data_val = []
         F = np.zeros(ndof)
 
         for el in self.elements:
             coords = self.nodes[el, :]
             Ke = self._element_stiffness(coords)
             dofs = np.array([3*n + d for n in el for d in range(3)])
-            K[np.ix_(dofs, dofs)] += Ke
             
-        K_unpenalized = K.copy()
+            for i_local in range(12):
+                for j_local in range(12):
+                    row_idx.append(dofs[i_local])
+                    col_idx.append(dofs[j_local])
+                    data_val.append(Ke[i_local, j_local])
+            
+        K_unpenalized = coo_matrix((data_val, (row_idx, col_idx)), shape=(ndof, ndof)).tocsr()
 
         # Aplicar cargas distribuídas
         q_total = (m.q_pp * combo_multiplier_pp + 
@@ -277,7 +289,7 @@ class LajesMindlinSolver:
         distributed_load_total = 0.0
         for el in self.elements:
             coords = self.nodes[el, :]
-            a_el = (coords[:, 0].max() - coords[:, 0].min()) * (coords[:, 1].max() - coords[:, 1].min())
+            a_el = abs((coords[:, 0].max() - coords[:, 0].min()) * (coords[:, 1].max() - coords[:, 1].min()))
             fe = q_total * a_el / 4.0
             distributed_load_total += q_total * a_el
             for n in el:
@@ -287,55 +299,76 @@ class LajesMindlinSolver:
         penalty = 1e14
         support_nodes = set()
         
-        # Pilares
+        # Pilares (Área do Pilar)
         for p in m.pillars:
+            # Encontrar nós dentro da área do pilar
+            half_bx = p.bx / 2.0
+            half_by = p.by / 2.0
+            
+            x_min, x_max = p.x - half_bx, p.x + half_bx
+            y_min, y_max = p.y - half_by, p.y + half_by
+            
+            found_any = False
             for i, node in enumerate(self.nodes):
-                dist = np.linalg.norm(node - np.array([p.x, p.y]))
-                if dist < 1e-3:
+                if (x_min - 1e-4 <= node[0] <= x_max + 1e-4) and \
+                   (y_min - 1e-4 <= node[1] <= y_max + 1e-4):
+                    
                     support_nodes.add(i)
+                    found_any = True
                     if p.support_type == SupportType.PINNED:
-                        K[3*i, 3*i] += penalty
+                        row_idx.append(3*i); col_idx.append(3*i); data_val.append(penalty)
                     elif p.support_type == SupportType.FIXED:
                         for d in range(3):
-                            K[3*i + d, 3*i + d] += penalty
+                            row_idx.append(3*i+d); col_idx.append(3*i+d); data_val.append(penalty)
                     elif p.support_type == SupportType.SPRING:
-                        K[3*i, 3*i] += p.k_spring
+                        row_idx.append(3*i); col_idx.append(3*i); data_val.append(p.k_spring)
+            
+            # Fallback: se nenhum nó foi encontrado (malha muito grossa), pega o mais próximo
+            if not found_any:
+                distances = np.linalg.norm(self.nodes - np.array([p.x, p.y]), axis=1)
+                i_closest = np.argmin(distances)
+                support_nodes.add(i_closest)
+                if p.support_type == SupportType.PINNED:
+                    row_idx.append(3*i_closest); col_idx.append(3*i_closest); data_val.append(penalty)
+                elif p.support_type == SupportType.FIXED:
+                    for d in range(3):
+                        row_idx.append(3*i_closest+d); col_idx.append(3*i_closest+d); data_val.append(penalty)
 
         # Vigas (Apoios de Linha)
         for line in m.line_supports:
+            import math
             dx = line.x2 - line.x1
             dy = line.y2 - line.y1
             length = math.sqrt(dx**2 + dy**2)
             if length < 1e-9: continue
             
-            tol = 0.05 # Tolerância de 5cm para capturar nós na linha
+            tol = 0.05
             for i, node in enumerate(self.nodes):
-                # Distância ponto-reta
                 dist = abs(dy*node[0] - dx*node[1] + line.x2*line.y1 - line.y2*line.x1) / length
-                # Verifica se o ponto está dentro do segmento
                 dot = ((node[0] - line.x1)*dx + (node[1] - line.y1)*dy) / (length**2)
                 
                 if dist < tol and 0.0 <= dot <= 1.0:
                     support_nodes.add(i)
                     if line.support_type == SupportType.PINNED:
-                        K[3*i, 3*i] += penalty
+                        row_idx.append(3*i); col_idx.append(3*i); data_val.append(penalty)
                     elif line.support_type == SupportType.FIXED:
                         for d in range(3):
-                            K[3*i + d, 3*i + d] += penalty
+                            row_idx.append(3*i+d); col_idx.append(3*i+d); data_val.append(penalty)
                     elif line.support_type == SupportType.SPRING:
-                        K[3*i, 3*i] += line.k_spring
+                        row_idx.append(3*i); col_idx.append(3*i); data_val.append(line.k_spring)
 
+        K = coo_matrix((data_val, (row_idx, col_idx)), shape=(ndof, ndof)).tocsr()
         self._last_distributed_load_total = float(distributed_load_total)
         self.support_nodes = list(support_nodes)
         return K, F, K_unpenalized
 
-    def _solve_linear_system(self, K: np.ndarray, F: np.ndarray) -> np.ndarray:
+    def _solve_linear_system(self, K, F: np.ndarray) -> np.ndarray:
+        from scipy.sparse.linalg import spsolve
+        from scipy.sparse import eye
         ndof = len(F)
-        kmax = float(np.max(np.abs(np.diag(K)))) if K.size else 1.0
-        reg = max(1e-12 * kmax, 1e-9)
-        K_reg = K.copy()
-        K_reg[np.diag_indices(ndof)] += reg
-        return np.linalg.solve(K_reg, F)
+        reg = 1e-9
+        K_reg = K + eye(ndof, format='csr') * reg
+        return spsolve(K_reg, F)
 
     def solve(
         self,
@@ -369,6 +402,9 @@ class LajesMindlinSolver:
         mx_el = np.zeros(len(self.elements))
         my_el = np.zeros(len(self.elements))
         mxy_el = np.zeros(len(self.elements))
+        vx_el = np.zeros(len(self.elements))
+        vy_el = np.zeros(len(self.elements))
+        
         dNdxi_c = 0.25 * np.array([
             [-1.0, -1.0],
             [ 1.0, -1.0],
@@ -388,6 +424,23 @@ class LajesMindlinSolver:
             M = Db @ kappa
             mx_el[ie], my_el[ie], mxy_el[ie] = M
 
+            # Esforços Cortantes (Vx, Vy)
+            G = E / (2.0 * (1.0 + nu))
+            ks = 5.0 / 6.0
+            Ds = ks * G * h
+            
+            # vx = Ds * (thx + dw/dx), vy = Ds * (thy + dw/dy)
+            # No centro (xi=0, eta=0), N = [0.25, 0.25, 0.25, 0.25]
+            w_c = np.mean(u_el[:, 0])
+            thx_c = np.mean(u_el[:, 1])
+            thy_c = np.mean(u_el[:, 2])
+            
+            dwdx = dNdxy[:, 0] @ u_el[:, 0]
+            dwdy = dNdxy[:, 1] @ u_el[:, 0]
+            
+            vx_el[ie] = Ds * (thx_c + dwdx)
+            vy_el[ie] = Ds * (thy_c + dwdy)
+
         residual = float(reactions_total - self._last_distributed_load_total)
 
         return LajesSolverResult(
@@ -397,6 +450,8 @@ class LajesMindlinSolver:
             mx=mx_el,
             my=my_el,
             mxy=mxy_el,
+            vx=vx_el,
+            vy=vy_el,
             tributary_areas=self._tributary_areas.copy(),
             reactions=reactions,
             distributed_load_total=float(self._last_distributed_load_total),

@@ -20,6 +20,7 @@ def build_unified_memorial(
     alerts: list[str] | None = None,
     limitations: list[str] | None = None,
     payload_hash: str | None = None,
+    additional_content: str | None = None,
 ) -> str:
     """
     Gera um memorial descritivo em Markdown seguindo o padrao unificado MEF STRUCTURAL M4.
@@ -83,6 +84,9 @@ def build_unified_memorial(
         sections.append("## 10. Limitacoes e Disclaimer")
         for l in limitations:
             sections.append(f"- {l}")
+            
+    if additional_content:
+        sections.append(additional_content)
             
     sections.append("\n---")
     sections.append("*Este documento foi gerado automaticamente pela plataforma MEF STRUCTURAL. O uso executivo exige revisao de engenheiro responsavel.*")

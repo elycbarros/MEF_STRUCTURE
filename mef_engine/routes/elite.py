@@ -189,7 +189,17 @@ async def calculate_unified(input: ConfigInput):
         )
         frame_cfg.num_pavimentos = input.num_floors
         
-        radier_cfg = LabConfig(Lx=input.Lx, Ly=input.Ly, h=input.h, kv=input.kv, fck=input.fck, base_name="unified_demo")
+        radier_cfg = LabConfig(
+            Lx=input.Lx, 
+            Ly=input.Ly, 
+            h=input.h, 
+            kv=input.kv, 
+            fck=input.fck, 
+            q=input.q, 
+            sigma_adm_kPa=input.sigma_adm_kPa,
+            base_name="unified_demo",
+            module_name=input.system_type
+        )
         
         wind_cfg = WindConfig(
             v0=input.wind_v0,
@@ -200,6 +210,30 @@ async def calculate_unified(input: ConfigInput):
         )
         
         res = run_unified_analysis(frame_cfg, radier_cfg, wind_config=wind_cfg)
+        
+        # Hydrate radier results with diagnostics (same as in core.py)
+        from routes.core_helpers import (
+            build_field_risk_summary, 
+            build_winkler_consistency, 
+            build_foundation_recommendation, 
+            build_executive_decision_summary
+        )
+        
+        radier_data = res.get("radier", {})
+        det_results = radier_data.get("deterministic_results", {})
+        memorial_data = radier_data.get("memorial", {})
+        
+        field_risk = build_field_risk_summary(input)
+        winkler = build_winkler_consistency(input, det_results)
+        foundation_rec = build_foundation_recommendation(input, memorial_data, det_results, field_risk, winkler)
+        executive_decision = build_executive_decision_summary(foundation_rec)
+        
+        # Inject into radier payload
+        radier_data["field_risk"] = field_risk
+        radier_data["winkler"] = winkler
+        radier_data["foundation_recommendation"] = foundation_rec
+        radier_data["executive_decision"] = executive_decision
+        
         return sanitize_for_json(res)
     except Exception as e:
         import traceback; traceback.print_exc()

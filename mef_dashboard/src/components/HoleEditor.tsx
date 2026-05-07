@@ -13,9 +13,10 @@ export interface Hole {
 interface HoleEditorProps {
   holes: Hole[];
   setHoles: React.Dispatch<React.SetStateAction<Hole[]>>;
+  slabType?: string;
 }
 
-export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles }) => {
+export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles, slabType = "solid" }) => {
   
   const addHole = () => {
     setHoles([...holes, { x_min: 2.0, y_min: 2.0, x_max: 4.0, y_max: 4.0 }]);
@@ -31,6 +32,40 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles }) => {
     setHoles(newHoles);
   };
 
+  const getSlabWarning = () => {
+    if (slabType === "hollow_core") {
+      return {
+        title: "RESTRIÇÃO NORMATIVA: Laje Alveolar",
+        text: "NBR 14861: Proibido seccionar almas longitudinais. Furos devem ser limitados à largura dos alvéolos (eixos neutros) e não devem exceder 1/3 da largura da placa sem reforço estrutural.",
+        color: "text-red-700 bg-red-50 border-red-200"
+      };
+    }
+    if (slabType === "prestressed") {
+      return {
+        title: "AÇÃO CRÍTICA: Laje Protendida",
+        text: "RISCO DE MORTE: Proibido executar furos sem mapeamento radiográfico ou eletromagnético dos cabos de protensão. O corte de uma cordoalha pode causar colapso progressivo imediato.",
+        color: "text-white bg-red-600 border-red-800 shadow-lg animate-pulse"
+      };
+    }
+    if (slabType === "ribbed") {
+      return {
+        title: "GUARDREIO TÉCNICO: Laje Nervurada",
+        text: "NBR 6118 §13.2.5: Furos devem situar-se preferencialmente na mesa (zona de tração). O corte de nervuras exige viga de reforço ou análise de redistribuição de esforços.",
+        color: "text-blue-700 bg-blue-50 border-blue-200"
+      };
+    }
+    if (slabType === "trussed") {
+      return {
+        title: "LIMITAÇÃO EXECUTIVA: Laje Treliçada",
+        text: "NBR 14859: Furos não podem interromper as vigotas treliçadas principais. Aberturas maiores que a distância entre eixos (e) exigem interrupção com reforço de viga transversal.",
+        color: "text-emerald-700 bg-emerald-50 border-emerald-200"
+      };
+    }
+    return null;
+  };
+
+  const warning = getSlabWarning();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -45,6 +80,13 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles }) => {
           <Plus className="w-3.5 h-3.5" /> ADICIONAR FURO
         </button>
       </div>
+
+      {warning && (
+        <div className={`p-3 rounded-xl border text-[11px] font-bold ${warning.color} flex flex-col gap-0.5`}>
+          <span className="uppercase tracking-wide opacity-80">{warning.title}</span>
+          <span className="opacity-90">{warning.text}</span>
+        </div>
+      )}
 
       <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
         {holes.length === 0 ? (

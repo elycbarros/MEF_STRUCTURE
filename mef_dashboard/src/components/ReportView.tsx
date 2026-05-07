@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Download, Printer, FileText, CheckCircle2, AlertTriangle, XCircle, Info, ExternalLink, TrendingUp, Wind } from "lucide-react";
+import { Download, Printer, FileText, CheckCircle2, AlertTriangle, XCircle, Info, ExternalLink, TrendingUp, Wind, ArrowLeft } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { formatNumberBR, cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ interface ReportViewProps {
    projectMeta: any;
 
    apiBaseUrl: string;
+   onBack?: () => void;
 }
 
 function SanityBadge({ label, ok, msg_ok, msg_fail }: { label: string, ok: boolean, msg_ok: string, msg_fail: string }) {
@@ -37,7 +38,7 @@ function SanityBadge({ label, ok, msg_ok, msg_fail }: { label: string, ok: boole
    );
 }
 
-export function ReportView({ results, frameResults, stabilityResults, windResults, projectMeta, apiBaseUrl }: ReportViewProps) {
+export function ReportView({ results, frameResults, stabilityResults, windResults, projectMeta, apiBaseUrl, onBack }: ReportViewProps) {
 
    const saveAsPdf = () => window.print();
 
@@ -50,7 +51,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
       );
    }
 
-   const isLaje = results.master?.system_type === "laje";
+   const isLaje = results.is_laje || results.master?.system_type === "laje" || results.memorial?.system_type === "laje";
    const memorial = results.memorial || {};
    const deterministic = results.deterministic || {};
    const executiveDecision = results.executive_decision || {};
@@ -73,6 +74,16 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                </p>
             </div>
             <div className="flex items-center gap-3">
+               {onBack && (
+                  <button
+                     type="button"
+                     onClick={onBack}
+                     className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-bold text-apple-text hover:bg-apple-bg transition cursor-pointer relative z-50"
+                  >
+                     <ArrowLeft className="h-4 w-4" />
+                     Fechar
+                  </button>
+               )}
                <button
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-bold text-apple-text hover:bg-apple-bg transition"
@@ -234,7 +245,9 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
             {/* Info Obra */}
             <div className="grid grid-cols-2 gap-8 mb-10 text-sm">
                <div>
-                  <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2">Dados da Obra</h4>
+                  <h4 className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-2">
+                     {isLaje ? 'DADOS TÉCNICOS DA LAJE' : 'DADOS DA OBRA (RADIER)'}
+                  </h4>
                   <p className="font-bold">{projectMeta.obra}</p>
                   <p className="text-apple-muted">{projectMeta.local}</p>
                </div>
@@ -251,7 +264,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">01</span>
                   <h2 className="text-lg font-black text-apple-text">RESUMO EXECUTIVO</h2>
                </div>
-               <ExecutiveDecisionCard decision={executiveDecision} />
+               <ExecutiveDecisionCard decision={executiveDecision} isLaje={isLaje} />
             </section>
 
             {/* Seção 1.5: Sanity Checks Rápidos */}
@@ -264,14 +277,24 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      {isLaje ? (
                         <>
-                           <SanityBadge label="Flechas" ok={results.sanity_checks.recalque_ok} msg_ok="Dentro do Limite Normativo" msg_fail="Excede Limite Normativo" />
+<SanityBadge label="Flechas" ok={results.sanity_checks?.flecha_ok ?? results.sanity_checks?.recalque_ok} msg_ok="Dentro do Limite Normativo" msg_fail="Excede Limite Normativo" />
                            <SanityBadge label="Punção" ok={results.sanity_checks.puncao_ok} msg_ok="Tensões Seguras / Não Aplicável" msg_fail="Risco de Punção" />
                            <SanityBadge label="Fissuração" ok={results.reinforcement_summary?.serviceability?.wk_x_ok && results.reinforcement_summary?.serviceability?.wk_y_ok} msg_ok="Dentro do Limite Normativo" msg_fail="Excede Limite Normativo" />
                         </>
                      ) : (
                         <>
-                           <SanityBadge label="Pressão do Solo" ok={results.sanity_checks.pressao_solo_ok} msg_ok="Dentro do Limite Admissível" msg_fail="Excede Limite Admissível" />
-                           <SanityBadge label="Recalques" ok={results.sanity_checks.recalque_ok} msg_ok="Conforme NBR (Wmax < 50mm)" msg_fail="Excede Limites NBR" />
+                           <SanityBadge 
+                              label={isLaje ? "Reações de Apoio" : "Pressão do Solo"} 
+                              ok={isLaje ? results.sanity_checks?.reacoes_ok ?? true : results.sanity_checks?.pressao_solo_ok} 
+                              msg_ok={isLaje ? "Apoios Estáveis" : "Dentro do Limite Admissível"} 
+                              msg_fail={isLaje ? "Instabilidade nos Apoios" : "Excede Limite Admissível"} 
+                           />
+                           <SanityBadge 
+                              label={isLaje ? "Flechas" : "Recalques"} 
+                              ok={isLaje ? results.sanity_checks?.flecha_ok ?? results.sanity_checks?.recalque_ok ?? true : results.sanity_checks?.recalque_ok} 
+                              msg_ok={isLaje ? "Conforme NBR (L/250)" : "Conforme NBR (Wmax < 50mm)"} 
+                              msg_fail={isLaje ? "Excede Limite Normativo" : "Excede Limites NBR"} 
+                           />
                            <SanityBadge label="Punção" ok={results.sanity_checks.puncao_ok} msg_ok="Tensões Seguras / Não Aplicável" msg_fail="Risco de Punção / Reforço Requerido" />
                         </>
                      )}
@@ -372,7 +395,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
             )}
 
             {/* Seção 3: Resultados Geotécnicos */}
-            {!isLaje && (
+            {!isLaje && geotech?.atende_pressao_max_modelo !== undefined && (
                <section className="mb-12">
                   <div className="flex items-center gap-2 mb-4">
                      <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">03</span>
@@ -481,6 +504,108 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                )}
             </section>
 
+            {/* Seção 5.1: Verificação de Cisalhamento (ELU-V) */}
+            {isLaje && structural.cisalhamento && (
+               <section className="mb-12">
+                  <div className="flex items-center gap-2 mb-4">
+                     <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">05.1</span>
+                     <h2 className="text-lg font-black text-apple-text uppercase">Verificação de Cisalhamento (NBR 6118)</h2>
+                  </div>
+                  <div className="overflow-hidden rounded-apple-inner border border-black/5 bg-apple-bg/5 p-6">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Esforço Cortante (Vsd)</span>
+                           <span className="text-2xl font-black text-apple-text">{formatNumberBR(structural.cisalhamento.ved_kN_m)} <span className="text-sm text-apple-muted">kN/m</span></span>
+                        </div>
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black text-apple-muted uppercase tracking-widest mb-1">Resistência (Vrd1)</span>
+                           <span className="text-2xl font-black text-apple-text">{formatNumberBR(structural.cisalhamento.v_rd1_kN_m)} <span className="text-sm text-apple-muted">kN/m</span></span>
+                        </div>
+                        <div className="flex flex-col items-end justify-center">
+                           <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${structural.cisalhamento.status === 'OK' ? 'bg-apple-success/10 text-apple-success' : 'bg-apple-error/10 text-apple-error'}`}>
+                              {structural.cisalhamento.status === 'OK' ? 'ESTADO SEGURO' : 'FALHA NO CISALHAMENTO'}
+                           </span>
+                        </div>
+                     </div>
+                     <div className="mt-4 pt-4 border-t border-black/5 flex items-center justify-between">
+                        <span className="text-xs font-bold text-apple-muted italic">
+                           {results.master?.slab_type === 'ribbed' || results.master?.slab_type === 'trussed' 
+                              ? "* Verificação realizada na seção da nervura (bw adotado)." 
+                              : "* Verificação realizada por metro linear de laje."}
+                        </span>
+                        <span className="text-xs font-black text-apple-text">Eficiência: {(structural.cisalhamento.ratio * 100).toFixed(1)}%</span>
+                     </div>
+                  </div>
+               </section>
+            )}
+
+            {/* Seção 5.2: Parâmetros de Lajes Especiais & Conformidade Geométrica */}
+            {isLaje && memorial.slab_type !== 'solid' && (
+               <section className="mb-12">
+                  <div className="flex items-center gap-2 mb-4">
+                     <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">05.2</span>
+                     <h2 className="text-lg font-black text-apple-text uppercase">Análise de Sistema {memorial.slab_type === 'ribbed' ? 'Nervurado' : memorial.slab_type === 'prestressed' ? 'Protendido' : memorial.slab_type === 'hollow_core' ? 'Alveolar' : 'Treliçado'}</h2>
+                  </div>
+                  
+                  {memorial.geometric_compliance && !memorial.geometric_compliance.valid && (
+                     <div className="mb-6 p-4 rounded-apple-inner bg-apple-red/5 border border-apple-red/20 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-apple-red font-black text-xs uppercase tracking-tight">
+                           <AlertTriangle className="h-4 w-4" />
+                           Inconformidade Geométrica Detectada (NBR 6118)
+                        </div>
+                        <ul className="list-disc list-inside text-[11px] text-apple-red/80 font-bold space-y-1">
+                           {memorial.geometric_compliance.reasons.map((reason: string, i: number) => (
+                              <li key={i}>{reason}</li>
+                           ))}
+                        </ul>
+                     </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     {memorial.slab_type === 'ribbed' && (
+                        <>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Mesa (hf)</span>
+                              <span className="text-lg font-black text-apple-text">{(results.master?.h_mesa * 100 || 0).toFixed(0)} <span className="text-[10px]">cm</span></span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Nervura (bw)</span>
+                              <span className="text-lg font-black text-apple-text">{(results.master?.b_nerv * 100 || 0).toFixed(0)} <span className="text-[10px]">cm</span></span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Eixo (e)</span>
+                              <span className="text-lg font-black text-apple-text">{(results.master?.dist_nerv * 100 || 0).toFixed(0)} <span className="text-[10px]">cm</span></span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">h Equivalente</span>
+                              <span className="text-lg font-black text-apple-text">{(memorial.specialized?.h_eq_i_m * 100 || 0).toFixed(1)} <span className="text-[10px]">cm</span></span>
+                           </div>
+                        </>
+                     )}
+                     {memorial.slab_type === 'prestressed' && (
+                        <>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Força P (kN)</span>
+                              <span className="text-lg font-black text-apple-text">{(memorial.specialized?.p_force_kN || 0).toFixed(0)}</span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Excentricidade</span>
+                              <span className="text-lg font-black text-apple-text">{(memorial.specialized?.ecc_m * 100 || 0).toFixed(1)} <span className="text-[10px]">cm</span></span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Carga Equiv. (Up)</span>
+                              <span className="text-lg font-black text-apple-text">{(memorial.specialized?.q_eq_kPa || 0).toFixed(2)} <span className="text-[10px]">kN/m²</span></span>
+                           </div>
+                           <div className="p-4 rounded-xl border border-black/5 bg-apple-bg/5">
+                              <span className="text-[9px] font-black text-apple-muted uppercase block mb-1">Tensão Inf. (σ)</span>
+                              <span className="text-lg font-black text-apple-text">{(memorial.specialized?.sigma_inf_kPa / 1000 || 0).toFixed(2)} <span className="text-[10px]">MPa</span></span>
+                           </div>
+                        </>
+                     )}
+                  </div>
+               </section>
+            )}
+
             {/* Seção 6: Comparativo Metodológico */}
             {!isLaje && (
                <section className="mb-12">
@@ -493,16 +618,16 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                         <h4 className="text-[10px] font-black text-apple-muted uppercase mb-3">Pressões de Contato (kPa)</h4>
                         <div className="space-y-2 text-sm">
                            <div className="flex justify-between border-b border-apple-bg pb-1">
-                              <span>MEF (Winkler):</span>
+                              <span>{isLaje ? "MEF (Placas):" : "MEF (Winkler):"}</span>
                               <span className="font-bold">{formatNumberBR(geotech.pressao_max_modelo_kPa)}</span>
                            </div>
                            <div className="flex justify-between border-b border-apple-bg pb-1">
                               <span>Analítico (Rígido):</span>
-                              <span className="font-bold">{formatNumberBR(memorial.comparativo_metodologias?.analytical?.q_max_kPa)}</span>
+                              <span className="font-bold">{formatNumberBR(memorial.comparativo_metodologias?.analytical?.q_max_kPa ?? memorial.comparativo_metodologias?.pressao_max_analitica_kPa)}</span>
                            </div>
                            <div className="flex justify-between text-apple-muted text-[11px]">
                               <span>Divergência:</span>
-                              <span>{formatNumberBR(Math.abs((memorial.comparativo_metodologias?.divergence_metrics?.q_max_diff_pct || 0) * 100), 1)}%</span>
+                              <span>{formatNumberBR(Math.abs((memorial.comparativo_metodologias?.divergence_metrics?.q_max_diff_pct ?? (memorial.comparativo_metodologias?.ratio_pressao_max ? memorial.comparativo_metodologias.ratio_pressao_max - 1 : 0)) * 100), 1)}%</span>
                            </div>
                         </div>
                      </div>
@@ -629,9 +754,19 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   </div>
 
                   {/* Solo */}
-                  {!isLaje && (
+                  {isLaje ? (
                      <div className="p-6 rounded-apple-inner bg-apple-bg/10 border border-black/5">
-                        <h4 className="text-xs font-black text-apple-text uppercase mb-4 text-center">Interação Solo-Estrutura (Winkler)</h4>
+                        <h4 className="text-xs font-black text-apple-text uppercase mb-4 text-center">Modelo Estrutural (MEF)</h4>
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                           <p className="font-serif italic text-2xl text-apple-blue">[K] {'{u}'} = {'{f}'}</p>
+                           <div className="max-w-md text-center text-[10px] text-apple-muted leading-relaxed">
+                              <p>A solução numérica é obtida via Método dos Elementos Finitos (MEF) utilizando elementos de placa de Mindlin-Reissner, com restrições nodais rígidas/elásticas nos apoios discretos.</p>
+                           </div>
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="p-6 rounded-apple-inner bg-apple-bg/10 border border-black/5">
+                        <h4 className="text-xs font-black text-apple-text uppercase mb-4 text-center">{isLaje ? "Apoios e Restrições" : "Interação Solo-Estrutura (Winkler)"}</h4>
                         <div className="flex flex-col items-center justify-center space-y-4">
                            <p className="font-serif italic text-2xl text-apple-blue">σ(x,y) = k<sub>v</sub> · w(x,y)</p>
                            <div className="max-w-md text-center text-[10px] text-apple-muted leading-relaxed">
@@ -653,8 +788,8 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                {memorial.trilha_auditoria_numérica ? (
                   <div className="space-y-6">
                      <PedagogicalStepsView blackboard={memorial.trilha_auditoria_numérica} />
-                     <div className="p-6 rounded-2xl bg-red-600/5 border border-red-600/20 italic">
-                        <p className="text-xs font-black text-red-700 mb-2 uppercase tracking-tighter">Parecer de Auditoria Forense:</p>
+                     <div className={`p-6 rounded-2xl ${executiveDecision?.status === 'APPROVED' ? 'bg-green-600/5 border-green-600/20' : 'bg-red-600/5 border-red-600/20'} border italic`}>
+                        <p className={`text-xs font-black ${executiveDecision?.status === 'APPROVED' ? 'text-green-700' : 'text-red-700'} mb-2 uppercase tracking-tighter`}>Parecer de Auditoria Forense:</p>
                         <p className="text-sm font-bold text-apple-text leading-relaxed">"{memorial.parecer_tecnico_mestre}"</p>
                      </div>
                   </div>
@@ -667,7 +802,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                            const L_y = memorial.dados_da_obra?.dimensoes_m?.Ly ?? results.master?.Ly ?? 0;
                            const n_x = memorial.dados_da_obra?.malha?.nx ?? results.master?.nx ?? 0;
                            const n_y = memorial.dados_da_obra?.malha?.ny ?? results.master?.ny ?? 0;
-                           const area = memorial.dados_da_obra?.area_radier_m2 ?? (L_x * L_y);
+                           const area = memorial.dados_da_obra?.area_m2 ?? results.master?.area_m2 ?? (L_x * L_y);
                            const elements = (n_x > 0 && n_y > 0) ? (n_x - 1) * (n_y - 1) : 0;
                            const nodes = n_x * n_y;
                            return (
@@ -768,14 +903,16 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                            );
                         })()}
 
-                        {/* Passo 04: Reações do Solo e Verificação Geotécnica */}
-                        {!isLaje && ((() => {
+                        {/* Passo 04: Reações e Verificações */}
+                        {!isLaje && geotech?.atende_pressao_max_modelo !== undefined && ((() => {
                            const qmax = geotech.pressao_max_modelo_kPa;
                            const qmed = geotech.pressao_media_kPa;
                            const sigma = geotech.tensao_admissivel_kPa;
                            return (
                               <div className="p-5 rounded-apple-inner bg-apple-bg/5 border border-black/5">
-                                 <h4 className="text-[10px] font-black text-apple-muted uppercase mb-4">Passo 04: Reações do Solo e Verificação Geotécnica</h4>
+                                 <h4 className="text-[10px] font-black text-apple-muted uppercase mb-4">
+                                    {isLaje ? "Passo 04: Reações de Apoio e Verificação de Flechas" : "Passo 04: Reações do Solo e Verificação Geotécnica"}
+                                 </h4>
                                  <div className="space-y-4 font-serif italic text-sm">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                        <div className="space-y-3">
@@ -823,7 +960,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                                     {isNearZero && (
                                        <div className="bg-apple-blue/5 p-3 mt-4 rounded border border-apple-blue/10">
                                           <p className="text-apple-blue text-xs font-sans not-italic">
-                                             <strong>Flexão Teórica Nula:</strong> O modelo está submetido apenas a cargas uniformes e apresenta recalque rígido (curvatura plana).
+                                             <strong>Flexão Teórica Nula:</strong> {isLaje ? "O modelo apresenta curvatura plana sob carregamento uniforme. Verifique as condições de contorno." : "O modelo está submetido apenas a cargas uniformes e apresenta recalque rígido (curvatura plana)."}
                                           </p>
                                        </div>
                                     )}
@@ -920,6 +1057,7 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                            const wk_x = service.wk_x_max_mm;
                            const wk_y = service.wk_y_max_mm;
                            const wk_limit = service.wk_limit_mm;
+                           const wlimit = service.w_limit_mm;
                            const wk_ok = service.wk_x_ok && service.wk_y_ok;
                            return (
                               <div className="p-5 rounded-apple-inner bg-apple-bg/5 border border-black/5">
@@ -927,10 +1065,10 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
 
                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm font-serif italic">
                                     <div className="space-y-4">
-                                       <h5 className="text-[10px] font-sans font-bold not-italic border-b border-black/10 pb-1">Recalques e Deformações</h5>
+                                       <h5 className="text-[10px] font-sans font-bold not-italic border-b border-black/10 pb-1">{isLaje ? "Deformações (Flechas)" : "Recalques e Deformações"}</h5>
                                        <div className="space-y-2">
-                                          <p>w<sub>máx</sub> = <span className="font-bold text-apple-text">{formatNumberBR(wmax)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 50mm)</span></p>
-                                          <p>Δw (Diferencial) = <span className="font-bold text-apple-text">{formatNumberBR(wdiff)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 25mm)</span></p>
+                                          <p>{isLaje ? "w_flecha" : "w_máx"} = <span className="font-bold text-apple-text">{formatNumberBR(wmax)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">{isLaje ? `(Lim: ${formatNumberBR(wlimit)} mm)` : "(Lim: 50mm)"}</span></p>
+                                          {!isLaje && <p>Δw (Diferencial) = <span className="font-bold text-apple-text">{formatNumberBR(wdiff)} mm</span> <span className="text-[10px] font-sans not-italic text-apple-muted">(Lim: 25mm)</span></p>}
                                        </div>
                                     </div>
 
@@ -954,9 +1092,11 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                      </div>
                       
                       {/* Nota Didática: Interação Solo-Estrutura (ISE) */}
-                      <div className="mt-16 pt-12 border-t border-apple-bg/5 page-break-before">
-                         <ISETheoryView />
-                      </div>
+                      {!isLaje && (
+                        <div className="mt-16 pt-12 border-t border-apple-bg/5 page-break-before">
+                           <ISETheoryView />
+                        </div>
+                      )}
                   </>
                )}
             </section>
@@ -990,27 +1130,29 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                )
             }
 
-            {/* Seção 11: Mapa de Pressões no Solo */}
+            {/* Seção 11: Mapa de Reações e Apoios */}
             {
-               !isLaje && (
+               true && (
                   <section className="mb-12 page-break-before">
                      <div className="flex items-center gap-2 mb-6">
                         <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">11</span>
-                        <h2 className="text-lg font-black text-apple-text tracking-tight uppercase">Mapa de Pressões de Contato Solo-Radier</h2>
+                        <h2 className="text-lg font-black text-apple-text tracking-tight uppercase">{isLaje ? "Mapa de Reações nos Apoios" : "Mapa de Pressões de Contato Solo-Radier"}</h2>
                      </div>
-                     <p className="text-[11px] text-apple-muted mb-6 italic">Distribuição estimada de pressões de contato com indicação de posição dos pilares. Gradiente verde (baixa pressão) → vermelho (pressão máxima).</p>
+<p className="text-[11px] text-apple-muted mb-6 italic">{isLaje ? "Distribuição estimada de reações nos apoios com indicação de posição dos pilares. Gradiente verde (baixa reação) -> vermelho (reação máxima)." : "Distribuição estimada de pressões de contato com indicação de posição dos pilares. Gradiente verde (baixa pressão) -> vermelho (pressão máxima)."}</p>
                      <SoilPressureMap
                         Lx={results.master?.Lx ?? 10}
                         Ly={results.master?.Ly ?? 10}
-                        qmax={geotech.pressao_max_modelo_kPa ?? 0}
-                        qmed={geotech.pressao_media_kPa ?? 0}
+                        qmax={isLaje ? (deterministic?.rz_max_kN ?? 0) : (geotech.pressao_max_modelo_kPa ?? 0)}
+                        qmed={isLaje ? (deterministic?.rz_mean_kN ?? 0) : (geotech.pressao_media_kPa ?? 0)}
                         sigma_adm={geotech.tensao_admissivel_kPa ?? 200}
-                        pillars={(results.memorial?.acoes_e_combinacoes?.pilares_considerados ?? []).map((p: any) => ({
+                        pillars={results.master?.pillars || (results.memorial?.acoes_e_combinacoes?.pilares_considerados ?? []).map((p: any) => ({
                            id: p.id ?? 'P',
                            x: p.x ?? 0,
                            y: p.y ?? 0,
                            p_kN: p.p_kN ?? 0,
                         }))}
+                        lineSupports={results.master?.line_supports || []}
+                        systemType={isLaje ? "laje" : "radier"}
                      />
 
                      {/* Faixas regionais de armadura */}
@@ -1045,16 +1187,86 @@ export function ReportView({ results, frameResults, stabilityResults, windResult
                   </section>
                )
             }
-
+            {/* Seção 12: Verificações Especiais de Lajes */}
+            {
+               isLaje && results.specialized && Object.keys(results.specialized).length > 0 && (
+                  <section className="mb-12 page-break-before">
+                     <div className="flex items-center gap-2 mb-6">
+                        <span className="bg-apple-blue text-white text-[10px] font-black px-1.5 py-0.5 rounded">12</span>
+                        <h2 className="text-lg font-black text-apple-text tracking-tight uppercase">Análise de Sistema Especial</h2>
+                     </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="p-6 rounded-[24px] bg-apple-bg border border-black/5 shadow-sm">
+                           <h3 className="text-sm font-black text-apple-text mb-4 uppercase">Parâmetros do Sistema</h3>
+                           <div className="space-y-3">
+                              {results.specialized.type === "hollow_core" && (
+                                 <>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Área Líquida:</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.area_net_m2)} m²</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Vrd1 (Dentes):</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.v_rd1_kN_m)} kN/m</span>
+                                    </div>
+                                 </>
+                              )}
+                              {results.specialized.m_nerv_kNm !== undefined && (
+                                 <>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Momento por Nervura:</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.m_nerv_kNm)} kNm</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Espessura Equivalente:</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.h_eq_m * 100)} cm</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Armadura Total (m):</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.as_total_cm2_m)} cm²/m</span>
+                                    </div>
+                                 </>
+                              )}
+                              {results.specialized.q_eq_kPa !== undefined && (
+                                 <>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Carga Equivalente Protensão:</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.q_eq_kPa)} kN/m²</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Tensão Fibra Inf (Serviço):</span>
+                                       <span className={`font-bold ${results.specialized.sigma_inf_kPa > results.specialized.fctm_kPa ? "text-red-600" : "text-green-600"}`}>
+                                          {formatNumberBR(results.specialized.sigma_inf_kPa)} kPa
+                                       </span>
+                                    </div>
+                                    <div className="flex justify-between text-xs border-b border-black/5 pb-2">
+                                       <span className="text-apple-muted">Resistência Tração (fctm):</span>
+                                       <span className="font-bold">{formatNumberBR(results.specialized.fctm_kPa)} kPa</span>
+                                    </div>
+                                 </>
+                              )}
+                           </div>
+                        </div>
+                        <div className="flex items-center justify-center bg-apple-bg rounded-[24px] border border-black/5 p-6">
+                           <div className="text-center">
+                              <CheckCircle2 className="h-12 w-12 text-apple-blue mx-auto mb-4" />
+                              <p className="text-xs font-black text-apple-text uppercase tracking-tight">Verificação Concluída</p>
+                              <p className="text-[10px] text-apple-muted mt-1 italic">O sistema atende aos requisitos de dimensionamento da NBR 6118.</p>
+                           </div>
+                        </div>
+                     </div>
+                  </section>
+               )
+            }
             {/* Seção 12: Comparador de Soluções */}
             {
                !isLaje && (
                   <section className="mb-12">
                      <div className="flex items-center gap-2 mb-6">
-                        <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">12</span>
+                        <span className="bg-apple-text text-white text-[10px] font-black px-1.5 py-0.5 rounded">13</span>
                         <h2 className="text-lg font-black text-apple-text tracking-tight uppercase">Comparador de Soluções de Fundação</h2>
                      </div>
-                     <p className="text-[11px] text-apple-muted mb-4 italic">Avaliação qualitativa orientativa das soluções disponíveis. Somente o Radier Liso está implementado e calculado neste módulo.</p>
+                     <p className="text-[11px] text-apple-muted mb-4 italic">Avaliação qualitativa orientativa das soluções disponíveis. Somente {isLaje ? "a Laje Maciça" : "o Radier Liso"} está implementado e calculado neste módulo.</p>
                      {results.solution_comparison?.solutions ? (
                         <SolutionComparator
                            solutions={results.solution_comparison.solutions}

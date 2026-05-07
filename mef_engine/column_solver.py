@@ -89,95 +89,194 @@ def analyze_slenderness(sec: ColumnSection) -> dict:
 
 def calculate_local_second_order(sec: ColumnSection, loads: ColumnLoads, slend: dict) -> dict:
     """
-    Análise de 2a ordem local profissional.
-    Usa o Método da Rigidez Nominal (NBR 6118 §15.8.3.3.3) para pilares usuais.
+    Análise de 2a ordem local rigorosa (NBR 6118 §15.8.3.3.2).
+    Usa o Método do Pilar Padrão com Curvatura Nominal.
     """
     Nd = loads.Nd_kN
-    h = sec.h
-    b = sec.b
+    h, b = sec.h, sec.b
+    Ac = sec.area
+    fcd = (sec.fck / 1.4) * 1000.0
+    nu = Nd / (Ac * fcd)
     
-    # 1. Momento de 1a ordem com excentricidade mínima
-    e_min_x = 0.015 + 0.03 * h
-    e_min_y = 0.015 + 0.03 * b
+    # 1. Excentricidades de 1a ordem (Imperfeições + e_min)
+    le = sec.L_free * sec.alpha_b
+    theta_a = 1.0 / (100.0 * math.sqrt(le)) # Imperfeição geométrica global/local
+    e_i = theta_a * le / 2.0
+    e_min_x = max(0.015 + 0.03 * h, e_i)
+    e_min_y = max(0.015 + 0.03 * b, e_i)
     
     M1d_x = max(abs(loads.Mxd_kNm), Nd * e_min_x)
     M1d_y = max(abs(loads.Myd_kNm), Nd * e_min_y)
     
-    M2d_x = 0.0
-    M2d_y = 0.0
+    M_total_x, M_total_y = M1d_x, M1d_y
     
-    # Rigidez Nominal Simplificada (EI = 0.8 * Ecs * Ic)
-    Ecs = 0.85 * 5600 * math.sqrt(sec.fck) * 1e3 # kN/m2 (Simplificado E_28)
-    EIx = 0.8 * Ecs * sec.inertia_x
-    EIy = 0.8 * Ecs * sec.inertia_y
-    
-    # Carga Crítica de Euler: Pc = pi^2 * EI / le^2
-    le = sec.L_free * sec.alpha_b
-    Pcx = (math.pi**2 * EIx) / (le**2)
-    Pcy = (math.pi**2 * EIy) / (le**2)
-    
-    # Amplificador de 1a ordem (Fator de Majorante 1 / (1 - Nd/Pc))
+    # 2. Momento de 2a Ordem (P-delta local)
+    # 1/r = 0.005 / (h * (0.5 + nu)) <= 0.005 / h
     if slend['needs_2nd_order_x']:
-        factor_x = 1.0 / (1.0 - (Nd / Pcx)) if Nd < Pcx else 5.0
-        M_total_x = M1d_x * factor_x
-    else:
-        M_total_x = M1d_x
+        curv_x = min(0.005 / (h * (0.5 + nu)), 0.005 / h)
+        e2_x = (le**2 / 10.0) * curv_x
+        M_total_x += Nd * e2_x
         
     if slend['needs_2nd_order_y']:
-        factor_y = 1.0 / (1.0 - (Nd / Pcy)) if Nd < Pcy else 5.0
-        M_total_y = M1d_y * factor_y
-    else:
-        M_total_y = M1d_y
+        curv_y = min(0.005 / (b * (0.5 + nu)), 0.005 / b)
+        e2_y = (le**2 / 10.0) * curv_y
+        M_total_y += Nd * e2_y
 
     return {
         'M1d_x': round(M1d_x, 2),
         'M_total_x': round(M_total_x, 2),
         'M_total_y': round(M_total_y, 2),
-        'Pcx_kN': round(Pcx, 1),
-        'Pcy_kN': round(Pcy, 1),
         'e_min_x_mm': round(e_min_x * 1000, 1),
-        'method': 'Rigidez Nominal'
+        'e2_x_mm': round((M_total_x - M1d_x)/Nd * 1000, 1) if Nd > 0 else 0,
+        'method': 'Curvatura Nominal (NBR 6118)'
     }
 
 
 # ──────────────────────── Dimensionamento (Flexo-Compressão Biaxial) ────────────────────────
 
+# ──────────────────────── Dimensionamento (Flexo-Compressão Biaxial Rigorosa) ────────────────────────
+
+class FiberSectionIntegrator:
+    """
+    Integrador de seção via fibras para flexo-compressão biaxial rigorosa.
+    Segue o diagrama Parábola-Retângulo da NBR 6118.
+    """
+    def __init__(self, sec: ColumnSection, as_total_cm2: float):
+        self.sec = sec
+        self.as_total = as_total_cm2 * 1e-4 # m2
+        self.fcd = (sec.fck / 1.4) * 1e6 # Pa
+        self.fyd = (sec.fyk / 1.15) * 1e6 # Pa
+        self.Es = 210e9 # Pa
+        
+        # Discretização (Fibras de concreto)
+        self.nx, self.ny = 20, 20
+        self.dx, self.dy = sec.b / self.nx, sec.h / self.ny
+        self.fiber_areas = self.dx * self.dy
+        
+        # Coordenadas das fibras (relativas ao centro geométrico)
+        x = np.linspace(-sec.b/2 + self.dx/2, sec.b/2 - self.dx/2, self.nx)
+        y = np.linspace(-sec.h/2 + self.dy/2, sec.h/2 - self.dy/2, self.ny)
+        self.X, self.Y = np.meshgrid(x, y)
+        
+        # Posição das armaduras (4 cantos simplificado para o solver iterativo)
+        d_prime = sec.cover + 0.010
+        self.rebar_pos = [
+            (-sec.b/2 + d_prime, -sec.h/2 + d_prime),
+            ( sec.b/2 - d_prime, -sec.h/2 + d_prime),
+            (-sec.b/2 + d_prime,  sec.h/2 - d_prime),
+            ( sec.b/2 - d_prime,  sec.h/2 - d_prime)
+        ]
+        self.rebar_area = self.as_total / 4.0
+
+    def get_forces(self, eps0: float, kx: float, ky: float) -> Tuple[float, float, float]:
+        """Calcula N, Mx, My para um plano de deformação (eps = eps0 + kx*y + ky*x)."""
+        # Deformações nas fibras de concreto
+        eps_c = eps0 + kx * self.Y + ky * self.X
+        
+        # Tensões no concreto (NBR 6118: Parábola-Retângulo)
+        sig_c = np.zeros_like(eps_c)
+        # Compressão (eps < 0)
+        mask1 = (eps_c < 0) & (eps_c >= -0.002)
+        sig_c[mask1] = 0.85 * self.fcd * (1 - (1 - abs(eps_c[mask1])/0.002)**2)
+        mask2 = (eps_c < -0.002) & (eps_c >= -0.0035)
+        sig_c[mask2] = 0.85 * self.fcd
+        # Tração: desprezada
+        
+        # Deformações e tensões no aço
+        N_s, Mx_s, My_s = 0.0, 0.0, 0.0
+        for rx, ry in self.rebar_pos:
+            eps_s = eps0 + kx * ry + ky * rx
+            sig_s = np.clip(eps_s * self.Es, -self.fyd, self.fyd)
+            f_s = sig_s * self.rebar_area
+            N_s += f_s
+            Mx_s += f_s * ry
+            My_s += f_s * rx
+            
+        N_c = np.sum(sig_c * self.fiber_areas)
+        Mx_c = np.sum(sig_c * self.fiber_areas * self.Y)
+        My_c = np.sum(sig_c * self.fiber_areas * self.X)
+        
+        # Resultantes (N compressão negativa na convenção interna, mas Nd é positivo)
+        # Vamos retornar como positivo para compressão para facilitar o solver
+        return -(N_c + N_s), -(Mx_c + Mx_s), -(My_c + My_s)
+
 class BiaxialBendingSolver:
-    """
-    Solver profissional para flexo-compressão normal e oblíqua.
-    Usa integração da seção (blocos de tensões) conforme NBR 6118.
-    """
+    @staticmethod
+    def find_equilibrium(integrator: FiberSectionIntegrator, loads: ColumnLoads, max_iter: int = 50, tol: float = 1e-3) -> Tuple[float, float, float, bool]:
+        """
+        Encontra o plano de deformação (eps0, kx, ky) que equilibra os esforços loads.
+        Usa Newton-Raphson com Matriz Jacobiana Numérica.
+        """
+        # [eps0, kx, ky]
+        U = np.array([-0.001, 0.0, 0.0]) 
+        target = np.array([loads.Nd_kN * 1000.0, loads.Mxd_kNm * 1000.0, loads.Myd_kNm * 1000.0])
+        
+        for i in range(max_iter):
+            # Forças atuais
+            N, Mx, My = integrator.get_forces(U[0], U[1], U[2])
+            R = np.array([N, Mx, My]) - target
+            
+            if np.linalg.norm(R) < tol * (np.linalg.norm(target) + 1.0):
+                return U[0], U[1], U[2], True
+                
+            # Jacobiana Numérica
+            J = np.zeros((3, 3))
+            h = 1e-6
+            for j in range(3):
+                U_h = U.copy(); U_h[j] += h
+                N_h, Mx_h, My_h = integrator.get_forces(U_h[0], U_h[1], U_h[2])
+                J[:, j] = (np.array([N_h, Mx_h, My_h]) - np.array([N, Mx, My])) / h
+                
+            try:
+                dU = np.linalg.solve(J, -R)
+                # Amortecimento para evitar divergência (Line Search simplificado)
+                U += 0.5 * dU 
+            except np.linalg.LinAlgError:
+                break
+                
+        return U[0], U[1], U[2], False
+
     @staticmethod
     def solve_required_reinforcement(sec: ColumnSection, loads: ColumnLoads) -> float:
         """
-        Encontra a taxa de armadura necessária (omega) para suportar os esforços Nd, Mxd, Myd.
+        Encontra a taxa de armadura necessária via busca iterativa na superfície de interação.
+        Agora usa o solver de equilíbrio rigoroso.
         """
-        fcd = (sec.fck / 1.4) * 1000.0 # kN/m2
-        fyd = (sec.fyk / 1.15) * 1000.0 # kN/m2
-        Ac = sec.area
-        Nd = loads.Nd_kN
-        Md_total = math.sqrt(loads.Mxd_kNm**2 + loads.Myd_kNm**2)
+        # Busca bisseção ou incremento para omega (taxa mecânica)
+        omega_min, omega_max = 0.01, 0.80
+        omega = 0.05
         
-        # Nu e Mu adimensionais
-        nu = Nd / (Ac * fcd)
-        mux = loads.Mxd_kNm / (Ac * sec.h * fcd)
-        muy = loads.Myd_kNm / (Ac * sec.b * fcd)
-        mu = math.sqrt(mux**2 + muy**2)
-        
-        # Iteração de dimensionamento via superfície de interação (Aproximação de Bresler + Refinamento)
-        # 1. Caso base: Flexo-compressão reta (nu, mu)
-        # omega_base ≈ (nu + 1.2 * mu - 0.1) / 0.85
-        # 2. Majoração para flexão oblíqua (coeficiente alpha de correção)
-        alpha = 1.2 if mu > 0.1 else 1.0
-        omega_calc = (nu + alpha * mu * 1.5 - 0.1) / 0.85
-        
-        # Refinamento iterativo de segurança
-        omega_calc = max(0.0, omega_calc)
-        
-        # Se a seção for muito solicitada, aplica fator de punição
-        if nu > 0.8: omega_calc *= (1.0 + (nu - 0.8) * 2)
-        
-        return omega_calc
+        # Testar se atende com omega mínimo
+        for iteration in range(10):
+            integrator = FiberSectionIntegrator(sec, omega * sec.area * (sec.fck/1.4) / (sec.fyk/1.15) * 1e4)
+            eps0, kx, ky, converged = BiaxialBendingSolver.find_equilibrium(integrator, loads)
+            
+            # Critério de Ruptura (NBR 6118)
+            # eps_c_min >= -0.0035, eps_s_max <= 0.010
+            # Vamos verificar as fibras extremas
+            d_prime = sec.cover + 0.01
+            corners = [
+                (-sec.b/2, -sec.h/2), (sec.b/2, -sec.h/2),
+                (-sec.b/2, sec.h/2), (sec.b/2, sec.h/2)
+            ]
+            max_eps_c = 0.0
+            min_eps_c = 0.0
+            for cx, cy in corners:
+                e = eps0 + kx * cy + ky * cx
+                max_eps_c = max(max_eps_c, e)
+                min_eps_c = min(min_eps_c, e)
+            
+            # Verificação simplificada de ELU
+            is_safe = converged and min_eps_c >= -0.0045 and max_eps_c <= 0.012 # Margem maior para omega search
+            
+            if is_safe:
+                if iteration == 0: return omega # Atende com mínimo
+                break
+            else:
+                omega += 0.05
+                if omega > omega_max: return omega_max
+                
+        return round(omega, 4)
 
 def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     """

@@ -9,6 +9,8 @@ interface SoilPressureMapProps {
   qmed: number;
   sigma_adm: number;
   pillars?: Array<{ x: number; y: number; id: string; p_kN: number }>;
+  lineSupports?: Array<{ x1: number; y1: number; x2: number; y2: number; id: string }>;
+  systemType?: "radier" | "laje";
 }
 
 function lerp(a: number, b: number, t: number) {
@@ -41,7 +43,10 @@ export function SoilPressureMap({
   qmed,
   sigma_adm,
   pillars = [],
+  lineSupports = [],
+  systemType = "radier",
 }: SoilPressureMapProps) {
+  const isLaje = systemType === "laje";
   const W = 400;
   const H = Math.round((Ly / Lx) * W);
   const PAD = 32;
@@ -107,6 +112,32 @@ export function SoilPressureMap({
           />
         ))}
 
+        {/* Reference Grid (1m) */}
+        <g opacity={0.3}>
+          {Array.from({ length: Math.floor(Lx) + 1 }).map((_, i) => (
+            <line
+              key={`grid-x-${i}`}
+              x1={PAD + (i / Lx) * W}
+              y1={PAD}
+              x2={PAD + (i / Lx) * W}
+              y2={PAD + H}
+              stroke="#000"
+              strokeWidth="0.3"
+            />
+          ))}
+          {Array.from({ length: Math.floor(Ly) + 1 }).map((_, i) => (
+            <line
+              key={`grid-y-${i}`}
+              x1={PAD}
+              y1={PAD + (i / Ly) * H}
+              x2={PAD + W}
+              y2={PAD + (i / Ly) * H}
+              stroke="#000"
+              strokeWidth="0.3"
+            />
+          ))}
+        </g>
+
         {/* Borda do radier */}
         <rect
           x={PAD}
@@ -123,6 +154,9 @@ export function SoilPressureMap({
         {pillars.map((p) => {
           const svgX = PAD + (p.x / Lx) * W;
           const svgY = PAD + (p.y / Ly) * H;
+          const px = p.x / Lx;
+          const py = p.y / Ly;
+          // Invert Y for drawing if needed, but the current implementation uses PAD + (p.y/Ly)*W which is top-down
           return (
             <g key={p.id}>
               <circle cx={svgX} cy={svgY} r={6} fill="#1d171f" opacity={0.9} />
@@ -131,6 +165,7 @@ export function SoilPressureMap({
                 y={svgY - 6}
                 fontSize={7}
                 fill="#1d171f"
+                fontWeight="bold"
                 fontFamily="monospace"
               >
                 {p.id}
@@ -138,6 +173,21 @@ export function SoilPressureMap({
             </g>
           );
         })}
+
+        {/* Apoios em Linha (Vigas) */}
+        {lineSupports.map((ls, i) => (
+          <line
+            key={`ls-map-${i}`}
+            x1={PAD + (ls.x1 / Lx) * W}
+            y1={PAD + (ls.y1 / Ly) * H}
+            x2={PAD + (ls.x2 / Lx) * W}
+            y2={PAD + (ls.y2 / Ly) * H}
+            stroke="#ef4444"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity={0.8}
+          />
+        ))}
 
         {/* Labels dimensão */}
         <text x={PAD + W / 2} y={PAD + H + 16} textAnchor="middle" fontSize={9} fill="#666" fontFamily="Arial">
@@ -163,30 +213,32 @@ export function SoilPressureMap({
             <g key={i}>
               <rect x={lx} y={PAD + H + 24} width={W / 4} height={10} fill={pressureToColor(q, qmin, qmax)} />
               <text x={lx + 2} y={PAD + H + 44} fontSize={7} fill="#444" fontFamily="Arial">
-                {formatNumberBR(q, 0)} kPa
+                {formatNumberBR(q, 0)} {isLaje ? "kN" : "kPa"}
               </text>
             </g>
           );
         })}
         <text x={PAD} y={PAD + H + 22} fontSize={7} fill="#888" fontFamily="Arial">
-          Pressão de contato estimada:
+          {isLaje ? "Distribuição de reações estimadas:" : "Pressão de contato estimada:"}
         </text>
       </svg>
 
       {/* Métricas inline */}
       <div className="flex gap-4 text-xs font-medium">
         <span className="px-2 py-1 rounded bg-apple-bg/40 border border-black/5">
-          σmáx = <strong>{formatNumberBR(qmax, 1)} kPa</strong>
+          {isLaje ? "Rmáx" : "σmáx"} = <strong>{formatNumberBR(qmax, 1)} {isLaje ? "kN" : "kPa"}</strong>
         </span>
         <span className="px-2 py-1 rounded bg-apple-bg/40 border border-black/5">
-          σmédio = <strong>{formatNumberBR(qmed, 1)} kPa</strong>
+          {isLaje ? "Rméd" : "σmédio"} = <strong>{formatNumberBR(qmed, 1)} {isLaje ? "kN" : "kPa"}</strong>
         </span>
-        <span
-          className="px-2 py-1 rounded border font-bold"
-          style={{ color: ratioColor, borderColor: ratioColor + "40" }}
-        >
-          η = {formatNumberBR(pressureRatio, 3)}
-        </span>
+        {systemType === "radier" && (
+          <span
+            className="px-2 py-1 rounded border font-bold"
+            style={{ color: ratioColor, borderColor: ratioColor + "40" }}
+          >
+            η = {formatNumberBR(pressureRatio, 3)}
+          </span>
+        )}
       </div>
     </div>
   );

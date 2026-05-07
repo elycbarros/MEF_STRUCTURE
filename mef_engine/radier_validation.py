@@ -7,23 +7,23 @@ import pandas as pd
 
 def validate_positive(name: str, value: float) -> None:
     if value <= 0:
-        raise ValueError(f'{name} deve ser positivo.')
+        raise ValueError(f'O parâmetro {name} deve ser um valor positivo para garantir a integridade física do modelo.')
 
 
 def validate_lab_config(config) -> None:
-    validate_positive('Lx', config.Lx)
-    validate_positive('Ly', config.Ly)
-    validate_positive('h', config.h)
-    validate_positive('kv', config.kv)
-    validate_positive('q', config.q)
+    validate_positive('Lx (Largura)', config.Lx)
+    validate_positive('Ly (Comprimento)', config.Ly)
+    validate_positive('h (Espessura)', config.h)
+    validate_positive('kv (Coeficiente de Solo)', config.kv)
+    validate_positive('q (Carga Distribuída)', config.q)
     if config.nx < 3 or config.ny < 3:
-        raise ValueError('nx e ny devem ser >= 3.')
+        raise ValueError('A malha deve possuir ao menos 3 divisões (nx, ny) para permitir a discretização mínima por elementos finitos.')
     if config.nx % 2 == 0 or config.ny % 2 == 0:
-        raise ValueError('nx e ny devem ser ímpares para manter um nó central e malha mais estável.')
+        raise ValueError('Para garantir a estabilidade numérica e a presença de um nó central na malha, os parâmetros nx e ny devem ser ímpares.')
     if not (0.0 < config.nu < 0.5):
-        raise ValueError('nu deve estar entre 0 e 0.5.')
-    validate_positive('fck', config.fck)
-    validate_positive('fyk', config.fyk)
+        raise ValueError('O coeficiente de Poisson (nu) deve estar no intervalo físico entre 0 e 0.5.')
+    validate_positive('fck (Resistência do Concreto)', config.fck)
+    validate_positive('fyk (Resistência do Aço)', config.fyk)
 
 
 def _validate_required_columns(df: pd.DataFrame, required: set[str], label: str) -> None:

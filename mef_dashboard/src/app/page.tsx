@@ -135,6 +135,7 @@ interface CalculateResponse {
   executive_decision?: Record<string, unknown>;
   didactic_guide_markdown?: string | null;
   detail?: string;
+  is_laje?: boolean;
   frame_data?: any; // Novo campo para StrucPy
 }
 
@@ -282,8 +283,16 @@ export default function Home() {
     statusMessage, setStatusMessage,
     logs, addLog,
     systemType, setSystemType,
+    slabType, setSlabType,
     docMeta, setDocMeta,
-    tabs
+    tabs,
+    b_nerv, setBNerv,
+    dist_nerv, setDistNerv,
+    h_mesa, setHMesa,
+    area_voids, setAreaVoids,
+    p_force, setPForce,
+    ecc, setEcc,
+    fillerType, setFillerType
   } = useProjectState(selectedMode);
 
   const {
@@ -291,6 +300,7 @@ export default function Home() {
     pillars, setPillars,
     lineSupports, setLineSupports,
     holes, setHoles,
+    areaLoads, setAreaLoads,
     results, setResults,
     foundationTypeId, setFoundationTypeId,
     purposePresetId, setPurposePresetId,
@@ -314,9 +324,25 @@ export default function Home() {
   const [isProfessionalMode, setIsProfessionalMode] = useState(true);
   const [memorialGeneratedAt, setMemorialGeneratedAt] = useState<Date | null>(null);
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("guided");
+  const [showLoadToast, setShowLoadToast] = useState(false);
 
   const [selectedMember, setSelectedMember] = useState<number | null>(null);
   const [optLogs, setOptLogs] = useState<any[]>([]);
+  const [showTerminal, setShowTerminal] = useState(false);
+
+
+  // Auto-hide terminal on success
+  React.useEffect(() => {
+    if (loading) {
+      setShowTerminal(true);
+    } else {
+      const hasError = logs.some(l => l.type === 'error');
+      if (!hasError && logs.length > 0) {
+        const timer = setTimeout(() => setShowTerminal(false), 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [loading, logs]);
 
   const runWindStabilityAnalysis = async () => {
     setLoading(true);
@@ -365,7 +391,8 @@ export default function Home() {
           wind_categoria: windParams.categoria,
           wind_f1_hz: windParams.f1,
           wind_zeta: windParams.zeta,
-          wind_is_dynamic: windParams.is_dynamic
+          wind_is_dynamic: windParams.is_dynamic,
+          system_type: systemType
         })
       });
       const data = await response.json();
@@ -513,6 +540,17 @@ export default function Home() {
     );
   };
 
+  const updateAreaLoad = (index: number, key: string, value: string) => {
+    setAreaLoads((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const parsed = parseLocaleNumberInput(value);
+        if (parsed === null) return item;
+        return { ...item, [key]: parsed };
+      }),
+    );
+  };
+
   const addLineSupport = () => {
     const id = `V${String(lineSupports.length + 1).padStart(2, "0")}`;
     setLineSupports((prev) => [...prev, { id, x1: 0, y1: 0, x2: params.Lx, y2: 0, support_type: "pinned" }]);
@@ -550,7 +588,7 @@ export default function Home() {
 
   const runAnalysis = async () => {
     setLoading(true);
-    addLog("Solicitando análise MEF de radier ao kernel estrutural...", "info");
+    addLog(`Solicitando análise MEF de ${systemType === "laje" ? "laje" : "radier"} ao kernel estrutural...`, "info");
     try {
       const response = await fetch(`${apiBaseUrl}/calculate`, {
         method: "POST",
@@ -560,9 +598,18 @@ export default function Home() {
           kv: params.kv * 1000,
           q: params.q * 1000,
           system_type: systemType,
+          slab_type: slabType,
+          b_nerv,
+          dist_nerv,
+          h_mesa,
+          area_voids,
+          p_force,
+          ecc,
+          filler_type: fillerType,
           pillars,
           line_supports: lineSupports,
           holes,
+          area_loads: areaLoads,
           analysis_mode: analysisMode,
           foundation_type: foundationTypeId,
           purpose_preset_id: purposePresetId,
@@ -701,7 +748,14 @@ export default function Home() {
   };
 
   const [numPavimentos, setNumPavimentos] = useState(1);
+
+  const handleBackToDashboard = () => {
+    addLog("Retornando ao Dashboard de controle.", "info");
+    setActiveTab("dashboard");
+  };
+
   const estimateLoads = async () => {
+    addLog(`Iniciando estimativa de carga para ${numPavimentos} pavimentos...`, "info");
     setStatusMessage("Estimando cargas (NBR 6120)...");
     try {
       let tipoUso = selectedPurposePreset.name.toLowerCase();
@@ -709,7 +763,7 @@ export default function Home() {
       else if (tipoUso.includes("comerc") || tipoUso.includes("loj")) tipoUso = "comercial";
       else if (tipoUso.includes("escrit")) tipoUso = "escritorio";
       else if (tipoUso.includes("gara") || tipoUso.includes("estacion")) tipoUso = "garagem";
-      else tipoUso = "comercial"; // default if not matched
+      else tipoUso = "comercial"; 
 
       const response = await fetch(`${apiBaseUrl}/estimate_loads`, {
         method: "POST",
@@ -722,10 +776,18 @@ export default function Home() {
       const payload = await response.json();
       if (payload.success) {
         setParams(prev => ({ ...prev, q: payload.estimated_q_kPa }));
-        setStatusMessage(`Carga estimada para ${numPavimentos} pav(s) de uso ${tipoUso}: ${payload.estimated_q_kPa} kN/m²`);
+        const msg = `Carga estimada para ${numPavimentos} pav(s) de uso ${tipoUso}: ${payload.estimated_q_kPa} kN/m²`;
+        setStatusMessage(msg);
+        addLog(msg, "success");
+        setShowLoadToast(true);
+        setTimeout(() => setShowLoadToast(false), 3000);
+      } else {
+        addLog("Erro na resposta do estimador de cargas.", "error");
       }
     } catch (e) {
+      console.error(e);
       setStatusMessage("Erro ao estimar cargas.");
+      addLog("Falha na conexão com o motor de estimativa.", "error");
     }
   };
 
@@ -1133,6 +1195,22 @@ export default function Home() {
                 mode={selectedMode}
                 systemType={systemType}
                 setSystemType={setSystemType}
+                slabType={slabType}
+                setSlabType={setSlabType}
+                b_nerv={b_nerv}
+                setBNerv={setBNerv}
+                dist_nerv={dist_nerv}
+                setDistNerv={setDistNerv}
+                h_mesa={h_mesa}
+                setHMesa={setHMesa}
+                area_voids={area_voids}
+                setAreaVoids={setAreaVoids}
+                p_force={p_force}
+                setPForce={setPForce}
+                ecc={ecc}
+                setEcc={setEcc}
+                fillerType={fillerType}
+                setFillerType={setFillerType}
                 ignorePillars={ignorePillars}
                 setIgnorePillars={setIgnorePillars}
                 pillars={pillars}
@@ -1144,8 +1222,12 @@ export default function Home() {
                 addLineSupport={addLineSupport}
                 removeLineSupport={removeLineSupport}
                 updateLineSupport={updateLineSupport}
+                setLineSupports={setLineSupports}
                 holes={holes}
                 setHoles={setHoles}
+                areaLoads={areaLoads}
+                setAreaLoads={setAreaLoads}
+                updateAreaLoad={updateAreaLoad}
                 applyGuidedPreset={applyGuidedPreset}
                 analysisMode={analysisMode}
                 kvConfidence={kvConfidence}
@@ -1157,6 +1239,7 @@ export default function Home() {
                 numPavimentos={numPavimentos}
                 setNumPavimentos={setNumPavimentos}
                 estimateLoads={estimateLoads}
+                showLoadToast={showLoadToast}
                 KV_SOURCE_OPTIONS={KV_SOURCE_OPTIONS}
                 runAnalysis={runAnalysis}
                 loading={loading}
@@ -1178,11 +1261,15 @@ export default function Home() {
                 updatePillar={updatePillar}
                 restoreSamplePillars={restoreSamplePillars}
                 lineSupports={lineSupports}
+                setLineSupports={setLineSupports}
                 addLineSupport={addLineSupport}
                 removeLineSupport={removeLineSupport}
                 updateLineSupport={updateLineSupport}
                 systemType={systemType}
                 params={params}
+                holes={holes}
+                areaLoads={areaLoads}
+                updateAreaLoad={updateAreaLoad}
               />
             )}
 
@@ -1440,6 +1527,7 @@ export default function Home() {
                   windResults={windResults}
                   projectMeta={docMeta}
                   apiBaseUrl={apiBaseUrl}
+                  onBack={handleBackToDashboard}
                 />
               </div>
             )}
@@ -1488,7 +1576,9 @@ export default function Home() {
                 </div>
                 <SpecialElementsView
                   apiBaseUrl={apiBaseUrl}
-                  type={activeTab === "vigas" ? "viga" : activeTab === "pilares_isolados" ? "pilar" : "reservatorio"}
+                  isProfessionalMode={isProfessionalMode}
+                  onGoBack={() => setActiveTab("dashboard")}
+                  type={activeTab === "vigas" ? "viga" : activeTab === "pilares_isolados" ? "pilar" : undefined}
                 />
               </div>
             )}
@@ -1514,7 +1604,7 @@ export default function Home() {
           </section>
         </div>
       </div>
-      <TerminalLogs logs={logs} isVisible={loading || logs.length > 0} />
+      <TerminalLogs logs={logs} isVisible={showTerminal} />
 
       {/* Floating Scroll to Bottom Button */}
       <button

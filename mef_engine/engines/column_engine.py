@@ -19,26 +19,40 @@ class ColumnEngine:
     @staticmethod
     def solve_column(nd_kN: float, mdx_kNm: float, mdy_kNm: float, h: float, b: float, l_e: float, fck: float, fyk: float) -> Dict[str, Any]:
         """
-        Dimensionamento completo de Pilar (NBR 6118).
-        Inclui 2a ordem local pelo metodo do pilar padrao.
+        Dimensionamento completo de Pilar (NBR 6118:2023).
+        Inclui 2a ordem local pelo metodo do pilar padrao com curvatura aproximada.
         """
         lamb = ColumnEngine.calculate_slenderness(l_e, h)
+        fcd = fck / 1.4
+        fyd = fyk / 1.15
         
-        # Momento de 2a ordem (M2) se lamb > lamb_lim
+        # 1. Excentricidade Mínima (e_min)
+        emin = max(0.015 + 0.03 * h, 0.02) # m
+        m1d_min = nd_kN * emin
+        
+        m1d_x = max(abs(mdx_kNm), m1d_min)
+        
+        # 2. Momento de 2a ordem (M2) pelo método da curvatura aproximada
         m2 = 0.0
+        # NBR 6118, 15.8.3.3.2: Válido para lambda <= 90
         if lamb > 35:
-            # Metodo da curvatura aproximada
-            v = nd_kN / (h * b * (fck/1.4) * 1000.0)
-            curv = (0.005 / (h * (v + 0.5))) if v > 0 else 0.005/h
-            m2 = nd_kN * (l_e**2 / 10.0) * curv
+            # Força normal adimensional nu
+            nu = nd_kN / (h * b * fcd * 1000.0) if (h*b) > 0 else 0
+            # Curvatura 1/r
+            # 1/r = 0.005 / (h * (nu + 0.5)) <= 0.005/h
+            curvature = min(0.005 / (h * (nu + 0.5)), 0.005 / h) if (nu + 0.5) > 0 else 0.005/h
+            m2 = nd_kN * (l_e**2 / 10.0) * curvature
             
-        md_total = mdx_kNm + m2
+        md_total = m1d_x + m2
         
         return {
-            "lambda": lamb,
-            "m2_kNm": m2,
-            "md_total_kNm": md_total,
-            "status": "OK" if lamb < 90 else "ALTA_ESBELTEZ"
+            "lambda": round(lamb, 2),
+            "e_min_m": round(emin, 3),
+            "m1d_min_kNm": round(m1d_min, 2),
+            "m2_kNm": round(m2, 2),
+            "md_total_kNm": round(md_total, 2),
+            "nu": round(nu, 3) if 'nu' in locals() else 0,
+            "status": "OK" if lamb <= 90 else "ALTA_ESBELTEZ"
         }
 
     @staticmethod

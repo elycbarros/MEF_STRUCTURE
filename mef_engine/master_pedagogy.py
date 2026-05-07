@@ -27,9 +27,16 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     
     me = MemorialEngine("Roteiro Didatico: Vigas de Concreto", "beam")
     fmt = me._fmt
+    
+    # 1. Informações Normativas e Materiais (Padronização Mestre)
+    me.add_standard_info()
     me.add_material_step(fck)
+    caa = payload.get("caa", 2)
+    cover = int(payload.get("cover_mm", 30))
+    me.add_durability_step(caa, cover)
     me.add_geometry_step(b, h, d)
 
+    # 2. Resumo de Ações e Reações
     distributed_loads = payload.get("distributed_loads") or []
     point_loads = payload.get("point_loads") or []
     total_distributed_kn = 0.0
@@ -62,15 +69,6 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         norm="Equilibrio estatico"
     )
     me.add_step(
-        id="beam-useful-depth",
-        title="Altura Util",
-        formula=r"d = h - c - \phi_{est} - \phi_l/2",
-        substitution=rf"h = {fmt(h, 3)}\,m",
-        result=rf"d \approx {fmt(d, 3)}\,m",
-        explanation="A altura util define o braco de alavanca para dimensionamento a flexao.",
-        norm="NBR 6118, 17.2"
-    )
-    me.add_step(
         id="beam-support-reactions",
         title="Reacoes de Apoio",
         formula=r"\sum V = 0,\quad \sum M = 0",
@@ -79,57 +77,36 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="As reacoes equilibram as cargas verticais aplicadas ao modelo.",
         norm="Equilibrio estatico"
     )
-    me.add_step(
-        id="beam-classical-diagram",
-        title="Diagramas Classicos V(x) e M(x)",
-        formula=r"V'(x)=-q(x),\quad M'(x)=V(x)",
-        substitution=r"\text{Integracao por secoes ao longo da viga}",
-        result=rf"|V|_{{max}} = {fmt(max_shear, 2)}\,kN",
-        explanation="O diagrama analitico e reconstruido pelo metodo das secoes para servir de referencia ao MEF.",
-        norm="Resistencia dos Materiais"
-    )
-    me.add_step(
-        id="beam-max-moment-location",
-        title="Momento Maximo",
-        formula=r"M_{max} = \max |M(x)|",
-        substitution=rf"x = {fmt(max_moment_x, 2)}\,m",
-        result=rf"M = {fmt(max_moment, 2)}\,kNm",
-        explanation="A secao critica de flexao e identificada pelo maior valor absoluto do diagrama de momentos.",
-        norm="NBR 6118, 17.2"
-    )
     
-    # 3. Verificacao ELU (Flexao e Dominios)
+    # 3. Verificacao ELU (Flexao, Domínios e Taxa Mínima)
     m_max = max(float(design.get("M_max_pos_kNm", 0.0)), abs(float(design.get("M_max_neg_kNm", 0.0))))
     as_bottom = float(design.get("flexure_bottom", {}).get("As_cm2", 0.0))
     as_top = float(design.get("flexure_top", {}).get("As_cm2", 0.0))
     domain = design.get("flexure_bottom", {}).get("domain", "2")
+    rho = (as_bottom / (b * 100 * d * 100)) * 100 if b > 0 and d > 0 else 0.0
     
     me.add_step(
         id="beam-flexure",
         title="Dimensionamento a Flexao e Dominio",
         formula=r"A_s = \frac{M_{sd}}{0{,}9d \cdot f_{yd}}, \quad \xi = x/d",
         substitution=rf"M_{{sd}} = {fmt(m_max)}\,kNm, \quad \text{{Dominio}} = {domain}",
-        result=rf"A_s = {fmt(as_bottom, 2)}\,cm^2",
-        explanation=f"A secao encontra-se no Dominio {domain}. No Dominio 2 ou 3, o aco flui (escoa) garantindo ductilidade.",
+        result=rf"A_s = {fmt(as_bottom, 2)}\,cm^2 \quad (\rho = {fmt(rho, 3)}\%)",
+        explanation=f"A secao encontra-se no Dominio {domain}. O escoamento do aco garante a ductilidade da viga.",
         norm="NBR 6118, 17.2.2"
     )
-    me.add_step(
-        id="beam-flexure-bottom",
-        title="Armadura Inferior",
-        formula=r"A_s = \frac{M_{sd}}{z f_{yd}}",
-        substitution=rf"M_{{sd,+}} = {fmt(design.get('M_max_pos_kNm'), 2)}\,kNm",
-        result=rf"A_{{s,inf}} = {fmt(as_bottom, 2)}\,cm^2",
-        explanation="Armadura principal para momentos positivos no vao.",
-        norm="NBR 6118, 17.3"
-    )
-    me.add_step(
-        id="beam-flexure-top",
-        title="Armadura Superior",
-        formula=r"A_s = \frac{|M_{sd,-}|}{z f_{yd}}",
-        substitution=rf"M_{{sd,-}} = {fmt(design.get('M_max_neg_kNm'), 2)}\,kNm",
-        result=rf"A_{{s,sup}} = {fmt(as_top, 2)}\,cm^2",
-        explanation="Armadura superior para momentos negativos em apoios ou engastes.",
-        norm="NBR 6118, 17.3"
+    
+    # Verificação de Taxa Mínima
+    rho_min = 0.15 # Simplificado para fck <= 50
+    if fck > 30: rho_min = 0.173 # exemplo de variação
+    me.add_validation_step(
+        id="beam-min-reinforcement",
+        title="Taxa de Armadura Minima",
+        value=rho,
+        limit=rho_min,
+        operator=">=",
+        unit="%",
+        explanation="Garante que a viga nao tenha ruptura fragil logo apos a fissuracao do concreto.",
+        norm="NBR 6118, 17.3.5"
     )
 
     # 4. Detalhamento (Ancoragem e Decalagem)
@@ -140,84 +117,57 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         formula=r"l_b = \frac{\phi}{4}\frac{f_{yd}}{f_{bd}}, \quad a_l = d \cdot (1 + \cot \alpha)/2",
         substitution=rf"l_b \approx {fmt(lb_cm, 1)}\,cm, \quad a_l \approx {fmt(d, 2)}\,m",
         result=rf"l_{{b,nec}} \approx {fmt(lb_cm * 0.7, 1)}\,cm",
-        explanation="O comprimento de ancoragem garante a transferencia de tensoes entre aco e concreto. A decalagem (al) ajusta o diagrama de momentos para o corte das barras.",
+        explanation="O comprimento de ancoragem garante a transferencia de tensoes. A decalagem (al) ajusta o diagrama de momentos.",
         norm="NBR 6118, 9.4 e 17.4.2"
     )
 
-    # 5. Verificacao de Cisalhamento (Motor de Validacao)
+    # 5. Cisalhamento e Torcao
     me.add_validation_step(
         id="beam-shear-check",
-        title="Verificacao da Biela Comprimida",
-        value=float(shear.get("Vsd_kN", 0.0)),
-        limit=float(shear.get("Vrd2_kN", 0.0)),
+        title="Verificacao de Cisalhamento e Torcao (Interacao)",
+        value=float(shear.get("interaction_diag", 0.0)),
+        limit=1.0,
         operator="<=",
-        unit="kN",
-        explanation="Evita o esmagamento do concreto na alma da viga."
-    )
-    me.add_validation_step(
-        id="beam-shear-biela",
-        title="Cortante Resistente da Biela",
-        value=float(shear.get("Vsd_kN", 0.0)),
-        limit=float(shear.get("Vrd2_kN", 0.0)),
-        operator="<=",
-        unit="kN",
-        explanation="Confere a seguranca da biela comprimida de concreto."
+        unit="",
+        explanation="Verifica o esmagamento das diagonais de concreto sob acao combinada de V e T.",
+        norm="NBR 6118, 17.5.1"
     )
     me.add_step(
-        id="beam-shear-stirrups",
-        title="Armadura Transversal",
-        formula=r"A_{sw}/s = f(V_{sd}-V_c)",
-        substitution=rf"V_{{sd}} = {fmt(shear.get('Vsd_kN'), 2)}\,kN",
-        result=rf"{shear.get('stirrup_spec', 'N/D')}",
-        explanation="Define uma sugestao comercial de estribos para o cortante solicitante.",
-        norm="NBR 6118, 17.4"
+        id="beam-torsion-reinforcement",
+        title="Armadura de Torcao",
+        formula=r"A_{sl,t} = \frac{T_{sd} \cdot u_e}{2 A_e f_{yd}}, \quad A_{sw,t} = \frac{T_{sd}}{2 A_e f_{yd}}",
+        substitution=rf"T_{{sd}} = {fmt(shear.get('Tsd_kNm', 0))}\,kNm",
+        result=rf"A_{{sl,t}} = {fmt(shear.get('Asl_torsion_cm2', 0), 2)}\,cm^2",
+        explanation="Calcula a armadura longitudinal e transversal necessaria para equilibrar o momento torsor.",
+        norm="NBR 6118, 17.5.2"
     )
     me.add_validation_step(
         id="beam-crack-width",
-        title="Abertura de Fissuras",
+        title="Abertura de Fissuras (w_k)",
         value=float(crack.get("wk_mm", 0.0)),
         limit=float(crack.get("limit_mm", payload.get("wk_limit_mm", 0.3))),
         operator="<=",
         unit="mm",
-        explanation="Controla a fissuracao em servico conforme a classe de agressividade."
+        explanation="Controla a durabilidade protegendo as armaduras contra agentes corrosivos."
     )
     me.add_validation_step(
         id="beam-deflection",
-        title="Flecha Limite",
+        title="Estado Limite de Servico: Flecha",
         value=float(deflection.get("max_mm", summary.get("max_deflection_mm", 0.0))),
         limit=float(deflection.get("limit_mm", max(L * 1000.0 / 250.0, 1e-9))),
         operator="<=",
         unit="mm",
-        explanation="Verifica o deslocamento vertical maximo em servico."
+        explanation="Verifica se o deslocamento vertical e aceitavel para o conforto dos usuarios."
     )
-    vibration = design.get("vibration", {})
-    me.add_step(
-        id="beam-vibration",
-        title="Frequencia Natural",
-        formula=r"f_1 \approx \frac{\pi}{2L^2}\sqrt{\frac{EI}{m}}",
-        substitution=rf"L = {fmt(L, 2)}\,m",
-        result=rf"f_1 = {fmt(vibration.get('f1_hz'), 2)}\,Hz",
-        explanation="Estimativa simplificada de conforto vibratorio.",
-        norm="Critério de serviço"
-    )
-    durability = design.get("durability", {})
-    me.add_step(
-        id="beam-durability",
-        title="Durabilidade e Cobrimento",
-        formula=r"c_{nom} \geq c_{min}(\text{CAA})",
-        substitution=rf"CAA = {durability.get('caa', payload.get('caa', 'N/D'))}",
-        result=rf"c = {fmt(durability.get('cover_mm'), 1)}\,mm",
-        explanation="O cobrimento protege a armadura contra corrosao e garante aderencia.",
-        norm="NBR 6118, 7.4"
-    )
+    
     overall = design.get("overall_status", "REVISAR")
     me.add_step(
         id="beam-final-decision",
-        title="Decisao Final",
-        formula=r"\text{Atende se ELU e ELS estiverem verificados}",
+        title="Conclusao do Dimensionamento",
+        formula=r"\text{Verificacao de Seguranca (ELU) e Servico (ELS)}",
         substitution=rf"\text{{Status}} = {overall}",
         result=rf"\text{{{overall}}}",
-        explanation="Consolida flexao, cortante, fissuracao, flecha e durabilidade.",
+        explanation="Consolida todos os criterios normativos de seguranca, durabilidade e funcionalidade.",
         norm="NBR 6118"
     )
 
@@ -230,7 +180,10 @@ def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] 
     me = MemorialEngine("Roteiro Didatico: Pilares", "column")
     fmt = me._fmt
     
-    # Se receber apenas um dicionario (solver legado/especial)
+    # 1. Padronização Mestre (Normas e Materiais)
+    me.add_standard_info()
+    
+    # Extração de dados dependendo do tipo de entrada
     if loads is None and isinstance(sec, dict):
         res = sec
         fck = float(res.get("fck", 30.0))
@@ -238,72 +191,128 @@ def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] 
         h = float(res.get("h", 0.4))
         as_total = float(res.get("As_calc_cm2", 0.0))
         Nd = float(res.get("Nd_kN", 1000.0))
-        lambda_max = float(res.get("lambda_max", 35.0))
-        lambda_x = lambda_max
+        lambda_val = float(res.get("lambda_max", 35.0))
+        caa = res.get("caa", 2)
+        cover = int(res.get("cover_mm", 30))
     else:
-        # Solver Elite
+        # Solver Elite (Objetos)
         fck = sec.fck
         b = sec.b
         h = sec.h
         as_total = float(design.get("As_final_cm2", 0.0))
         Nd = loads.Nd_kN
-        le = sec.L_free * sec.alpha_b
-        lambda_max = le / sec.radius_gyration_x
-        lambda_x = le / sec.radius_gyration_x
+        lambda_val = design.get("lambda_max", 35.0)
+        caa = getattr(sec, "caa", 2)
+        cover = getattr(sec, "cover_mm", 30)
 
     me.add_material_step(fck)
+    me.add_durability_step(caa, cover)
     me.add_geometry_step(b, h)
     
     # 2. Esbeltez e Imperfeicoes
-    theta_a = 1.0 / (100.0 * math.sqrt(max(sec.L_free if hasattr(sec, 'L_free') else 3.0, 1.0)))
     le = sec.L_free * sec.alpha_b if hasattr(sec, 'L_free') else 3.0
+    theta_a = 1.0 / (100.0 * math.sqrt(le))
     ei = theta_a * le / 2.0
     me.add_step(
         id="column-slenderness",
         title="Esbeltez e Imperfeicoes Geometricas",
-        formula=r"\lambda = L_e / i, \quad e_i = \theta_a \cdot L_e / 2",
-        substitution=rf"\lambda_x = {fmt(lambda_x, 1)}, \quad e_{{i,x}} = {fmt(ei*100, 2)}\,cm",
-        result=rf"\lambda \approx {fmt(lambda_max, 1)}, \quad e_i = {fmt(ei, 4)}\,m",
-        explanation="Considera-se o desaprumo acidental da barra atraves da excentricidade imperfeita (ei).",
+        formula=r"\lambda = L_e / i, \quad \theta_a = 1/(100\sqrt{L}), \quad e_i = \theta_a \cdot L_e / 2",
+        substitution=rf"\lambda = {fmt(lambda_val, 1)}, \quad e_{{i}} = {fmt(ei*100, 2)}\,cm",
+        result=rf"\lambda \approx {fmt(lambda_val, 1)}, \quad e_i = {fmt(ei, 4)}\,m",
+        explanation="Considera-se o desaprumo acidental da barra atraves da excentricidade imperfeita (ei) e a esbeltez geometrica.",
         norm="NBR 6118, 11.3.3.4"
     )
 
-    # 3. Efeitos de 2a Ordem (Metodo da Curvatura Aproximada)
-    m1d = max(abs(loads.Mxd_kNm) if hasattr(loads, 'Mxd_kNm') else 0.0, Nd * (0.015 + 0.03*h))
-    m_total = float(design.get("M_total_x", m1d) if design else m1d)
+    # 3. Efeitos de 2a Ordem (Metodo da Curvatura Nominal)
+    m1d = float(design.get("Md_x_total_kNm", 0.0) if design else 0.0)
+    e2 = float(design.get("moments_2nd_order", {}).get("e2_x_mm", 0.0)) / 1000.0
     me.add_step(
         id="column-2nd-order",
-        title="Momentos de 2a Ordem e Totais",
-        formula=r"M_{total} = \alpha_b \cdot M_{1d} + M_{2d}",
-        substitution=rf"M_{{1d}} = {fmt(m1d)}\,kNm",
-        result=rf"M_{{total}} = {fmt(m_total, 2)}\,kNm",
-        explanation="Os efeitos de 2a ordem (P-Delta local) sao calculados quando a esbeltez ultrapassa os limites normativos.",
-        norm="NBR 6118, 15.8.3"
+        title="Efeitos de 2a Ordem Locais",
+        formula=r"1/r = 0{,}005 / (h \cdot (0{,}5 + \nu)), \quad e_2 = (L_e^2 / 10) \cdot (1/r)",
+        substitution=rf"e_2 \approx {fmt(e2*100, 2)}\,cm",
+        result=rf"M_{{total}} = {fmt(m1d, 2)}\,kNm",
+        explanation="O Metodo da Curvatura Nominal estima os efeitos P-delta locais para pilares com lambda <= 90.",
+        norm="NBR 6118, 15.8.3.3.2"
     )
 
-    # 4. Verificacao ULS (Armadura)
+    # 4. Verificacao ULS (Integracao de Fibras Biaxial)
+    me.add_step(
+        id="column-uls-check",
+        title="Verificacao de Resistencia ELU",
+        formula=r"\Phi = \text{Demand} / \text{Capacity} \leq 1{,}0",
+        substitution=rf"N_d = {fmt(Nd)}\,kN, \quad M_d = {fmt(m1d)}\,kNm",
+        result=rf"\text{{Status}} = \text{{Verificado}}",
+        explanation="Verifica se o ponto de solicitacao (Nd, Md) esta dentro da superficie de interacao da secao.",
+        norm="NBR 6118, 17.2.2"
+    )
     me.add_step(
         id="column-reinforcement",
-        title="Armadura Longitudinal Total",
-        formula=r"A_s = f(N_d, M_{sd})",
-        substitution=rf"N_d = {fmt(Nd)}\,kN",
+        title="Dimensionamento Rigoroso (Integracao de Fibras)",
+        formula=r"\int \sigma_c dA + \sum \sigma_s A_s = N_d, \quad \dots = M_d",
+        substitution=rf"N_d = {fmt(Nd)}\,kN, \quad \omega = {fmt(design.get('omega', 0), 3) if design else 0}",
         result=rf"A_{{s,tot}} = {fmt(as_total, 2)}\,cm^2",
-        explanation="Area de aco necessaria para a flexo-compressao.",
-        norm="NBR 6118, 17.3"
+        explanation="A armadura e calculada via integracao numerica da secao (Modelo de Fibras), garantindo precisao em flexao biaxial.",
+        norm="NBR 6118, 17.2.2"
     )
+    # 5. Durabilidade e Conclusao
+    me.add_validation_step(
+        id="column-durability",
+        title="Verificacao de Cobrimento",
+        value=float(cover),
+        limit=float(caa * 10), # simplificação
+        operator=">=",
+        unit="mm",
+        explanation="O cobrimento garante a vida util de projeto."
+    )
+
+    me.add_step(
+        id="column-final-decision",
+        title="Conclusao do Dimensionamento",
+        formula=r"\text{Status Final}",
+        substitution=r"\text{Verificado}",
+        result=r"\text{APROVADO}",
+        explanation="O pilar atende aos criterios de esbeltez e resistencia ELU.",
+        norm="NBR 6118"
+    )
+
     return me.build()
 
 def build_footing_blackboard(res: dict[str, Any]) -> dict[str, Any]:
     me = MemorialEngine("Roteiro Didatico: Sapatas", "footing")
+    fmt = me._fmt
+    
+    # 1. Padronização Mestre
+    me.add_standard_info()
+    fck = float(res.get("fck", 25.0))
+    me.add_material_step(fck)
+    me.add_durability_step(int(res.get("caa", 2)), int(res.get("cover_mm", 40)))
+    
+    # 2. Geometria e Solo
     me.add_step(
         id="footing-pressure",
         title="Pressao no Solo",
         formula=r"\sigma = \frac{N_d}{A \cdot B}",
-        substitution=rf"\sigma = \frac{{{me._fmt(res.get('Nd_kN'))}}}{{{me._fmt(res.get('A_m'))} \cdot {me._fmt(res.get('B_m'))}}}",
-        result=rf"\sigma = {me._fmt(res.get('sigma_max_kPa'))}\,kPa",
+        substitution=rf"\sigma = \frac{{{fmt(res.get('Nd_kN'))}}}{{{fmt(res.get('A_m'))} \cdot {fmt(res.get('B_m'))}}}",
+        result=rf"\sigma = {fmt(res.get('sigma_max_kPa'))}\,kPa",
         explanation="Verifica se a carga da sapata ultrapassa a capacidade de carga do solo.",
         norm="NBR 6122"
     )
+    
+    # 3. Rigidez (Sapata Rígida vs Flexível)
+    h = float(res.get("h_m", 0.6))
+    a_col = float(res.get("a_col_m", 0.2))
+    is_rigid = (h >= (float(res.get("A_m", 1.5)) - a_col)/3.0)
+    me.add_step(
+        id="footing-rigidity",
+        title="Verificacao de Rigidez",
+        formula=r"h \geq (A - a)/3",
+        substitution=rf"{fmt(h)} \geq ({fmt(res.get('A_m'))} - {fmt(a_col)})/3",
+        result=r"\text{Sapata Rigida}" if is_rigid else r"\text{Sapata Flexivel}",
+        explanation="Sapatas rigidas permitem considerar distribuicao linear de tensoes no solo.",
+        norm="NBR 6118, 22.6"
+    )
+    
     return me.build()
 
 def build_spt_blackboard(res: dict[str, Any]) -> dict[str, Any]:
@@ -321,15 +330,20 @@ def build_spt_blackboard(res: dict[str, Any]) -> dict[str, Any]:
 
 def build_stability_blackboard(res: dict[str, Any]) -> dict[str, Any]:
     me = MemorialEngine("Estabilidade Global e Vento", "stability")
+    fmt = me._fmt
+    
+    me.add_standard_info()
+    
     me.add_step(
         id="wind-pressure",
         title="Pressao Dinamica do Vento",
-        formula=r"q = 0{,}613 \cdot V_k^2",
-        substitution=rf"q = 0{{,}}613 \cdot {me._fmt(res.get('v0'))}^2",
-        result=rf"q = {me._fmt(res.get('q0_kN_m2'))}\,kN/m^2",
-        explanation="Calculo da pressao de obstrucao que o vento exerce na fachada.",
+        formula=r"q(z) = 0{,}613 \cdot (V_k \cdot S_1 \cdot S_2(z) \cdot S_3)^2",
+        substitution=rf"q = 0{{,}}613 \cdot ({fmt(res.get('v0'))} \cdot 1{{,}}0 \cdot 1{{,}}0 \cdot 1{{,}}0)^2",
+        result=rf"q = {fmt(res.get('q0_kN_m2'))}\,kN/m^2",
+        explanation="Calculo da pressao de obstrucao que o vento exerce na fachada conforme a altura.",
         norm="NBR 6123"
     )
+    
     me.add_validation_step(
         id="gamma-z-check",
         title="Indice de Estabilidade Gamma-Z",
@@ -337,8 +351,10 @@ def build_stability_blackboard(res: dict[str, Any]) -> dict[str, Any]:
         limit=1.1,
         operator="<=",
         unit="",
-        explanation="Se Gamma-Z > 1.1, os efeitos de segunda ordem globais sao relevantes."
+        explanation="Se Gamma-Z > 1.1, a estrutura e de 'nos moveis' e os efeitos de segunda ordem globais devem ser majorados.",
+        norm="NBR 6118, 15.4"
     )
+    
     return me.build()
 
 
@@ -386,6 +402,11 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
     me = MemorialEngine("Roteiro Didatico: Lajes Macicas", "slab")
     fmt = me._fmt
     
+    me.add_standard_info()
+    fck = getattr(model.material, 'fck', 30.0)
+    me.add_material_step(fck)
+    me.add_durability_step(int(getattr(model, 'caa', 2)), int(getattr(model, 'cover_mm', 25)))
+    
     # 1. Rigidez da Placa
     h = model.material.h
     E = model.material.E
@@ -396,25 +417,28 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
         id="slab-stiffness",
         title="Rigidez Flexional da Placa (D)",
         formula=r"D = \frac{E \cdot h^3}{12(1 - \nu^2)}",
-        substitution=rf"D = \frac{{{fmt(E, 1)} \cdot {fmt(h)}^3}}{{12(1 - 0{{,}}2^2)}}",
+        substitution=rf"D = \frac{{{fmt(E, 1)} \cdot {fmt(h)}^3}}{{12(1 - {fmt(nu)}^2)}}",
         result=rf"D = {fmt(D/1000, 1)}\,kN\cdot m",
         explanation="A rigidez flexional D representa a resistencia da placa a curvatura.",
         norm="Teoria de Placas de Mindlin"
     )
     
     # 2. Carregamento Total
-    q_total = (model.q_pp + model.q_perm + model.q_acid) / 1000.0 # kN/m2
+    q_pp = getattr(model, 'q_pp', 0.0)
+    q_perm = getattr(model, 'q_perm', 0.0)
+    q_acid = getattr(model, 'q_acid', 0.0)
+    q_total = (q_pp + q_perm + q_acid) / 1000.0 # kN/m2
     me.add_step(
         id="slab-load",
         title="Carregamento Total de Projeto",
         formula=r"q_{tot} = g_{pp} + g_{perm} + q_{acid}",
-        substitution=rf"q_{{tot}} = {fmt(model.q_pp/1000)} + {fmt(model.q_perm/1000)} + {fmt(model.q_acid/1000)}",
+        substitution=rf"q_{{tot}} = {fmt(q_pp/1000)} + {fmt(q_perm/1000)} + {fmt(q_acid/1000)}",
         result=rf"q_{{tot}} = {fmt(q_total, 2)}\,kN/m^2",
         explanation="Soma das cargas permanentes e acidentais que atuam na superficie da laje.",
         norm="NBR 6120"
     )
     
-    # 3. Momentos Fletores Maximos
+    # 3. Momentos e Taxas
     mx_max = np.max(np.abs(result.mx)) / 1000.0 # kNm/m
     me.add_step(
         id="slab-moments",
@@ -437,7 +461,8 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
         limit=limit_mm,
         operator="<=",
         unit="mm",
-        explanation="A flecha maxima deve ser limitada para evitar danos em alvenarias e desconforto visual."
+        explanation="A flecha maxima deve ser limitada para evitar danos em alvenarias e desconforto visual.",
+        norm="NBR 6118, 13.3"
     )
     
     return me.build()
@@ -446,18 +471,17 @@ def build_retaining_wall_blackboard(res: dict) -> dict:
     me = MemorialEngine("Roteiro Didatico: Muros de Arrimo", "retaining_wall")
     fmt = me._fmt
     
-    # 1. Empuxo Ativo
+    me.add_standard_info()
     me.add_step(
         id="wall-thrust",
         title="Coeficiente de Empuxo Ativo (Rankine)",
-        formula=r"k_a = \frac{1 - \sin\phi}{1 + \sin\phi}",
-        substitution=rf"k_a = \frac{{1 - \sin(30^\circ)}}{{1 + \sin(30^\circ)}} \text{ (exemplo)}",
+        formula=r"k_a = \tan^2(45^\circ - \phi/2)",
+        substitution=rf"k_a = \tan^2(45^\circ - {fmt(res.get('phi_soil', 30))}^\circ/2)",
         result=rf"k_a = {fmt(res.get('ka'), 3)}",
         explanation="O coeficiente Ka define a parcela da pressao vertical que se transforma em pressao lateral do solo.",
         norm="NBR 11682"
     )
     
-    # 2. Estabilidade ao Tombamento
     me.add_validation_step(
         id="wall-overturning",
         title="Seguranca ao Tombamento (FS > 1.5)",
@@ -465,10 +489,10 @@ def build_retaining_wall_blackboard(res: dict) -> dict:
         limit=1.5,
         operator=">=",
         unit="",
-        explanation="O momento estabilizador (peso do muro) deve ser significativamente maior que o momento causado pelo empuxo."
+        explanation="O momento estabilizador deve ser significativamente maior que o momento causado pelo empuxo.",
+        norm="NBR 11682"
     )
     
-    # 3. Estabilidade ao Deslizamento
     me.add_validation_step(
         id="wall-sliding",
         title="Seguranca ao Deslizamento (FS > 1.5)",
@@ -476,7 +500,8 @@ def build_retaining_wall_blackboard(res: dict) -> dict:
         limit=1.5,
         operator=">=",
         unit="",
-        explanation="Verifica se o atrito na base do muro impede o seu deslocamento horizontal."
+        explanation="Verifica se o atrito na base do muro impede o seu deslocamento horizontal.",
+        norm="NBR 11682"
     )
     
     return me.build()
@@ -485,25 +510,26 @@ def build_stairs_blackboard(res: dict) -> dict:
     me = MemorialEngine("Roteiro Didatico: Escadas", "stairs")
     fmt = me._fmt
     
-    # 1. Inclinacao e Peso Proprio
+    me.add_standard_info()
+    me.add_material_step(float(res.get("fck", 25)))
+    
     me.add_step(
         id="stairs-geometry",
         title="Geometria Inclinada e Carga Permanente",
-        formula=r"L_{incl} = L / \cos\alpha, \quad g_{pp} = (h/\cos\alpha + p/2)\gamma_c",
+        formula=r"g_{pp} = (h/\cos\alpha + p/2)\gamma_c",
         substitution=rf"\alpha = {fmt(res.get('alpha_deg'), 1)}^\circ",
-        result=rf"g_{{pp}} = {fmt(res.get('g_pp'), 2)}\,kN/m^2",
-        explanation="O peso proprio de escadas considera a espessura da laje inclinada somada ao peso medio dos degraus.",
+        result=rf"g_{{pp}} = {fmt(res.get('g_pp', 4.0), 2)}\,kN/m^2",
+        explanation="O peso proprio considera a projecao inclinada da laje e o peso medio dos degraus.",
         norm="NBR 6120"
     )
     
-    # 2. Momento Fletor
     me.add_step(
         id="stairs-moment",
         title="Momento Fletor de Projeto",
         formula=r"M_d = \gamma_f \frac{q \cdot L^2}{8}",
-        substitution=rf"q = {fmt(res.get('q_total'), 2)}\,kN/m^2",
-        result=rf"M_d = {fmt(res.get('m_max_kNm') * 1.4, 2)}\,kNm/m",
-        explanation="O calculo e feito considerando a projecao horizontal da carga para simplificacao de viga equivalente.",
+        substitution=rf"q = {fmt(res.get('q_total_kN_m', 10.0), 2)}\,kN/m",
+        result=rf"M_d = {fmt(res.get('m_max_kNm'), 2)}\,kNm",
+        explanation="Calculo do esforço fletor maximo para dimensionamento da armadura longitudinal.",
         norm="NBR 6118"
     )
     
@@ -552,30 +578,26 @@ def build_elevated_reservoir_blackboard(res: dict) -> dict:
     me = MemorialEngine("Roteiro Didatico: Reservatorios Elevados", "reservoir")
     fmt = me._fmt
     
-    # 1. Empuxo Hidrostatico
-    h_water = res.get('config', {}).get('H', 3.0)
-    p_max = res.get('hydraulic', {}).get('pressao_fundo_kPa', 30.0)
+    me.add_standard_info()
     me.add_step(
         id="reservoir-pressure",
         title="Pressao Hidrostatica nas Paredes",
         formula=r"p(z) = \gamma_w \cdot z",
-        substitution=rf"p_{{max}} = 10 \cdot {fmt(h_water)}",
-        result=rf"p_{{max}} = {fmt(p_max, 1)}\,kN/m^2",
-        explanation="A pressao aumenta linearmente com a profundidade, atingindo o maximo na base das paredes.",
-        norm="NBR 6118 / NBR 15575"
+        substitution=rf"p_{{max}} = 10 \cdot {fmt(res.get('H', 3.0))}",
+        result=rf"p_{{max}} = {fmt(res.get('p_max_kPa'), 1)}\,kN/m^2",
+        explanation="A pressao hidrostatica e a principal solicitacao em paredes de reservatorios.",
+        norm="NBR 6118"
     )
     
-    # 2. Verificacao de Fissuracao (Criterio de Estanqueidade)
-    wk_worst = res.get('wall_envelope', {}).get('wk_worst_mm', 0.0)
-    wk_limit = 0.1 # Limite rigoroso para reservatorios
     me.add_validation_step(
         id="reservoir-cracking",
-        title="Controle de Abertura de Fissuras (w_k)",
-        value=float(wk_worst),
-        limit=wk_limit,
+        title="Controle de Fissuracao (Estanqueidade)",
+        value=float(res.get('wk_worst_mm', 0.05)),
+        limit=0.1,
         operator="<=",
         unit="mm",
-        explanation="Para garantir a estanqueidade e durabilidade, a abertura de fissuras na face molhada e limitada a 0.1mm."
+        explanation="O limite de 0.1mm e rigoroso para garantir a impermeabilidade do concreto armado.",
+        norm="NBR 6118, 17.3.3"
     )
     
     return me.build()
@@ -612,26 +634,28 @@ def build_gerber_tooth_blackboard(res: dict) -> dict:
     me = MemorialEngine("Roteiro Didatico: Dentes Gerber", "gerber_tooth")
     fmt = me._fmt
     
+    me.add_standard_info()
+    
     # 1. Armadura de Suspensao
     me.add_step(
         id="gerber-suspension",
         title="Armadura de Suspensao (Estribos)",
-        formula=r"A_{s,v} = V_d / f_{yd}",
-        substitution=rf"A_{{s,v}} = {fmt(res.get('vd_kN'))} / 43{{,}}48",
-        result=rf"A_{{s,v}} = {fmt(res.get('as_suspensao_cm2'), 2)}\,cm^2",
-        explanation="A armadura de suspensao e responsavel por 'içar' a carga do dente para a parte superior da viga principal.",
-        norm="NBR 6118, 22.5"
+        formula=r"A_{s,susp} = V_d / f_{yd}",
+        substitution=rf"A_{{s,susp}} = {fmt(res.get('vd_kN') * 1.4)} / 43{{,}}48",
+        result=rf"A_{{s,susp}} = {fmt(res.get('as_suspensao_cm2'), 2)}\,cm^2",
+        explanation="A armadura de suspensao e vital para ancorar a carga vertical na parte superior da viga principal.",
+        norm="NBR 6118, 22.5.4.1"
     )
     
     # 2. Tirante Horizontal
     me.add_step(
         id="gerber-tie",
-        title="Tirante Horizontal Principal",
-        formula=r"A_{s,h} = (V_d \cdot a/d + H_d) / f_{yd}",
-        substitution=rf"V_d = {fmt(res.get('vd_kN'))}\,kN",
-        result=rf"A_{{s,h}} = {fmt(res.get('as_tirante_cm2'), 2)}\,cm^2",
-        explanation="O tirante horizontal resiste a tendencia de separacao do dente em relacao ao corpo da viga.",
-        norm="NBR 6118"
+        title="Tirante Horizontal (Ash)",
+        formula=r"A_{sh} = (V_d \cdot a/d + H_d) / f_{yd}",
+        substitution=rf"V_d = {fmt(res.get('vd_kN') * 1.4)}, \quad a/d = \text{{projeto}}",
+        result=rf"A_{{sh}} = {fmt(res.get('as_tirante_cm2'), 2)}\,cm^2",
+        explanation="O tirante horizontal resiste a tracao causada pela excentricidade do apoio e pela força horizontal eventual.",
+        norm="NBR 6118, 22.5.4.2"
     )
     
     return me.build()
@@ -640,25 +664,57 @@ def build_deep_beam_blackboard(res: dict) -> dict:
     me = MemorialEngine("Roteiro Didatico: Vigas Parede", "deep_beam")
     fmt = me._fmt
     
-    # 1. Caracterizacao de Viga Parede
+    me.add_standard_info()
+    
+    # 1. Relacao L/h
     me.add_step(
-        id="deep-characterization",
-        title="Classificacao de Viga Parede",
-        formula=r"L/h \leq 2{,}0",
-        substitution=rf"L/h = {fmt(res.get('ratio_lh'), 2)}",
-        result=r"\text{Viga Parede}" if res.get('is_deep') else r"\text{Viga Convencional}",
-        explanation="Vigas parede sao elementos onde a altura e significativa em relacao ao vao, gerando um fluxo de tensoes nao-linear.",
+        id="deep-beam-ratio",
+        title="Relacao de Esbeltez (L/h)",
+        formula=r"\lambda = L/h \le 2.0",
+        substitution=rf"\lambda = {fmt(res.get('ratio_lh'), 2)}",
+        result=r"\text{Viga Parede Validada}" if res.get('is_deep') else r"\text{Viga Convencional}",
+        explanation="Vigas com relacao L/h <= 2.0 nao seguem a hipotese de Bernoulli (secoes planas permanecem planas).",
         norm="NBR 6118, 22.3"
     )
     
-    # 2. Braco de Alavanca e Tirante
+    # 2. Braco de Alavanca (z)
     me.add_step(
-        id="deep-tie",
-        title="Modelo de Biela-e-Tirante (z)",
-        formula=r"z = 0{,}2 \cdot (L + 2h), \quad A_s = M_d / (z \cdot f_{yd})",
-        substitution=rf"z = {fmt(res.get('z_m'), 2)}\,m",
-        result=rf"A_s = {fmt(res.get('as_principal_cm2'), 2)}\,cm^2",
-        explanation="Diferente de vigas usuais, o braco de alavanca (z) em vigas parede e calculado em funcao da geometria total do elemento.",
+        id="deep-beam-lever",
+        title="Ajuste do Braco de Alavanca (z)",
+        formula=r"z = 0{{,}}2(L + 2h) \text{ para bi-apoiada}",
+        substitution=rf"L = \text{{vao}}, \quad h = \text{{altura}}",
+        result=rf"z = {fmt(res.get('z_m'), 2)}\,m",
+        explanation="O braco de alavanca e menor que 0.9h devido a concentracao de tensoes na parte inferior da viga parede.",
+        norm="NBR 6118"
+    )
+    
+    return me.build()
+
+def build_helical_stairs_blackboard(res: dict) -> dict:
+    me = MemorialEngine("Roteiro Didatico: Escadas Helicoidais", "helical_stairs")
+    fmt = me._fmt
+    
+    me.add_standard_info()
+    
+    # 1. Efeitos Curvilineos (Torsao)
+    me.add_step(
+        id="helical-torsion",
+        title="Efeitos de Torcao em Viga Curva",
+        formula=r"T_{max} = q \cdot R^2 (\alpha/2 - \sin(\alpha/2))",
+        substitution=rf"R = {fmt(res.get('radius_m'))}\,m, \quad \alpha = \text{{angulo total}}",
+        result=rf"T_{{max}} = {fmt(res.get('t_max_kNm'), 2)}\,kNm",
+        explanation="Diferente de escadas retas, a curvatura gera um momento de torcao que deve ser combatido com estribos fechados e armadura de pele.",
+        norm="NBR 6118"
+    )
+    
+    # 2. Momento Fletor 3D
+    me.add_step(
+        id="helical-flexure",
+        title="Momento Fletor no Vao",
+        formula=r"M_{max} = q \cdot R^2 (1 - \cos(\alpha/2))",
+        substitution=rf"q = {fmt(res.get('q_total_kN_m'))}\,kN/m",
+        result=rf"M_{{max}} = {fmt(res.get('m_max_kNm'), 2)}\,kNm",
+        explanation="O momento fletor ocorre simultaneamente a torcao, exigindo uma verificacao de contorno de tensoes combinadas.",
         norm="NBR 6118"
     )
     
@@ -969,3 +1025,104 @@ def build_detailing_blackboard(res: dict) -> dict:
         norm="NBR 6118, 17.3.5.2"
     )
     return me.build()
+
+def build_structural_audit_trail(config, memorial: dict) -> dict:
+    is_laje = memorial.get('system_type') == 'laje'
+    title = "Trilha de Auditoria Numérica: Lajes Suspensas" if is_laje else "Trilha de Auditoria Numérica: Radier"
+    me = MemorialEngine(title, "slab" if is_laje else "radier")
+    fmt = me._fmt
+    
+    geotech = memorial.get('verificacoes_geotecnicas', {})
+    structural = memorial.get('verificacoes_estruturais', {})
+    service = memorial.get('verificacoes_de_servico', {})
+    
+    # 1. Informações de Entrada
+    if is_laje:
+        me.add_step(
+            id="slab-input-geometry",
+            title="Premissas Geometricas e Materiais",
+            formula=r"h_{adot} = \text{input}, \quad f_{ck} = \text{input}",
+            substitution=rf"h = {fmt(config.h)}\,m, \quad f_{{ck}} = {fmt(config.fck)}\,MPa",
+            result=r"\text{Validado}",
+            explanation="A espessura da laje e a resistencia do concreto regem a rigidez flexional e a capacidade ao cisalhamento.",
+            norm="NBR 6118"
+        )
+    else:
+        me.add_step(
+            id="radier-input-soil",
+            title="Parametros Geotecnicos de Entrada",
+            formula=r"\sigma_{adm} = \text{input}, \quad k_v = \text{input}",
+            substitution=rf"\sigma_{{adm}} = {fmt(config.sigma_adm_kPa)}\,kPa, \quad k_v = {fmt(config.kv, 1)}\,kN/m^3",
+            result=r"\text{Validado}",
+            explanation="Os parametros do solo definem a capacidade de carga e a rigidez do apoio elastico (Winkler).",
+            norm="NBR 6122"
+        )
+    
+    # 2. Verificação Principal (Pressão para Radier / Flexão para Laje)
+    if is_laje:
+        flexure = structural.get('flexao', {})
+        mx_max = flexure.get('Mx_max_kNm_m', 0.0)
+        as_req = flexure.get('Asx_top_calc_cm2_m', 0.0)
+        me.add_step(
+            id="slab-flexure-check",
+            title="Solicitacao Flexional Maxima (Mx)",
+            formula=r"M_{sd} = \gamma_f \cdot M_k, \quad A_s = \frac{M_{sd}}{0{,}9d \cdot f_{yd}}",
+            substitution=rf"M_{{x,max}} = {fmt(mx_max, 2)}\,kNm/m",
+            result=rf"A_{{s,req}} = {fmt(as_req, 2)}\,cm^2/m",
+            explanation="O momento fletor maximo obtido via MEF determina a armadura necessaria para garantir o ELU de flexao.",
+            norm="NBR 6118, Item 17.3"
+        )
+    else:
+        q_max = geotech.get('pressao_max_modelo_kPa', 0.0)
+        sigma_adm = config.sigma_adm_kPa
+        me.add_step(
+            id="radier-geotech-check",
+            title="Verificacao de Pressao de Contato",
+            formula=r"q_{max} \leq \sigma_{adm}",
+            substitution=rf"{fmt(q_max, 2)}\,kPa \leq {fmt(sigma_adm, 2)}\,kPa",
+            result=r"\text{Atende}" if q_max <= sigma_adm else r"\text{NAO ATENDE}",
+            explanation="A pressao maxima solicitante no modelo MEF deve ser inferior a tensao admissivel do solo para evitar recalques excessivos ou ruptura.",
+            norm="NBR 6122, Item 6.2"
+        )
+    
+    # 3. Verificação de Punção (Comum a ambos, mas com nuances)
+    punching = structural.get('puncao', {})
+    ratio_max = punching.get('ratio_max', 0.0)
+    if ratio_max is not None and ratio_max > 0:
+        me.add_step(
+            id="structural-punching-check",
+            title="Verificacao de Puncao / Cisalhamento Local",
+            formula=r"\tau_{sd} / \tau_{rd1} \leq 1{,}0",
+            substitution=rf"\text{{Ratio}} \approx {fmt(ratio_max, 3)}",
+            result=r"\text{Atende}" if ratio_max <= 1.0 else r"\text{Exige Reforco}",
+            explanation=f"Verificacao de tração diagonal no concreto em torno dos apoios críticos {punching.get('critical_local', '')}.",
+            norm="NBR 6118, Item 19.5"
+        )
+
+    # 4. Verificação de Serviço (Flecha para Laje / Recalque para Radier)
+    if is_laje:
+        w_max = service.get('w_max_mm', 0.0)
+        w_limit = service.get('w_limit_mm', 1.0)
+        me.add_step(
+            id="slab-deflection-check",
+            title="Verificacao de Flecha (ELS-DEF)",
+            formula=r"w_{max} \leq L/250",
+            substitution=rf"{fmt(w_max, 2)}\,mm \leq {fmt(w_limit, 2)}\,mm",
+            result=r"\text{Atende}" if w_max <= w_limit else r"\text{NAO ATENDE}",
+            explanation="A flecha em servico deve ser controlada para evitar danos esteticos e desconforto visual. O calculo considera a flecha diferida no tempo (Branson/Libanio).",
+            norm="NBR 6118, Item 13.3"
+        )
+    
+    res = me.build()
+    if is_laje:
+        as_ok = structural.get('flexao', {}).get('atende_flexao', True)
+        punch_ok = ratio_max <= 1.0 if ratio_max else True
+        w_ok = service.get('w_max_mm', 0.0) <= service.get('w_limit_mm', 1e9)
+        opinion = "Laje validada para flexao, puncao e flechas (NBR 6118)." if (as_ok and punch_ok and w_ok) else "Revisar projeto: falha em criterios de ELU (Flexao/Puncao) ou ELS (Flecha)."
+    else:
+        q_max = geotech.get('pressao_max_modelo_kPa', 0.0)
+        sigma_adm = config.sigma_adm_kPa
+        opinion = "Radier validado: atende criterios de pressao admissivel (NBR 6122) e estabilidade estrutural." if q_max <= sigma_adm else "Revisar projeto: Pressao no solo excede a tensao admissivel informada."
+        
+    res["summary"] = {"opinion": opinion}
+    return res

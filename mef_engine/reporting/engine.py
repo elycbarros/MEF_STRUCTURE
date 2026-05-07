@@ -88,16 +88,16 @@ class MemorialEngine:
         elif operator == "==": passed = abs(value - limit) < 1e-6
         
         status = "OK" if passed else "ALERTA"
-        res_text = r"\text{Atende}" if passed else r"\text{Nao atende / Revisar}"
+        res_text = r"\mathrm{Atende}" if passed else r"\mathrm{Nao\ atende\ /\ Revisar}"
         
         formula = rf"Value {operator} Limit" # Placeholder to be replaced by actual logic in caller or improved here
         
         return self.add_step(
             id=id,
             title=title,
-            formula=rf"Verification: \text{{Value}} {operator} \text{{Limit}}",
+            formula=rf"Verification: \mathrm{{Value}} {operator} \mathrm{{Limit}}",
             substitution=rf"{self._fmt(value)} {operator} {self._fmt(limit)}",
-            result=rf"{res_text} \quad ({self._fmt(value)}\,{unit})",
+            result=rf"{res_text}\ ({self._fmt(value)}{unit})",
             explanation=explanation,
             norm=norm,
             status=status
@@ -119,18 +119,48 @@ class MemorialEngine:
             norm="NBR 6118, Itens 8.2 e 8.3"
         )
 
-    def add_geometry_step(self, b_m: float, h_m: float, d_m: Optional[float] = None):
-        """Adiciona passo de geometria da secao."""
-        ac = b_m * h_m
-        d_val = d_m if d_m else h_m - 0.04 # fallback simplificado
+    def add_durability_step(self, caa: int, cover_mm: int):
+        """Adiciona passo de Durabilidade e Cobrimento."""
+        env_types = {
+            1: "I (Fraca) - Rural/Submersa",
+            2: "II (Moderada) - Urbana",
+            3: "III (Forte) - Marinha/Industrial",
+            4: "IV (Muito Forte) - Industrial/Respingos de Mare"
+        }
+        env_desc = env_types.get(caa, "Desconhecida")
         return self.add_step(
+            id="durability",
+            title="Durabilidade e Cobrimento",
+            formula=rf"CAA = {caa} \rightarrow c_{{nom}} \geq {cover_mm}\,mm",
+            substitution=rf"\text{{Classe: }} {env_desc}",
+            result=rf"c_{{nom}} = {cover_mm}\,mm",
+            explanation="O cobrimento nominal garante a protecao das armaduras contra a corrosao durante a vida util.",
+            norm="NBR 6118, Tabela 6.1 e 7.2"
+        )
+
+    def add_standard_info(self):
+        """Adiciona informacoes sobre a norma vigente."""
+        return self.add_step(
+            id="normative",
+            title="Referencia Normativa",
+            formula=r"\text{NBR 6118:2023}",
+            substitution=r"\text{Projeto de Estruturas de Concreto}",
+            result=r"\text{Vigente}",
+            explanation="Todos os calculos seguem rigorosamente os criterios de seguranca e servico da norma brasileira.",
+            norm="Referencia Principal"
+        )
+
+    def add_geometry_step(self, b_m: float, h_m: float, d_m: Optional[float] = None):
+        """Adiciona passo de geometria da seção."""
+        d_val = d_m if d_m else h_m - 0.04
+        self.add_step(
             id="geometry",
-            title="Geometria da Secao",
-            formula=r"A_c = b \cdot h, \quad d \approx h - d'",
-            substitution=rf"A_c = {self._fmt(b_m)} \cdot {self._fmt(h_m)}",
-            result=rf"A_c = {self._fmt(ac, 4)}\,m^2, \quad d = {self._fmt(d_val, 3)}\,m",
-            explanation="A area bruta e a altura util definem a capacidade rigida e o braco de alavanca da secao.",
-            norm="Geometria Resistente"
+            title="Geometria da Seção",
+            formula=r"b_w \times h, \quad d \approx h - d'",
+            substitution=rf"{self._fmt(b_m)} \times {self._fmt(h_m)}, \quad d = {self._fmt(d_val)}",
+            result=rf"A_c = {self._fmt(b_m * h_m, 3)}\,m^2",
+            explanation="Definição das dimensões geométricas e altura útil da seção.",
+            norm="NBR 6118"
         )
 
     def build(self) -> Dict[str, Any]:

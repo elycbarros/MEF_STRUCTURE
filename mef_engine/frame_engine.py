@@ -104,7 +104,13 @@ class Frame3DEngine:
         return me
 
     def solve(self, loads: List[FrameLoad], supports: Dict[int, List[int]], axial_loads: Optional[Dict[int, float]] = None) -> dict:
-        K = np.zeros((self.ndof, self.ndof))
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.linalg import spsolve
+        from scipy.sparse import eye
+        
+        row_idx = []
+        col_idx = []
+        data_val = []
         F = np.zeros(self.ndof)
         
         for m in self.members:
@@ -112,24 +118,34 @@ class Frame3DEngine:
             P = axial_loads.get(m.id, 0.0) if axial_loads else 0.0
             k_glob = T.T @ self._get_k_local(m, L, P) @ T
             idx_i, idx_j = self.node_map[m.node_i]*6, self.node_map[m.node_j]*6
-            ix = list(range(idx_i, idx_i+6)) + list(range(idx_j, idx_j+6))
-            for i_l, i_g in enumerate(ix):
-                for j_l, j_g in enumerate(ix): K[i_g, j_g] += k_glob[i_l, j_l]
+            dofs = list(range(idx_i, idx_i+6)) + list(range(idx_j, idx_j+6))
+            
+            for i_local in range(12):
+                for j_local in range(12):
+                    row_idx.append(dofs[i_local])
+                    col_idx.append(dofs[j_local])
+                    data_val.append(k_glob[i_local, j_local])
         
         for l in loads: 
             F[self.node_map[l.node_id]*6 : self.node_map[l.node_id]*6+6] += [l.Fx, l.Fy, l.Fz, l.Mx, l.My, l.Mz]
         
-        # BCs via big value (Penalty)
+        # Penalização para apoios (BCs) - Adicionar na diagonal da matriz esparsa
         for nid, dofs in supports.items():
             for d in dofs:
                 idx = self.node_map[nid]*6 + d
-                K[idx, idx] += 1e18
+                row_idx.append(idx)
+                col_idx.append(idx)
+                data_val.append(1e18)
                 
+        K = coo_matrix((data_val, (row_idx, col_idx)), shape=(self.ndof, self.ndof)).tocsr()
+        
         try:
-            U = np.linalg.solve(K, F)
-        except np.linalg.LinAlgError:
-            raise UnstableModelError("Matriz de rigidez do pórtico 3D é singular. Verifique os apoios e conectividade.", module="frame_engine")
+            # Regularização mínima
+            K_reg = K + eye(self.ndof, format='csr') * 1e-9
+            U = spsolve(K_reg, F)
         except Exception as e:
+            if "singular" in str(e).lower():
+                raise UnstableModelError("Matriz de rigidez do pórtico 3D é singular. Verifique os apoios e conectividade.", module="frame_engine")
             raise NumericalFailureError(f"Erro numérico na resolução do pórtico: {str(e)}", module="frame_engine")
             
         disps = {nid: U[self.node_map[nid]*6 : self.node_map[nid]*6+6] for nid in self.nodes}
@@ -156,19 +172,25 @@ class Frame3DEngine:
 
     def solve_modal(self, supports: Dict[int, List[int]], n_modes: int = 3) -> dict:
         """Análise Modal: Frequências Naturais e Modos (M5-Master)."""
-        K = np.zeros((self.ndof, self.ndof))
-        M = np.zeros((self.ndof, self.ndof))
+        from scipy.sparse import coo_matrix
+        
+        row_idx_k = []; col_idx_k = []; data_val_k = []
+        row_idx_m = []; col_idx_m = []; data_val_m = []
         
         for m in self.members:
             T, L = self._get_transformation(m)
             k_glob = T.T @ self._get_k_local(m, L) @ T
             m_glob = T.T @ self._get_m_local(m, L) @ T
             idx_i, idx_j = self.node_map[m.node_i]*6, self.node_map[m.node_j]*6
-            ix = list(range(idx_i, idx_i+6)) + list(range(idx_j, idx_j+6))
-            for i_l, i_g in enumerate(ix):
-                for j_l, j_g in enumerate(ix):
-                    K[i_g, j_g] += k_glob[i_l, j_l]
-                    M[i_g, j_g] += m_glob[i_l, j_l]
+            dofs = list(range(idx_i, idx_i+6)) + list(range(idx_j, idx_j+6))
+            
+            for i_local in range(12):
+                for j_local in range(12):
+                    row_idx_k.append(dofs[i_local]); col_idx_k.append(dofs[j_local]); data_val_k.append(k_glob[i_local, j_local])
+                    row_idx_m.append(dofs[i_local]); col_idx_m.append(dofs[j_local]); data_val_m.append(m_glob[i_local, j_local])
+        
+        K = coo_matrix((data_val_k, (row_idx_k, col_idx_k)), shape=(self.ndof, self.ndof)).tocsr()
+        M = coo_matrix((data_val_m, (row_idx_m, col_idx_m)), shape=(self.ndof, self.ndof)).tocsr()
         
         # Reduzir matrizes (Remover DOFs suportados)
         fixed_dofs = []
