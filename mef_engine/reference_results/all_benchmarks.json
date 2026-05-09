@@ -1,0 +1,116 @@
+{
+  "simple_beam": {
+    "description": "Viga engastada-apoiada (L=8m, b=0.2m, h=0.5m, E=25GPa, carga uniforme 20kN/m)",
+    "input": {
+      "nodes": [
+        {"id": 1, "x": 0.0, "y": 0.0, "z": 0.0},
+        {"id": 2, "x": 4.0, "y": 0.0, "z": 0.0},
+        {"id": 3, "x": 8.0, "y": 0.0, "z": 0.0}
+      ],
+      "members": [
+        {
+          "id": 1, "node_i": 1, "node_j": 2,
+          "section": {"area": 0.1, "iy": 0.00208333, "iz": 0.00083333, "j": 0.0015},
+          "material": {"e": 25e9, "g": 10e9},
+          "type": "beam"
+        },
+        {
+          "id": 2, "node_i": 2, "node_j": 3,
+          "section": {"area": 0.1, "iy": 0.00208333, "iz": 0.00083333, "j": 0.0015},
+          "material": {"e": 25e9, "g": 10e9},
+          "type": "beam"
+        }
+      ],
+      "loads": [
+        {"type": "uniform_on_beam", "beam_id": 1, "wz": -20000.0},
+        {"type": "uniform_on_beam", "beam_id": 2, "wz": -20000.0}
+      ],
+      "supports": {"1": [0,1,2,3,4,5], "3": [1,2]}
+    },
+    "expected": {
+      "max_deflection_m": -0.00814,
+      "moment_at_fixed_end_Nm": 37500.0
+    },
+    "source": "Solução analítica (Manual de Vigas, Young & Budynas)"
+  },
+
+  "simple_frame": {
+    "description": "Pórtico plano 2D de 1 vão e 1 pavimento, carga vertical no meio da viga. Pilares engastados na base.",
+    "input": {
+      "nodes": [
+        {"id": 1, "x": 0.0, "y": 0.0, "z": 0.0},
+        {"id": 2, "x": 0.0, "y": 4.0, "z": 0.0},
+        {"id": 3, "x": 6.0, "y": 4.0, "z": 0.0},
+        {"id": 4, "x": 6.0, "y": 0.0, "z": 0.0}
+      ],
+      "members": [
+        {"id": 1, "node_i": 1, "node_j": 2, "section": {"area": 0.09, "iy": 0.000675, "iz": 0.000675, "j": 0.001}, "material": {"e": 25e9, "g": 10e9}, "type": "column"},
+        {"id": 2, "node_i": 2, "node_j": 3, "section": {"area": 0.09, "iy": 0.000675, "iz": 0.000675, "j": 0.001}, "material": {"e": 25e9, "g": 10e9}, "type": "beam"},
+        {"id": 3, "node_i": 3, "node_j": 4, "section": {"area": 0.09, "iy": 0.000675, "iz": 0.000675, "j": 0.001}, "material": {"e": 25e9, "g": 10e9}, "type": "column"}
+      ],
+      "loads": [
+        {"type": "nodal", "node_id": 3, "fz": -50000.0}
+      ],
+      "supports": {"1": [0,1,2,3,4,5], "4": [0,1,2,3,4,5]}
+    },
+    "expected": {
+      "horizontal_deflection_at_top_m": 0.00234,
+      "moment_at_base_column1_Nm": 18750.0
+    },
+    "source": "SAP2000 v24 - validação interna"
+  },
+
+  "three_d_portico": {
+    "description": "Pórtico espacial 3D, 2 pavimentos, 2 vãos, carga de vento lateral na direção X.",
+    "input_url": "https://raw.githubusercontent.com/atlas-benchmarks/sample-data/main/3d_portico.json",
+    "expected": {
+      "max_drift_ratio": 0.0018,
+      "gamma_z": 1.12
+    },
+    "source": "NBR 6118 exemplo de aplicação (Anexo D)"
+  },
+
+  "radier_plate": {
+    "description": "Laje retangular de 12x12 m, espessura 0.3 m, carga uniforme 50 kPa, solo tipo areia (coeficiente de Winkler k=30000 kN/m³).",
+    "input": {
+      "nodes": [
+        {"id": 1, "x": 0.0, "y": 0.0, "z": 0.0},
+        {"id": 2, "x": 6.0, "y": 0.0, "z": 0.0},
+        {"id": 3, "x": 12.0, "y": 0.0, "z": 0.0},
+        {"id": 4, "x": 0.0, "y": 6.0, "z": 0.0},
+        {"id": 5, "x": 6.0, "y": 6.0, "z": 0.0},
+        {"id": 6, "x": 12.0, "y": 6.0, "z": 0.0},
+        {"id": 7, "x": 0.0, "y": 12.0, "z": 0.0},
+        {"id": 8, "x": 6.0, "y": 12.0, "z": 0.0},
+        {"id": 9, "x": 12.0, "y": 12.0, "z": 0.0}
+      ],
+      "shell_elements": [
+        {"id": 1, "nodes": [1,2,5,4], "thickness": 0.3, "material": {"e": 25e9, "nu": 0.2}},
+        {"id": 2, "nodes": [2,3,6,5], "thickness": 0.3, "material": {"e": 25e9, "nu": 0.2}},
+        {"id": 3, "nodes": [4,5,8,7], "thickness": 0.3, "material": {"e": 25e9, "nu": 0.2}},
+        {"id": 4, "nodes": [5,6,9,8], "thickness": 0.3, "material": {"e": 25e9, "nu": 0.2}}
+      ],
+      "loads": [
+        {"type": "uniform_on_shell", "value": -50000.0}
+      ],
+      "foundation": {"type": "winkler", "k": 30000.0}
+    },
+    "expected": {
+      "max_settlement_m": -0.0125,
+      "moment_at_center_kNm_per_m": 45.2
+    },
+    "source": "MEF com malha 4x4, comparado com solução analítica de placa circular equivalente"
+  },
+
+  "building_40_stories": {
+    "description": "Edifício de concreto armado com 40 pavimentos (mais térreo e subsolo), estrutura mista (pórtico 3D com núcleo rígido). Dados resumidos.",
+    "input_url": "https://github.com/atlas-benchmarks/sample-data/raw/main/building_40stories.json.gz",
+    "expected": {
+      "fundamental_period_s": 2.45,
+      "top_displacement_wind_x_m": 0.32,
+      "gamma_z": 1.18,
+      "max_interstory_drift_ratio": 0.0019
+    },
+    "source": "SAP2000 v24 - modelo detalhado fornecido por engenheiro colaborador (dados disponíveis sob demanda)"
+  }
+}

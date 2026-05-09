@@ -1,0 +1,20 @@
+{
+  "benchmark": "P-Delta Portico 10 Pavimentos",
+  "reference": "NBR 6118:2014 / McGuire (Matrix Structural Analysis)",
+  "model_params": {
+    "stories": 10,
+    "bay_width": 6.0,
+    "story_height": 3.0,
+    "loads": {
+      "gravity_kn_m": 30.0,
+      "wind_kn": 10.0
+    }
+  },
+  "expected_results": {
+    "top_displacement_linear_mm": 44.20,
+    "top_displacement_pdelta_mm": 52.30,
+    "gamma_z_reference": 1.183,
+    "b2_amplification": 1.183
+  },
+  "tolerance": 0.01
+}

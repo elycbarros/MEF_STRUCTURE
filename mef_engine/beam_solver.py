@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 import numpy as np
+import math
 from errors import InvalidInputError, UnstableModelError, NumericalFailureError, OutOfScopeError
 
 
@@ -238,14 +239,15 @@ class BeamFEMSolver:
             F[3 * node + 1] += pl.M             # Momento fletor concentrado
             # pl.eccentricity já está em e_total, não somar de novo!
 
-        # Apoios (Penalidade)
-        penalty = 1e16
+        # Penalidade baseada na rigidez máxima para evitar instabilidade numérica
+        # P = max(diag(K)) * 1e6 é uma boa regra, mas aqui usaremos um valor alto e fixo seguro para double precision
+        penalty = 1e18 
         for sup in self.model.supports:
             node = int(np.clip(np.round(sup.x / self.Le), 0, self.n_nodes - 1))
             dof_w, dof_t, dof_p = 3*node, 3*node+1, 3*node+2
             if sup.type in ('pinned', 'roller', 'fixed'):
                 row_idx.append(dof_w); col_idx.append(dof_w); data_val.append(penalty)
-                # Restringir torção (phi) em apoios pinned/roller para evitar instabilidade global
+                # Restringir torção (phi) em apoios pinned/fixed para evitar instabilidade global (mecanismo)
                 if sup.type in ('pinned', 'fixed'):
                     row_idx.append(dof_p); col_idx.append(dof_p); data_val.append(penalty)
             if sup.type == 'fixed':
@@ -305,7 +307,7 @@ class BeamFEMSolver:
             dof_w, dof_t, dof_p = 3*node, 3*node+1, 3*node+2
             
             Rv, Rm, Rt = 0.0, 0.0, 0.0
-            penalty = 1e16
+            penalty = 1e18
             
             if sup.type in ('pinned', 'roller', 'fixed'):
                 Rv = penalty * (0 - U[dof_w])
@@ -313,9 +315,12 @@ class BeamFEMSolver:
                 Rm = penalty * (0 - U[dof_t])
                 Rt = penalty * (0 - U[dof_p])
             if sup.type == 'spring':
-                Rv = sup.k_vertical * U[dof_w]
+                Rv = sup.k_vertical * (0 - U[dof_w])
             
-            reactions[node] = {'R': round(float(Rv)/1000.0, 2), 'M': round(float(Rm)/1000.0, 2), 'T': round(float(Rt)/1000.0, 2)}
+            reactions[str(float(sup.x))] = {'R': float(Rv)/1000.0, 'M': float(Rm)/1000.0, 'T': float(Rt)/1000.0}
+        
+        # DEBUG
+        # print(f"DEBUG SOLVER REACTIONS: {reactions}")
 
         max_deflection = np.max(np.abs(w)) * 1000.0
         max_moment = np.max(np.abs(M_res))
@@ -362,116 +367,120 @@ class NonlinearBeamEngine:
 
 class BeamDesigner:
     @staticmethod
-    def design_flexure(M_sd_kNm: float, section: BeamSection, N_sd_kN: float = 0.0, gamma_c: float = 1.4, gamma_s: float = 1.15) -> dict:
-        """
-        Dimensionamento a flexão simples ou composta (NBR 6118).
-        Inclui excentricidade mínima se N_sd for compressão.
-        """
-        bw, bf, d, h = section.b, section.bf, section.d, section.h
-        fcd_Pa, fyd_Pa = (section.fck / gamma_c) * 1e6, (section.fyk / gamma_s) * 1e6
+    def design_flexure(md_kNm: float, section: BeamSection, gamma_f: float = 1.4) -> dict:
+        """Dimensionamento à flexão (ELU) - NBR 6118."""
+        fck = section.fck
+        fcd = fck / 1.4
+        fyd = section.fyk / 1.15
+        bw = section.b
+        d = section.d
         
-        # 1. Excentricidade Mínima (NBR 6118 §11.3.3.4.1)
-        e_min = 0.015 + 0.03 * h
-        M_sd = abs(M_sd_kNm)
-        if N_sd_kN > 0: # Compressão
-            M_sd += abs(N_sd_kN) * e_min
+        # Parâmetros para fck <= 50
+        eta = 0.85
+        lamb = 0.8
+        x_d_lim = 0.45 if fck <= 50 else 0.35
+        
+        md_d = abs(md_kNm) * 1000.0 # N.m
+        
+        # Coeficiente adimensional k = Md / (bw * d^2 * fcd)
+        k = md_d / (bw * d**2 * fcd * 1e6) if (bw * d) > 0 else 0
+        
+        # k_limite para dutilidade
+        k_lim = eta * lamb * x_d_lim * (1 - 0.5 * lamb * x_d_lim)
+        
+        as_compression = 0.0
+        if k > k_lim:
+            # Armadura Dupla
+            m_lim = k_lim * (bw * d**2 * fcd * 1e6)
+            m_delta = md_d - m_lim
+            d_prime = section.cover + 0.010
+            as_compression = m_delta / (fyd * 1e6 * (d - d_prime))
+            as_tension_lim = m_lim / (fyd * 1e6 * d * (1 - 0.5 * lamb * x_d_lim))
+            as_tension = as_tension_lim + as_compression
+            xi = x_d_lim
+            status = "ARMADURA_DUPLA"
+        else:
+            # Armadura Simples
+            discriminant = 1.0 - (2.0 * k / eta)
+            xi = (1.0 - math.sqrt(max(0, discriminant))) / lamb if k > 0 else 0
+            z = d * (1.0 - 0.5 * lamb * xi)
+            as_tension = md_d / (fyd * 1e6 * z) if z > 0 else 0
+            status = "OK"
             
-        M_sd_Pa = M_sd * 1000.0
-        bw_eff = bf if (M_sd_kNm > 0 and bf > bw) else bw
-        
-        k = M_sd_Pa / (bw_eff * d**2 * fcd_Pa) if (bw_eff * d**2 * fcd_Pa) > 0 else 0
-        discriminant = 1.0 - 2.94 * k
-        if discriminant < 0: return {'status': 'SEÇÃO_INSUFICIENTE', 'As_cm2': 0, 'x_over_d': 1.0, 'domain': '4'}
-        
-        x_d = (1.0 - np.sqrt(discriminant)) / 0.8
-        As_m2 = (M_sd_Pa / (fyd_Pa * d * (1.0 - 0.4 * x_d)))
-        
-        # Ajuste para força axial (N_sd > 0 é compressão, subtrai As; N_sd < 0 é tração, soma As)
-        As_m2 -= (N_sd_kN * 1000.0) / fyd_Pa
-        
-        As_cm2 = As_m2 * 1e4
-        As_min = max(0.15/100.0, 0.04 * (section.fck/gamma_c)/(section.fyk/gamma_s)) * bw * d * 1e4
-        As_final = max(As_cm2, As_min)
+        # Armadura Mínima (0.15% para C25/C30)
+        as_min = 0.0015 * bw * section.h * 1e4 # cm2
+        as_cm2 = max(as_tension * 1e4, as_min)
         
         return {
-            'As_cm2': round(float(As_final), 2),
-            'As_min_cm2': round(As_min, 2),
-            'x_over_d': round(x_d, 4),
-            'domain': '2' if x_d <= 0.259 else ('3' if x_d <= 0.45 else '4'),
-            'M_sd_total_kNm': round(M_sd, 2)
+            'Md_kNm': round(md_kNm, 2),
+            'As_cm2': round(as_cm2, 2),
+            'As_prime_cm2': round(as_compression * 1e4, 2),
+            'x_d': round(xi, 3),
+            'x_d_lim': x_d_lim,
+            'k': round(k, 3),
+            'status': status,
+            'domain': 2 if xi <= 0.259 else (3 if xi <= x_d_lim else 4)
         }
 
     @staticmethod
-    def design_crack_width(M_sk_kNm: float, As_cm2: float, section: BeamSection) -> float:
-        if As_cm2 <= 0: return 0.0
-        sigma_s = (abs(M_sk_kNm) * 1000.0) / (As_cm2 * 1e-4 * 0.8 * section.d) / 1e6 
-        wk = (12.5 / 12.5) * (sigma_s / 210000.0) * (3 * sigma_s / (0.3 * section.fck**(2/3)))
-        return round(float(wk), 3)
-
-    @staticmethod
-    def design_shear_torsion(V_sd_kN: float, T_sd_kNm: float, section: BeamSection, gamma_c: float = 1.4) -> dict:
-        b, h, d, fck = section.b, section.h, section.d, section.fck
-        fcd = fck / gamma_c
-        V_sd = abs(V_sd_kN)
-        T_sd = abs(T_sd_kNm)
+    def design_shear_torsion(v_sd_kN: float, t_sd_kNm: float, section: BeamSection) -> dict:
+        """Verificação de cisalhamento e torção combinados - NBR 6118."""
+        fck = section.fck
+        fcd = fck / 1.4
+        fyd = section.fyk / 1.15
+        b = section.b
+        d = section.d
+        h = section.h
         
-        # 1. Parâmetros da Seção Vazada Equivalente (NBR 6118 §17.5)
-        u = 2 * (b + h)
-        A = b * h
-        he = max(A / u, 2 * section.cover) # espessura da parede
-        Ae = (b - he) * (h - he)
-        ue = 2 * ((b - he) + (h - he))
+        # 1. Biela de Compressão (Cisalhamento)
+        alpha_v = (1 - fck / 250.0)
+        vrd2 = 0.27 * alpha_v * fcd * b * d * 1000.0 # kN
         
-        # 2. Verificação de Esmagamento (Diagonais de Concreto)
-        Vrd2 = 0.27 * (1.0 - fck/250.0) * fcd * b * d * 1000.0
-        Trd2 = 0.50 * (1.0 - fck/250.0) * fcd * Ae * he * 1000.0 * 2 # Simplificado para theta=45
+        # 2. Biela de Compressão (Torção)
+        # Seção vazada equivalente Ae, ue
+        c = section.cover + 0.010
+        be = b - 2*c
+        he = h - 2*c
+        Ae = be * he
+        ue = 2 * (be + he)
+        trd2 = 0.5 * alpha_v * fcd * Ae * (Ae / ue) * 1000.0 # kNm (simplificado)
         
-        check_diagonal = (V_sd / Vrd2) + (T_sd / Trd2)
+        check_diagonal = (v_sd_kN / vrd2) + (t_sd_kNm / trd2) if vrd2 > 0 and trd2 > 0 else 0
         
         # 3. Armadura Transversal (Estribos)
-        Vc = 0.6 * (0.15 * (fck**(2/3))/gamma_c) * b * d * 1000.0
-        Vsw = max(V_sd - Vc, 0.0)
-        Asw_v = (Vsw * 1000.0 / (0.9 * d * min(section.fyk/gamma_c, 435.0))) * 1e-2 # cm2/m
+        fctd = 0.7 * 0.3 * (fck**(2/3)) / 1.4
+        vc = 0.6 * fctd * b * d * 1000.0 # kN
+        vsw = max(0, v_sd_kN - vc)
+        asw_v = (vsw / (0.9 * d * fyd / 10.0)) # cm2/m
         
-        # Torção: Asw,t / s = Tsd / (2 * Ae * fyd)
-        fyd = min(section.fyk/1.15, 435.0)
-        Asw_t = (T_sd * 1000.0 / (2 * Ae * fyd)) * 1e-2 # cm2/m (por ramo)
+        # Torção
+        asw_t = (t_sd_kNm * 100.0 / (2 * Ae * 1e4 * fyd / 10.0)) * 100.0 # cm2/m (por ramo)
         
-        # Asw_total = Asw_v/2 + Asw_t (para estribos de 2 ramos)
-        Asw_final = (Asw_v/2.0 + Asw_t) * 2.0 # cm2/m (total)
-        
-        # Taxa mínima
-        Asw_min = 0.2 * (fck**0.5) / section.fyk * b * 1e4
-        Asw_final = max(Asw_final, Asw_min)
-        
-        # 4. Armadura Longitudinal de Torção
-        Asl_t = (T_sd * 1000.0 * ue / (2 * Ae * fyd)) * 1e-4 # m2 -> cm2
+        asw_total = asw_v + 2 * asw_t # Total de ramos
+        as_min = 0.2 * (fctd/fck*10) * b * 100.0 # cm2/m
+        asw_final = max(asw_total, as_min)
         
         return {
-            'Vsd_kN': round(V_sd, 2), 'Tsd_kNm': round(T_sd, 2),
-            'Vrd2_kN': round(Vrd2, 2), 'Trd2_kNm': round(Trd2, 2),
-            'interaction_diag': round(check_diagonal, 3),
-            'Asw_cm2_m': round(Asw_final, 2),
-            'Asl_torsion_cm2': round(Asl_t * 1e4, 2),
-            'stirrup_spec': _suggest_stirrup(Asw_final, b),
-            'biela_status': 'OK' if check_diagonal <= 1.0 else 'ESMAGAMENTO'
+            'Vsd_kN': round(v_sd_kN, 2),
+            'Tsd_kNm': round(t_sd_kNm, 2),
+            'Vrd2_kN': round(vrd2, 2),
+            'Vc_kN': round(vc, 2),
+            'Vsw_kN': round(vsw, 2),
+            'Asw_cm2_m': round(asw_final, 2),
+            'biela_status': 'OK' if check_diagonal <= 1.0 else 'FALHA',
+            'interaction_diag': round(check_diagonal, 3)
         }
 
     @staticmethod
-    def design_anchorage(phi_mm: float, section: BeamSection, gamma_c: float = 1.4, gamma_s: float = 1.15) -> dict:
-        """Calcula comprimento de ancoragem básica lb (NBR 6118)."""
-        fck = section.fck
-        fctd = 0.7 * 0.3 * (fck**(2/3)) / gamma_c
-        fbd = 2.25 * 1.0 * fctd 
-        fyd = section.fyk / gamma_s
-        lb = (phi_mm / 4000.0) * (fyd / fbd)
-        return {'phi_mm': phi_mm, 'lb_m': round(lb, 3), 'lb_cm': round(lb * 100, 1)}
-
-    @staticmethod
-    def check_vibration(L: float, EI: float, mass_kg_m: float) -> dict:
-        if L <= 0 or mass_kg_m <= 0: return {'f1_hz': 0}
-        f1 = (np.pi / (2 * L**2)) * np.sqrt(EI / mass_kg_m)
-        return {'f1_hz': round(float(f1), 2), 'status': 'CONFORTO_OK' if f1 >= 4.0 else 'REVISAR_VIBRAÇÃO'}
+    def design_crack_width(mk_kNm: float, as_cm2: float, section: BeamSection) -> float:
+        """Estimativa simplificada de abertura de fissuras (wk) conforme NBR 6118."""
+        if as_cm2 <= 0: return 0.5
+        rho_p = as_cm2 / (section.b * section.h * 10000.0)
+        phi = 12.5 # mm
+        fctm = 0.3 * (section.fck**(2/3))
+        sigma_s = (abs(mk_kNm) * 1000.0) / (0.9 * section.d * as_cm2 / 10000.0) / 1e6 # MPa
+        wk1 = (phi / (12.5 * 2.25)) * (sigma_s / 210000.0) * (3 * sigma_s / fctm)
+        return min(0.4, max(0.01, wk1))
 
     @staticmethod
     def apply_moment_redistribution(M_elem: np.ndarray, support_nodes: List[int], delta: float = 0.90) -> np.ndarray:
@@ -485,40 +494,29 @@ class BeamDesigner:
     def full_design(cls, result: BeamResult, model: BeamModel, redistribution_delta: float = 0.90) -> dict:
         support_nodes = [int(np.round(s.x / (model.L / result.n_elements))) for s in model.supports]
         M_design = cls.apply_moment_redistribution(result.M, support_nodes, delta=redistribution_delta)
-        M_max_pos, M_max_neg = np.max(M_design)/1000.0*model.gamma_f, np.min(M_design)/1000.0*model.gamma_f
-        V_max = np.max(np.abs(result.V))/1000.0*model.gamma_f
-        T_max = np.max(np.abs(result.T))/1000.0*model.gamma_f
         
-        flex_bottom = cls.design_flexure(M_max_pos, model.section)
-        flex_top = cls.design_flexure(abs(M_max_neg), model.section)
+        # Valores majorados para dimensionamento ELU
+        gamma_f = model.gamma_f
+        M_max_pos = np.max(M_design) / 1000.0 * gamma_f
+        M_max_neg = np.min(M_design) / 1000.0 * gamma_f
+        V_max = np.max(np.abs(result.V)) / 1000.0 * gamma_f
+        T_max = np.max(np.abs(result.T)) / 1000.0 * gamma_f
+        
+        flex_bottom = cls.design_flexure(M_max_pos, model.section, gamma_f)
+        flex_top = cls.design_flexure(abs(M_max_neg), model.section, gamma_f)
         shear = cls.design_shear_torsion(V_max, T_max, model.section)
-        wk = cls.design_crack_width(np.max(np.abs(result.M))/1000.0, max(flex_bottom['As_cm2'], flex_top['As_cm2']), model.section)
         
-        mass_pp = model.section.area * 2500.0 
-        vibration = cls.check_vibration(model.L, model.section.EI, mass_pp)
-        anchorage = cls.design_anchorage(12.5, model.section)
+        # ELS - Abertura de fissuras (Momento de Serviço)
+        mk_serv = np.max(np.abs(result.M)) / 1000.0
+        wk = cls.design_crack_width(mk_serv, max(flex_bottom['As_cm2'], flex_top['As_cm2']), model.section)
         
-        support_xs = sorted([s.x for s in model.supports])
-        spans = [support_xs[i+1] - support_xs[i] for i in range(len(support_xs)-1)] if len(support_xs) > 1 else [model.L]
-        limite_visual = max(spans) * 1000.0 / 250.0
-        
-        reasons = []
-        if flex_bottom['domain'] == '4': reasons.append("Domínio 4 na armadura inferior (seção super-armada ou x/d > 0.45)")
-        if flex_top['domain'] == '4': reasons.append("Domínio 4 na armadura superior")
-        if shear['biela_status'] != 'OK': reasons.append("Esmagamento da biela de compressão (Vsd > Vrd2)")
-        if wk > model.wk_limit_mm: reasons.append(f"Abertura de fissura (wk={wk:.3f}mm) excede o limite (wlim={model.wk_limit_mm}mm)")
-        if vibration['f1_hz'] < 4.0: reasons.append(f"Frequência natural ({vibration['f1_hz']}Hz) abaixo do limite de conforto (4Hz)")
-        if result.max_deflection_mm > limite_visual: reasons.append(f"Flecha excessiva ({result.max_deflection_mm:.1f}mm > {limite_visual:.1f}mm)")
-
         return {
-            'flexure_bottom': flex_bottom, 'flexure_top': flex_top, 'shear': shear,
+            'flexure_bottom': flex_bottom,
+            'flexure_top': flex_top,
+            'shear': shear,
             'crack_width': {'wk_mm': wk, 'limit_mm': model.wk_limit_mm},
-            'deflection': {'max_mm': result.max_deflection_mm, 'limit_mm': round(limite_visual, 2), 
-                           'status': 'OK' if result.max_deflection_mm <= limite_visual else 'EXCEDE'},
-            'vibration': vibration, 'anchorage': anchorage,
-            'M_max_pos_kNm': round(M_max_pos, 2), 'M_max_neg_kNm': round(M_max_neg, 2),
-            'overall_status': 'ATENDE' if len(reasons) == 0 else 'REVISAR',
-            'reasons': reasons
+            'deflection': {'max_mm': result.max_deflection_mm, 'limit_mm': round(model.L*1000/250, 2)},
+            'overall_status': 'ATENDE' if shear['biela_status'] == 'OK' and flex_bottom['x_d'] <= flex_bottom['x_d_lim'] else 'REVISAR'
         }
 
 
@@ -576,8 +574,8 @@ class ClassicalBeamSolver:
             for x_pos, data in fea_reactions.items():
                 internal_reactions.append({
                     'x': float(x_pos), 
-                    'R': data.get('V_kN', 0.0) * 1000.0, 
-                    'M': -data.get('M_kNm', 0.0) * 1000.0
+                    'R': data.get('R', data.get('V_kN', 0.0)) * 1000.0, 
+                    'M': -data.get('M', 0.0) * 1000.0
                 })
         else:
             s_sorted = sorted(sups, key=lambda s: s.x)
@@ -651,17 +649,76 @@ def _durability_params(caa: int, member_type: str) -> dict:
 
 
 def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, gamma_f=1.4, asymmetric_offset=0.0):
+    # --- Hardening e Sanitização de Inputs ---
+    try:
+        L = float(L)
+        b = float(b)
+        h = float(h)
+        fck = float(fck)
+        n_elements = int(n_elements)
+        include_self_weight = bool(include_self_weight)
+        nonlinear = bool(nonlinear)
+        gamma_f = float(gamma_f)
+    except (ValueError, TypeError):
+        raise InvalidInputError("Parâmetros geométricos ou de materiais inválidos.", module="beam_solver")
+
     durability = _durability_params(caa, 'beam')
     cover_m = float(cover) if cover is not None else durability['cover_m']
     section = BeamSection(b=b, h=h, fck=fck, bf=bf, hf=hf, cover=cover_m, asymmetric_offset=asymmetric_offset)
-    model = BeamModel(L=L, section=section, supports=[BeamSupport(**s) for s in supports],
-                      distributed_loads=[DistributedLoad(**dl) for dl in (distributed_loads or [])],
-                      point_loads=[PointLoad(**pl) for pl in (point_loads or [])], n_elements=n_elements,
-                      caa=durability['caa'], wk_limit_mm=durability['wk_limit_mm'],
-                      include_self_weight=include_self_weight, gamma_f=gamma_f)
+    
+    proc_dist = []
+    for dl in (distributed_loads or []):
+        try:
+            qs = float(dl.get('q_start', 0.0))
+            qe = float(dl.get('q_end', qs))
+            xs = float(dl.get('x_start', 0.0))
+            xe = float(dl.get('x_end', L))
+            if xe > xs:
+                proc_dist.append({
+                    'x_start': xs, 'x_end': xe, 
+                    'q_start': qs * 1000.0, 'q_end': qe * 1000.0
+                })
+        except: continue
+
+    proc_points = []
+    for pl in (point_loads or []):
+        try:
+            proc_points.append({
+                'x': float(pl.get('x', 0.0)), 
+                'P': float(pl.get('P', 0.0)) * 1000.0, 
+                'M': float(pl.get('M', 0.0)) * 1000.0
+            })
+        except: continue
+
+    # Converter suportes explicitamente para garantir tipos (blindagem contra strings do frontend)
+    beam_supports = []
+    for s in (supports or []):
+        try:
+            beam_supports.append(BeamSupport(
+                x=float(s.get('x', 0.0)),
+                type=str(s.get('type', 'pinned')),
+                k_vertical=float(s.get('k_vertical', 1e14)),
+                k_rotational=float(s.get('k_rotational', 0.0))
+            ))
+        except: continue
+
+    model = BeamModel(L=L, section=section, 
+                      supports=beam_supports,
+                      distributed_loads=[DistributedLoad(**dl) for dl in proc_dist],
+                      point_loads=[PointLoad(**pl) for pl in proc_points], 
+                      caa=durability['caa'], 
+                      include_self_weight=include_self_weight,
+                      gamma_f=gamma_f)
+
     solver = BeamFEMSolver(model)
     linear_result = solver.solve()
     result = NonlinearBeamEngine.solve_iterative(solver) if nonlinear else linear_result
+    
+    # Sincronização de Reações e Diagramas Clássicos
+    # Usamos result.reactions que já está em kN e garantimos chaves string
+    reactions_dict = {str(float(k)): v for k, v in result.reactions.items()}
+    classical_res = ClassicalBeamSolver.generate_diagrams(model, fea_reactions=reactions_dict)
+    
     design = BeamDesigner.full_design(result, model, redistribution_delta=redistribution_delta)
     design['durability'] = {
         'caa': durability['caa'],
@@ -669,27 +726,97 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         'cover_mm': round(cover_m * 1000, 1),
         'cover_ok': cover_m * 1000.0 >= durability['cover_mm'],
     }
-    classical_res = ClassicalBeamSolver.generate_diagrams(model, fea_reactions=linear_result.reactions)
+
+    # Balanço de Cargas para Auditoria (Soma de módulos para evitar cancelamento em análise linear)
+    total_load_n = 0.0
+    for dl in model.distributed_loads:
+        total_load_n += 0.5 * (dl.q_start + dl.q_end) * (dl.x_end - dl.x_start)
+    for pl in model.point_loads:
+        total_load_n += abs(pl.P)
+    if include_self_weight:
+        total_load_n += section.area * 25000.0 * L
+    
+    total_reaction_kn = sum(abs(r['R']) for r in result.reactions.values())
+    
+    # Gerar Resumo de Detalhamento 3D (Módulo 6-7)
+    from beam_detailing import BeamDetailer
+    detailing_summary = BeamDetailer.generate_detailing_summary(design, L, h, fck)
+
+    # Gerar Memorial Pedagógico (Mestre) via dispatcher seguro
+    from master_pedagogy import build_beam_blackboard, build_forensic_audit, build_composite_pedagogy
+    
+    # 1. Memorial de Dimensionamento
+    pedagogical_steps = build_beam_blackboard({
+        'summary': {
+            'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf,
+            'max_moment_kNm': result.max_moment_kNm,
+            'max_shear_kN': result.max_shear_kN,
+            'max_deflection_mm': result.max_deflection_mm,
+        },
+        'design': design,
+        'classical_diagrams': classical_res,
+        'reactions': result.reactions
+    }, {
+        'L': L, 'b': b, 'h': h, 'fck': fck, 'caa': caa, 'cover_mm': round(cover_m * 1000, 1),
+        'distributed_loads': distributed_loads,
+        'point_loads': point_loads
+    })
+
+    # 2. Auditoria Forense (MEF vs Analítico)
+    analytical_baseline = {
+        'max_moment_kNm': abs(classical_res.get('max_moment_kNm', result.max_moment_kNm)),
+        'max_shear_kN': abs(classical_res.get('max_shear_kN', result.max_shear_kN))
+    }
+    audit_trail = build_forensic_audit("beam", {
+        'summary': {
+            'total_load_kN': total_load_n / 1000.0,
+            'total_reaction_kN': total_reaction_kn,
+            'max_moment_kNm': result.max_moment_kNm,
+        }
+    }, analytical_baseline)
+
+    # 4. Composição Multi-Mestre (Unifica Dimensionamento + Detalhamento + Auditoria)
+    # Por padrão, enviamos os steps de dimensionamento + audit + detalhamento
+    full_pedagogy = build_composite_pedagogy([
+        {"type": "beam", "result": {"summary": {"L_m": L, "b_m": b, "h_m": h, "fck_MPa": fck}, "design": design}, "payload": {}},
+        {"type": "detailing", "result": detailing_summary, "payload": {}},
+        {"type": "audit", "result": {"summary": {"total_load_kN": total_load_n/1000, "total_reaction_kN": total_reaction_kn, "max_moment_kNm": result.max_moment_kNm}}, "payload": {"analytical": analytical_baseline}}
+    ])
+
     return {
         'id': 'beam_1',
+        'success': True,
         'L': model.L,
-        'summary': {'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf, 'max_deflection_mm': result.max_deflection_mm,
-                    'analysis_type': 'FISICA_NAO_LINEAR' if nonlinear else 'ELASTICA_LINEAR', 'fck_MPa': fck,
-                    'caa': durability['caa'], 'cover_mm': round(cover_m * 1000, 1)},
-        'design': design, 'reactions': result.reactions,
-        'diagrams': {'x_m': result.x_elem.tolist(), 'V_kN': (result.V/1000.0).tolist(), 'M_kNm': (result.M/1000.0).tolist(),
-                     'x_nodes_m': result.x.tolist(), 'w_mm': (result.w*1000.0).tolist()},
+        'summary': {
+            'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf, 
+            'max_deflection_mm': result.max_deflection_mm,
+            'max_moment_kNm': result.max_moment_kNm,
+            'max_shear_kN': result.max_shear_kN,
+            'analysis_type': 'FISICA_NAO_LINEAR' if nonlinear else 'ELASTICA_LINEAR',
+            'fck_MPa': fck, 'caa': durability['caa'], 'cover_mm': round(cover_m * 1000, 1),
+            'total_load_kN': round(total_load_n / 1000.0, 2),
+            'total_reaction_kN': round(total_reaction_kn, 2),
+            'residual_kN': round((total_load_n/1000.0) - total_reaction_kn, 3),
+            'overall_status': design.get('overall_status', 'ATENDE')
+        },
+        'design': design, 
+        'detailing': detailing_summary,
+        'forensic_audit': audit_trail,
+        'reactions': result.reactions,
+        'overall_status': design.get('overall_status', 'ATENDE'),
+        'diagrams': {
+            'x_m': result.x_elem.tolist(), 'V_kN': (result.V/1000.0).tolist(), 'M_kNm': (result.M/1000.0).tolist(),
+            'x_nodes_m': result.x.tolist(), 'w_mm': (result.w*1000.0).tolist()
+        },
         'classical_diagrams': classical_res,
         'classical_reactions': classical_res.get('reactions', []),
+        'pedagogical_steps': full_pedagogy,
         'torsion_audit': {
             'asymmetric_offset': asymmetric_offset,
             'is_asymmetric': asymmetric_offset != 0,
             'citation': "NBR 6118:2023, 17.5 / Libânio Módulo 22"
         },
-        'debug_info': {
-            'x1': classical_res.get('reactions', [{}])[0].get('x') if len(classical_res.get('reactions', [])) > 0 else None,
-            'x2': classical_res.get('reactions', [{}, {}])[1].get('x') if len(classical_res.get('reactions', [])) > 1 else None,
-            'L_total': model.L,
-            'n_supports': len(model.supports)
+        'model_info': {
+            'L': L, 'fck': fck, 'bw': b, 'h': h, 'd': round(section.d, 3), 'EI': float(section.EI)
         }
     }

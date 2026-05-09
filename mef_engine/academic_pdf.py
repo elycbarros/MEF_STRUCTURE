@@ -170,32 +170,49 @@ class AcademicPDF(FPDF):
         self.ln(1)
 
     def add_step(self, index: int, step: dict[str, Any]):
-        status = _clean_text(step.get("status", "INFO"))
+        status = _clean_text(step.get("status", "OK"))
         title = _clean_text(step.get("title", f"Passo {index}"))
-        norm_ref = step.get("norm_ref", "")
+        norm_ref = step.get("norm", step.get("norm_ref", ""))
+        
+        # Estilo do Título do Passo
         self.set_font("Helvetica", "B", 10)
-        self.set_text_color(0, 0, 0)
-        self.multi_cell(0, 6, f"Passo {index:02d} - {title}")
+        self.set_text_color(15, 23, 42) # Slate 900
+        self.multi_cell(0, 6, f"PASSO {index:02d}: {title}")
         self.ln(1)
 
-        self.set_font("Helvetica", "B", 8)
-        self.set_text_color(70, 75, 85)
-        self.cell(0, 5, f"Status pedagogico: {status}", 0, new_x="LMARGIN", new_y="NEXT")
+        # Metadados e Norma
         if norm_ref:
-            self.label_value("Referencia normativa / criterio", norm_ref)
+            self.set_font("Helvetica", "I", 7)
+            self.set_text_color(100, 116, 139) # Slate 500
+            self.cell(0, 4, f"Ref: {norm_ref}", 0, new_x="LMARGIN", new_y="NEXT")
             
-        if step.get("formula_latex"):
-            self.latex_callout("1. Formula utilizada", step.get("formula_latex", ""), index, 1)
-        if step.get("substitution_latex"):
-            self.latex_callout("2. Substituicao dos valores", step.get("substitution_latex", ""), index, 2)
-        if step.get("result_latex"):
-            self.latex_callout("3. Conclusao numerica", step.get("result_latex", ""), index, 3)
+        # Busca flexível de campos (Novo vs Legado)
+        f_latex = step.get("formula", step.get("formula_latex"))
+        s_latex = step.get("substitution", step.get("substitution_latex"))
+        r_latex = step.get("result", step.get("result_latex"))
             
-        if step.get("opinion"):
-            self.label_value("4. Parecer sobre o resultado final", step.get("opinion", ""))
-        if step.get("explanation"):
-            self.label_value("Interpretacao didatica", step.get("explanation", ""))
-        self.ln(3)
+        if f_latex:
+            self.latex_callout("1. Expressao Literale", f_latex, index, 1)
+        if s_latex:
+            self.latex_callout("2. Substituicao de Valores", s_latex, index, 2)
+        if r_latex:
+            self.latex_callout("3. Conclusao Numerica", r_latex, index, 3)
+            
+        # Explicações e Pareceres
+        explanation = step.get("explanation")
+        opinion = step.get("opinion")
+        
+        if explanation:
+            self.set_font("Helvetica", "", 8)
+            self.set_text_color(51, 65, 85) # Slate 700
+            self.multi_cell(0, 4, _clean_text(explanation))
+            
+        if opinion:
+            self.set_font("Helvetica", "B", 8)
+            self.set_text_color(15, 23, 42)
+            self.multi_cell(0, 4, f"Parecer: {_clean_text(opinion)}")
+            
+        self.ln(4)
 
     def add_diagram_image(self, title: str, img_path: str):
         self.set_font("Helvetica", "B", 10)

@@ -189,6 +189,10 @@ async def calculate_special(req: SpecialElementRequest):
         )
         blackboard = build_helical_stairs_blackboard(res)
 
+    # Garantir que res seja um dicionário e tenha uma chave 'summary' para o frontend
+    if isinstance(res, dict) and 'summary' not in res and 'result' not in res:
+        res = {"summary": res}
+
     return {
         "success": True if res else False, 
         "result": res, 

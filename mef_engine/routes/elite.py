@@ -66,12 +66,16 @@ async def calculate_beam(req: BeamAnalysisRequest):
     result = run_beam_analysis(**req.model_dump())
     memorial = build_beam_memorial(result)
     pedagogical_steps = build_beam_blackboard(result, req.model_dump())
-    return sanitize_for_json({
+    res = {
         "success": True,
         **result,
         "memorial_markdown": memorial,
         "pedagogical_steps": pedagogical_steps,
-    })
+    }
+    # Forçar summary para compatibilidade
+    if "summary" not in res:
+        res["summary"] = result.get("summary", {})
+    return sanitize_for_json(res)
 
 @router.post("/calculate/building-core")
 async def calculate_building_core(req: CoreAnalysisRequest):
@@ -121,12 +125,15 @@ async def calculate_column(req: ColumnRequest):
     design = solve_column_section(sec, loads)
     shortening = analyze_shortening(sec, req.Nd_kN, req.n_floors_for_shortening)
     pedagogical_steps = build_column_blackboard(sec, loads, design)
-    return sanitize_for_json({
+    res = {
         "success": True,
         "design": design,
         "shortening": shortening,
         "pedagogical_steps": pedagogical_steps,
-    })
+    }
+    # Forçar summary para compatibilidade
+    res["summary"] = design
+    return sanitize_for_json(res)
 
 @router.post("/calculate/frame-legacy")
 async def calculate_frame(input: ConfigInput):
