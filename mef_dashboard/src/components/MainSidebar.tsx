@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, Activity, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface Tab {
   id: string;
@@ -22,21 +23,13 @@ export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" 
 
   return (
     <aside className={cn(
-      "col-span-12 rounded-[30px] border p-2 transition-all duration-700",
-      isProfessional 
-        ? "border-white/5 bg-[#16191f]/80 backdrop-blur-2xl shadow-blue-900/5" 
-        : "border-slate-200 bg-white/70 shadow-slate-200/50"
+      "col-span-12 rounded-[2.5rem] border p-1.5 transition-all duration-700 overflow-hidden relative group",
+      "border-slate-200 bg-slate-100/60 backdrop-blur-xl shadow-2xl shadow-blue-900/5"
     )}>
-      <nav className="flex flex-row items-center gap-2 overflow-x-auto pb-2 scrollbar-hide px-2">
-        <div className="hidden lg:flex items-center px-4 border-r border-white/5 mr-2">
-           <p className={cn(
-            "text-[9px] font-black uppercase tracking-[0.3em] whitespace-nowrap",
-            isProfessional ? "text-blue-400/60" : "text-slate-400"
-          )}>
-            Módulos
-          </p>
-        </div>
-
+      {/* Glossy Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+      
+      <nav className="flex flex-row items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide px-3 relative z-10">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -46,25 +39,34 @@ export function MainSidebar({ tabs, activeTab, setActiveTab, theme = "academic" 
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "group flex shrink-0 items-center gap-3 rounded-2xl px-4 py-3 text-left text-xs font-black transition-all",
+                "group relative flex shrink-0 items-center gap-3 rounded-2xl px-5 py-3 text-left transition-all duration-500",
                 isActive
-                  ? (isProfessional 
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30" 
-                      : "bg-[#1d1d1f] text-white shadow-xl shadow-black/10")
-                  : (isProfessional 
-                      ? "text-white/40 hover:bg-white/5 hover:text-white" 
-                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")
+                  ? "bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]"
+                  : "text-slate-600 hover:bg-white/5 hover:text-slate-900"
               )}
             >
+              {isActive && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-blue-600 rounded-2xl -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              
               <div className={cn(
-                "flex h-6 w-6 items-center justify-center rounded-lg transition-transform group-hover:scale-110",
-                isActive 
-                  ? (isProfessional ? "bg-white/20" : "bg-white/10")
-                  : (isProfessional ? "bg-white/5" : "bg-slate-100")
+                "flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-500 group-hover:scale-110 group-hover:rotate-6",
+                isActive ? "bg-white/20" : "bg-white/5"
               )}>
-                <Icon className={cn("h-3 w-3", isActive ? "text-white" : (isProfessional ? "text-white/40" : "text-slate-500"))} />
+                <Icon className={cn("h-3.5 w-3.5", isActive ? "text-slate-900" : "text-slate-600 group-hover:text-blue-600")} />
               </div>
-              <span className="whitespace-nowrap">{tab.label}</span>
+              
+              <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">
+                {tab.label}
+              </span>
+
+              {isActive && (
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-1 bg-white/40 rounded-full blur-sm" />
+              )}
             </button>
           );
         })}

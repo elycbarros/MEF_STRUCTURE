@@ -158,7 +158,7 @@ export function AcademicBacklogView({ setActiveTab, setSystemType }: AcademicBac
           </p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Progresso</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Progresso</p>
           <p className="mt-1 text-2xl font-black text-slate-950">{progress}%</p>
           <p className="text-xs font-bold text-slate-500">{doneCount}/{backlog.length} concluidos</p>
         </div>
@@ -178,7 +178,7 @@ export function AcademicBacklogView({ setActiveTab, setSystemType }: AcademicBac
                 <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{item.module} | {item.priority}</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">{item.module} | {item.priority}</p>
                       <h4 className="mt-1 text-sm font-black text-slate-950">{item.title}</h4>
                     </div>
                     <button
@@ -204,11 +204,11 @@ export function AcademicBacklogView({ setActiveTab, setSystemType }: AcademicBac
         </div>
 
         <aside className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-950 text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-950 text-slate-900">
             <Target className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Proxima acao</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Proxima acao</p>
             <h3 className="mt-2 text-lg font-black text-slate-950">{activeItem?.title ?? "Trilha concluida"}</h3>
             <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">
               {activeItem?.outcome ?? "Revise os relatorios gerados e compare os resultados entre os modulos."}
@@ -218,7 +218,7 @@ export function AcademicBacklogView({ setActiveTab, setSystemType }: AcademicBac
             type="button"
             disabled={!activeItem}
             onClick={() => activeItem && openBacklogItem(activeItem)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-xs font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-xs font-black text-slate-900 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Continuar aula <ArrowRight className="h-4 w-4" />
           </button>

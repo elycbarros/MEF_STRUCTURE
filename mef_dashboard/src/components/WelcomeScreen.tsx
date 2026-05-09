@@ -78,7 +78,7 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
           {/* UFO - Engenharia Forense */}
           <button 
             onClick={() => onSelectMode("professional")}
-            className="group relative text-left p-10 rounded-[48px] border border-white/5 bg-[#16191f] shadow-2xl hover:shadow-blue-600/20 transition-all duration-700 hover:-translate-y-3 overflow-hidden text-white"
+            className="group relative text-left p-10 rounded-[48px] border border-slate-200 bg-[#16191f] shadow-2xl hover:shadow-blue-600/20 transition-all duration-700 hover:-translate-y-3 overflow-hidden text-slate-900"
           >
             <div className="absolute -right-10 -top-10 p-8 opacity-[0.05] group-hover:opacity-[0.1] transition-all group-hover:scale-110">
               <Rocket size={240} />
@@ -90,12 +90,12 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
                   <Rocket className="h-8 w-8" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black tracking-tight">MODO UFO</h2>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Análise Global & Profissional</p>
+                  <h2 className="text-3xl font-black tracking-tight">MODO PROFISSIONAL</h2>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Análise Global & Forense</p>
                 </div>
               </div>
 
-              <p className="text-white/60 font-bold leading-relaxed text-lg">
+              <p className="text-slate-700 font-bold leading-relaxed text-lg">
                 Engenharia de alta performance para casas, sobrados, galpões e edifícios. Estabilidade P-Delta, RSA Sísmica e Detalhamento Automático.
               </p>
 
@@ -105,15 +105,15 @@ export default function WelcomeScreen({ onSelectMode }: WelcomeScreenProps) {
                   { icon: Zap, text: "Análise Dinâmica RSA & p-y SSI" },
                   { icon: ShieldCheck, text: "Detalhamento Executivo Ph.D." }
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-4 text-sm font-black text-white/80">
+                  <div key={i} className="flex items-center gap-4 text-sm font-black text-slate-900/80">
                     <div className="h-2 w-2 rounded-full bg-blue-500 shadow-glow shadow-blue-500/50" />
                     {item.text}
                   </div>
                 ))}
               </div>
 
-              <div className="pt-4 flex items-center gap-3 text-blue-400 font-black text-sm uppercase tracking-widest group-hover:gap-6 transition-all">
-                Iniciar Projeto UFO <ArrowRight className="h-5 w-5" />
+              <div className="pt-4 flex items-center gap-3 text-blue-600 font-black text-sm uppercase tracking-widest group-hover:gap-6 transition-all">
+                Iniciar Projeto Profissional <ArrowRight className="h-5 w-5" />
               </div>
             </div>
           </button>

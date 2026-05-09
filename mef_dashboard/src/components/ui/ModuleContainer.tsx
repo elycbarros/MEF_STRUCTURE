@@ -69,7 +69,7 @@ export function ModuleContainer({
                   "text-[10px] font-black uppercase tracking-[0.3em]",
                   isProfessional ? "text-blue-400" : "text-blue-600"
                 )}>
-                  {isProfessional ? "UFO PROFESSIONAL ENGINE" : "MESTRE ACADEMIC LAB"}
+                  {isProfessional ? "STRUCTURAL PRO ENGINE" : "MESTRE ACADEMIC LAB"}
                 </span>
                 <h1 className={cn(
                   "text-4xl font-black tracking-tighter",

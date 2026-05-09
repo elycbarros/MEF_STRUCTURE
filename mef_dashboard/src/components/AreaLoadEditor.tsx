@@ -50,12 +50,12 @@ export const AreaLoadEditor: React.FC<AreaLoadEditorProps> = ({ areaLoads, setAr
       <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
         {areaLoads.length === 0 ? (
           <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            <p className="text-xs text-slate-400 font-medium">Nenhuma carga de área adicional definida.</p>
+            <p className="text-xs text-slate-600 font-medium">Nenhuma carga de área adicional definida.</p>
           </div>
         ) : (
           <table className="w-full text-left border-separate border-spacing-y-2">
             <thead>
-              <tr className="text-[10px] font-black text-apple-muted uppercase tracking-widest">
+              <tr className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
                 <th className="pb-2 pl-4">#</th>
                 <th className="pb-2">X Mín (m)</th>
                 <th className="pb-2">Y Mín (m)</th>
@@ -115,7 +115,7 @@ export const AreaLoadEditor: React.FC<AreaLoadEditorProps> = ({ areaLoads, setAr
                   <td className="py-3 pr-4 text-right rounded-r-xl border-y border-r border-white/40">
                     <button 
                       onClick={() => removeAreaLoad(index)}
-                      className="p-1.5 text-apple-red/40 hover:text-apple-red transition-colors"
+                      className="p-1.5 text-red-500/40 hover:text-red-500 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

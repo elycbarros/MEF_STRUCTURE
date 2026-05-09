@@ -19,27 +19,29 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
       {/* Header Fixo */}
       <header className="flex items-center justify-between px-8 py-4 border-b border-slate-100 bg-white/80 backdrop-blur-md z-10">
         <div className="flex items-center gap-4">
-          <div className="bg-amber-500 p-2 rounded-xl text-white shadow-lg shadow-amber-500/20">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95 mr-2"
+          >
+            <X size={16} />
+            Voltar
+          </button>
+          <div className="bg-amber-500 p-2 rounded-xl text-slate-900 shadow-lg shadow-amber-500/20 hidden sm:block">
             <FileText size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 leading-none">{blackboard.title || "Memorial de Cálculo"}</h2>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Engine MESTRE • NBR 6118:2014</p>
+            <h2 className="text-sm md:text-xl font-black text-slate-900 leading-none">{blackboard.title || "Memorial de Cálculo"}</h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Engine MESTRE • NBR 6118:2023</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={onDownloadPdf ?? (() => window.print())}
-            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-sm font-black hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-900/20"
+            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[10px] sm:text-sm font-black hover:bg-slate-800 transition-all active:scale-95 shadow-xl shadow-slate-900/20"
           >
             <Download size={18} />
-            Salvar em PDF
-          </button>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all"
-          >
-            <X size={20} />
+            <span className="hidden sm:inline">Salvar em PDF</span>
+            <span className="sm:hidden uppercase tracking-tighter">PDF</span>
           </button>
         </div>
       </header>
@@ -57,19 +59,19 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
               </h1>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-8 border-y border-slate-100">
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Disciplina</p>
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Disciplina</p>
                   <p className="text-sm font-bold text-slate-900">Concreto Armado</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Motor</p>
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Motor</p>
                   <p className="text-sm font-bold text-slate-900">Engine MESTRE</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Professor</p>
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Professor</p>
                   <p className="text-sm font-bold text-slate-900">Libânio (Acadêmico)</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data</p>
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Data</p>
                   <p className="text-sm font-bold text-slate-900">{new Date().toLocaleDateString('pt-BR')}</p>
                 </div>
               </div>
@@ -95,7 +97,7 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
                   <div className="flex-1 bg-white rounded-3xl p-8 shadow-sm border border-slate-100 hover:shadow-md transition-all">
                     <div className="flex justify-between items-start mb-6">
                       <h3 className="text-lg font-black text-slate-900">{step.title}</h3>
-                      <span className="bg-slate-50 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter">
+                      <span className="bg-slate-50 text-slate-600 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter">
                         {step.norm_ref || "NBR 6118"}
                       </span>
                     </div>
@@ -119,7 +121,7 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
                       <div className="space-y-4">
                         {step.formula_latex && (
                           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Equação Geral</p>
+                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-2">Equação Geral</p>
                             <div className="text-lg overflow-x-auto">
                               <BlockMath math={step.formula_latex} />
                             </div>
@@ -135,8 +137,8 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
                         )}
                         {step.result_latex && (
                           <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl shadow-slate-900/10">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Resultado Final</p>
-                            <div className="text-xl text-white overflow-x-auto font-black">
+                            <p className="text-[9px] font-black text-white/40 uppercase tracking-widest mb-2">Resultado Final</p>
+                            <div className="text-xl text-white overflow-x-auto font-black [&_.katex]:text-white">
                               <BlockMath math={step.result_latex} />
                             </div>
                           </div>
@@ -151,7 +153,7 @@ export function MemorialHtmlView({ blackboard, onClose, onDownloadPdf }: Memoria
 
           {/* Rodapé do Memorial */}
           <footer className="text-center py-12 border-t border-slate-200">
-            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Fim do Memorial de Cálculo</p>
+            <p className="text-sm font-black text-slate-600 uppercase tracking-widest">Fim do Memorial de Cálculo</p>
             <p className="text-xs font-bold text-slate-300 mt-2">Documento gerado automaticamente pelo Engine MESTRE v4.0</p>
           </footer>
         </div>

@@ -35,7 +35,7 @@ export function FiberSectionMap({ fibers, b, h }: FiberSectionMapProps) {
   return (
     <div className="flex flex-col gap-4 p-6 rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mapa de Tensões na Seção (Fibras)</h4>
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-600">Mapa de Tensões na Seção (Fibras)</h4>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-red-600" />
@@ -74,12 +74,12 @@ export function FiberSectionMap({ fibers, b, h }: FiberSectionMapProps) {
         </svg>
         
         {/* Eixos */}
-        <div className="absolute -left-6 top-1/2 -translate-y-1/2 h-full flex flex-col justify-between text-[8px] font-black text-slate-400 py-1">
+        <div className="absolute -left-6 top-1/2 -translate-y-1/2 h-full flex flex-col justify-between text-[8px] font-black text-slate-600 py-1">
           <span>+Y</span>
           <span>0</span>
           <span>-Y</span>
         </div>
-        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-between text-[8px] font-black text-slate-400 px-1">
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-full flex justify-between text-[8px] font-black text-slate-600 px-1">
           <span>-X</span>
           <span>0</span>
           <span>+X</span>
@@ -87,7 +87,7 @@ export function FiberSectionMap({ fibers, b, h }: FiberSectionMapProps) {
       </div>
 
       <div className="mt-2 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-        <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Parecer da Seção Rigorosa</p>
+        <p className="text-[9px] font-black text-slate-600 uppercase mb-2">Parecer da Seção Rigorosa</p>
         <p className="text-xs font-semibold leading-relaxed text-slate-600">
           Visualização de 400 fibras integradas via Newton-Raphson. A zona comprimida segue o diagrama parábola-retângulo da NBR 6118.
         </p>

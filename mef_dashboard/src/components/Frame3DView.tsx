@@ -94,8 +94,8 @@ export default function Frame3DView({ nodes, members, onSelectMember, loads = []
     <div className="w-full h-full bg-slate-900 overflow-hidden relative group shadow-2xl">
       <div className="absolute top-4 left-4 z-10">
         <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/20">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Modelo Analítico 3D</h3>
-          <p className="text-[10px] text-white/60">Pórtico Espacial (StrucPy Engine)</p>
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">Modelo Analítico 3D</h3>
+          <p className="text-[10px] text-slate-700">Pórtico Espacial (StrucPy Engine)</p>
         </div>
       </div>
 
@@ -235,7 +235,7 @@ export default function Frame3DView({ nodes, members, onSelectMember, loads = []
       </Canvas>
 
       <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] text-white/80">
+        <div className="bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] text-slate-900/80">
           <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
             <span>Tração (Tension)</span>

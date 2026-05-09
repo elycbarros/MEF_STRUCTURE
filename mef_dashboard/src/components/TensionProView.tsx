@@ -110,7 +110,7 @@ export function TensionProView() {
     <ModuleContainer
       title="Concreto Protendido"
       subtitle="Cálculo rigoroso de perdas de protensão e verificação de estados limites conforme NBR 6118:2023 via Motor Rust."
-      icon={<Zap className="h-6 w-6 text-white" />}
+      icon={<Zap className="h-6 w-6 text-slate-900" />}
       theme="professional"
       solverType="Rust Core"
       auditResult={auditResult}
@@ -122,59 +122,59 @@ export function TensionProView() {
         <div className="col-span-12 space-y-6 lg:col-span-4">
           <div className={cn(
             "rounded-[32px] border p-8 backdrop-blur-xl shadow-2xl transition-all",
-            "border-white/10 bg-white/5"
+            "border-slate-200 bg-white/5"
           )}>
             <div className="mb-8 flex items-center gap-4">
               <div className="p-2 bg-blue-600/20 rounded-xl">
-                <Settings2 className="h-6 w-6 text-blue-400" />
+                <Settings2 className="h-6 w-6 text-blue-600" />
               </div>
-              <h2 className="text-xl font-black text-white italic">Design Parameters</h2>
+              <h2 className="text-xl font-black text-slate-900 italic">Design Parameters</h2>
             </div>
 
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-white/40">Fck (MPa)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Fck (MPa)</label>
                   <input 
                     type="number" 
                     value={fck} 
                     onChange={(e) => setFck(Number(e.target.value))}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold text-white focus:border-blue-500 focus:outline-none transition-all hover:bg-white/10"
+                    className="w-full rounded-2xl border border-slate-200 bg-white/5 px-4 py-3 font-bold text-slate-900 focus:border-blue-500 focus:outline-none transition-all hover:bg-white/10"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-white/40">Força P0 (kN)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Força P0 (kN)</label>
                   <input 
                     type="number" 
                     value={p0} 
                     onChange={(e) => setP0(Number(e.target.value))}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold text-white focus:border-blue-500 focus:outline-none transition-all hover:bg-white/10"
+                    className="w-full rounded-2xl border border-slate-200 bg-white/5 px-4 py-3 font-bold text-slate-900 focus:border-blue-500 focus:outline-none transition-all hover:bg-white/10"
                   />
                 </div>
               </div>
 
-              <div className="p-6 rounded-3xl bg-white/5 border border-white/10 space-y-4">
+              <div className="p-6 rounded-3xl bg-white/5 border border-slate-200 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <History className="h-4 w-4 text-emerald-400" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Análise Diferida (Fluência)</span>
+                  <History className="h-4 w-4 text-emerald-600" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Análise Diferida (Fluência)</span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="block text-[9px] font-black uppercase text-white/30">Idade (dias)</label>
+                    <label className="block text-[9px] font-black uppercase text-slate-600">Idade (dias)</label>
                     <input 
                       type="number" 
                       value={ageOfLoading} 
                       onChange={(e) => setAgeOfLoading(Number(e.target.value))}
-                      className="w-full rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-xs font-bold text-white"
+                      className="w-full rounded-xl border border-slate-200 bg-white/50 px-3 py-2 text-xs font-bold text-slate-900"
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[9px] font-black uppercase text-white/30">Umidade (%)</label>
+                    <label className="block text-[9px] font-black uppercase text-slate-600">Umidade (%)</label>
                     <input 
                       type="number" 
                       value={humidity} 
                       onChange={(e) => setHumidity(Number(e.target.value))}
-                      className="w-full rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-xs font-bold text-white"
+                      className="w-full rounded-xl border border-slate-200 bg-white/50 px-3 py-2 text-xs font-bold text-slate-900"
                     />
                   </div>
                 </div>
@@ -182,21 +182,21 @@ export function TensionProView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-white/40">µ (Atrito)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">µ (Atrito)</label>
                   <input 
                     type="number" step="0.01"
                     value={mu} 
                     onChange={(e) => setMu(Number(e.target.value))}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold text-white focus:outline-none"
+                    className="w-full rounded-2xl border border-slate-200 bg-white/5 px-4 py-3 font-bold text-slate-900 focus:outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-white/40">k (Wobble)</label>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">k (Wobble)</label>
                   <input 
                     type="number" step="0.001"
                     value={k} 
                     onChange={(e) => setK(Number(e.target.value))}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-bold text-white focus:outline-none"
+                    className="w-full rounded-2xl border border-slate-200 bg-white/5 px-4 py-3 font-bold text-slate-900 focus:outline-none"
                   />
                 </div>
               </div>
@@ -220,10 +220,10 @@ export function TensionProView() {
             <MetricCard label="Eficiência Global" value={results ? "91.2%" : "--"} subValue="Optimized" icon={ShieldCheck} color="green" />
           </div>
 
-          <div className="relative h-96 w-full overflow-hidden rounded-[40px] border border-white/5 bg-black/40 shadow-2xl group transition-all">
-            <div className="absolute top-6 left-6 z-10 flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-md border border-white/10">
+          <div className="relative h-96 w-full overflow-hidden rounded-[40px] border border-slate-200 bg-white/80 shadow-2xl group transition-all">
+            <div className="absolute top-6 left-6 z-10 flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 backdrop-blur-md border border-slate-200">
               <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-white">Dynamic 3D Model</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Dynamic 3D Model</span>
             </div>
             <Canvas shadows className="h-full w-full">
               <PerspectiveCamera makeDefault position={[0, 2, 5]} fov={50} />
@@ -238,9 +238,9 @@ export function TensionProView() {
             </Canvas>
           </div>
 
-          <div className="rounded-[40px] border border-white/5 bg-white/5 p-10 shadow-sm relative overflow-hidden">
+          <div className="rounded-[40px] border border-slate-200 bg-white/5 p-10 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] rounded-full" />
-            <h3 className="mb-8 text-2xl font-black text-white italic">Loss Timeline Analysis</h3>
+            <h3 className="mb-8 text-2xl font-black text-slate-900 italic">Loss Timeline Analysis</h3>
             <div className="space-y-10 relative z-10">
               <LossItem title="Perdas Imediatas" percent="~8-12%" description="Atrito, Encurtamento Elástico e Deslizamento da Ancoragem." active={!!results} />
               <LossItem title="Perdas Progressivas" percent="~15-20%" description={`Fluência e Retração simuladas para ${ageOfLoading} dias com ${humidity}% UR.`} active={!!results} />
@@ -276,18 +276,18 @@ export function TensionProView() {
 function MetricCard({ label, value, subValue, icon: Icon, color }: any) {
   const colors: any = {
     orange: "text-orange-400 bg-orange-400/10 border-orange-400/20",
-    blue: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+    blue: "text-blue-600 bg-blue-400/10 border-blue-400/20",
     green: "text-green-400 bg-green-400/10 border-green-400/20"
   };
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-md">
+    <div className="rounded-3xl border border-slate-200 bg-white/5 p-6 backdrop-blur-md">
       <div className={cn("mb-3 flex h-10 w-10 items-center justify-center rounded-2xl border", colors[color])}>
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-[11px] font-black uppercase tracking-wider text-white/50">{label}</p>
+      <p className="text-[11px] font-black uppercase tracking-wider text-slate-900/50">{label}</p>
       <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-3xl font-black text-white">{value}</span>
-        <span className="text-sm font-bold text-white/40">{subValue}</span>
+        <span className="text-3xl font-black text-slate-900">{value}</span>
+        <span className="text-sm font-bold text-slate-500">{subValue}</span>
       </div>
     </div>
   );
@@ -302,10 +302,10 @@ function LossItem({ title, percent, description, active }: any) {
       </div>
       <div className="pb-4">
         <div className="flex items-center gap-3">
-          <h4 className="text-lg font-black text-white">{title}</h4>
-          <span className="rounded-lg bg-blue-500/20 px-2 py-0.5 text-[10px] font-black text-blue-400">{percent}</span>
+          <h4 className="text-lg font-black text-slate-900">{title}</h4>
+          <span className="rounded-lg bg-blue-500/20 px-2 py-0.5 text-[10px] font-black text-blue-600">{percent}</span>
         </div>
-        <p className="mt-1 text-sm font-medium text-white/40 leading-relaxed">{description}</p>
+        <p className="mt-1 text-sm font-medium text-slate-500 leading-relaxed">{description}</p>
       </div>
     </div>
   );

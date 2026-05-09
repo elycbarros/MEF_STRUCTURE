@@ -124,35 +124,65 @@ export function VigaCrossView() {
     title: "Memorial Tecnico - Viga Cross",
     steps: [
       {
-        id: "cross-model",
-        title: "Modelo Estrutural",
-        formula_latex: "n_{vaos} = " + beamInput.spans.length,
-        substitution_latex: `E = ${beamInput.eGPa} GPa`,
-        result_latex: `I = ${beamInput.defaultInertiaCm4} cm^4`,
-        explanation: "Resumo do modelo de viga continua usado no processo iterativo de Hardy Cross.",
+        id: "cross-geom",
+        title: "Propriedades da Seção e Materiais",
+        formula_latex: "E_{cs} = 0.85 \\cdot 5600 \\cdot \\sqrt{f_{ck}}",
+        substitution_latex: `f_{ck} = ${beamInput.fck} MPa \\Rightarrow E = ${beamInput.eGPa} GPa`,
+        result_latex: `b/h = ${beamInput.sectionB}/${beamInput.sectionH} cm`,
+        explanation: "Definição das propriedades geométricas e mecânicas da viga para cálculo da rigidez flexional.",
+        norm_ref: "NBR 6118:2014",
+        status: "OK",
+      },
+      {
+        id: "cross-mep",
+        title: "Momentos de Engastamento Perfeito (MEP)",
+        formula_latex: "M_{ext} = \\mp \\frac{qL^2}{12} \\text{ ou } \\mp \\frac{Pab^2}{L^2}",
+        substitution_latex: results?.barResults.map(b => `Vão ${b.barId}: [${formatNumberBR(b.mepA)}, ${formatNumberBR(b.mepB)}]`).join(' \\\\ '),
+        result_latex: "M_{FIX} \\text{ calculados por trecho}",
+        explanation: "Momentos teóricos de engaste total em cada nó antes da redistribuição de Hardy Cross.",
         norm_ref: "Teoria das Estruturas",
         status: "OK",
       },
       {
+        id: "cross-k",
+        title: "Fatores de Rigidez (K) e Distribuição (D)",
+        formula_latex: "K = \\frac{EI}{L}, \\quad D_i = \\frac{K_i}{\\sum K}",
+        substitution_latex: "Cálculo da rigidez relativa de cada barra convergindo nos nós.",
+        result_latex: `n_{nos} = ${results?.nodes.length}`,
+        explanation: "Os fatores de distribuição determinam quanto do momento desbalanceado é absorvido por cada barra engastada no nó.",
+        norm_ref: "Método de Cross",
+        status: "OK",
+      },
+      {
         id: "cross-convergence",
-        title: "Convergencia dos Momentos",
+        title: "Convergência dos Momentos",
         formula_latex: "M_{desb,max} \\to 0",
-        substitution_latex: `Iteracoes = ${results?.iterations.length ?? 0}`,
+        substitution_latex: `Iterações = ${results?.iterations.length ?? 0}`,
         result_latex: `M_{desb,max} = ${formatNumberBR(results?.finalMaxUnbalanced ?? 0)} kNm`,
-        explanation: "A convergencia e atingida quando o momento desbalanceado nos nos fica abaixo da tolerancia definida.",
-        norm_ref: "Metodo de Hardy Cross",
+        explanation: "A convergência é atingida quando o momento desbalanceado nos nós fica abaixo da tolerância de 0.01 kNm.",
+        norm_ref: "Método de Hardy Cross",
         status: results?.converged ? "OK" : "ALERTA",
       },
       {
-        id: "cross-envelopes",
-        title: "Envelopes de Esforcos",
-        formula_latex: "M_{max}=\\max |M(x)|,\\quad V_{max}=\\max |V(x)|",
-        substitution_latex: "Diagramas gerados por trecho",
-        result_latex: `M_{max} = ${formatNumberBR(Math.max(...(results?.diagrams ?? []).map(d => Math.abs(d.moment ?? 0))))} kNm`,
-        explanation: "Os diagramas finais combinam os momentos de extremidade convergidos com as cargas aplicadas em cada vao.",
-        norm_ref: "Resistencia dos Materiais",
-        status: "OK",
+        id: "cross-equilibrium",
+        title: "Equilíbrio de Reações Verticais",
+        formula_latex: "\\sum V = 0 \\Rightarrow \\sum R_y - \\sum Q = 0",
+        substitution_latex: `${formatNumberBR(beamLoadSummary.totalReaction)} - ${formatNumberBR(beamLoadSummary.totalLoad)}`,
+        result_latex: `\\Delta = ${formatNumberBR(beamLoadSummary.residual)} kN`,
+        explanation: "Verificação forense da integridade do solver através do somatório de forças verticais.",
+        norm_ref: "Estática das Estruturas",
+        status: Math.abs(beamLoadSummary.residual) < 0.1 ? "OK" : "ALERTA",
       },
+      {
+        id: "cross-design",
+        title: "Dimensionamento Estimado (As)",
+        formula_latex: "A_s \\approx \\frac{M_d}{0.8 \\cdot h \\cdot f_{yd}}",
+        substitution_latex: `M_{max} = ${formatNumberBR(Math.max(...(results?.diagrams ?? []).map(d => Math.abs(d.moment ?? 0))))} kNm`,
+        result_latex: `A_{s,est} \\approx ${((Math.max(...(results?.diagrams ?? []).map(d => Math.abs(d.moment ?? 0))) * 1.4) / (0.8 * (beamInput.sectionH/100) * 43.5)).toFixed(2)} cm^2`,
+        explanation: "Estimativa pedagógica da área de aço necessária para o momento fletor máximo.",
+        norm_ref: "NBR 6118",
+        status: "INFO",
+      }
     ],
   });
 
@@ -175,20 +205,12 @@ export function VigaCrossView() {
     setBeamInput(prev => ({ ...prev, spans: newSpans, supports: newSupports }));
   };
 
-  // Simplified ShieldCheck to avoid reference errors if it fails to load from lucide
-  const SafeShieldCheck = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
-
   return (
     <ModuleContainer
       title="Viga Cross"
       subtitle="Análise didática de vigas contínuas pelo Método de Hardy Cross. Explore a convergência de momentos em sistemas hiperestáticos."
-      icon={<Layout className="h-6 w-6 text-white" />}
-      theme="academic"
+      icon={<Layout className="h-6 w-6 text-slate-900" />}
+      theme="premium"
       solverType="Analytic (JS)"
       onExport={handleGeneratePDF}
       onBimExport={handleBimExport}
@@ -199,7 +221,7 @@ export function VigaCrossView() {
         <div className="flex items-center justify-end mb-4">
           <button 
             onClick={handleRunAnalysis}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all uppercase tracking-widest text-[10px]"
           >
             <Play className="w-4 h-4 fill-current" /> Calcular Cross
           </button>
@@ -207,32 +229,34 @@ export function VigaCrossView() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Editor de Geometria */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="p-6 rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 rounded-xl">
-                  <Share2 className="w-5 h-5 text-indigo-600" />
+          <div className="p-8 rounded-[2.5rem] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-600/10 rounded-2xl border border-blue-600/20">
+                  <Share2 className="w-6 h-6 text-blue-500" />
                 </div>
-                <h3 className="font-black text-sm">Configuração da Viga</h3>
+                <div>
+                  <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500">Parâmetros</h3>
+                  <h4 className="text-sm font-black text-slate-900">Configuração da Viga</h4>
+                </div>
               </div>
               <button 
                 onClick={addSpan}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-[9px] font-black hover:bg-slate-100 transition-all uppercase tracking-widest"
                 title="Adicionar Vão à Direita"
               >
                 <Plus className="w-3 h-3" />
-                ADICIONAR VÃO
-                <ArrowRight className="w-3 h-3" />
+                VÃO
+                <ArrowRight className="w-3 h-3 text-blue-500" />
               </button>
             </div>
 
-            <div className="space-y-4 mb-6 p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+            <div className="space-y-6 mb-8 p-6 rounded-3xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-[9px] font-black uppercase text-indigo-600">Geometria e Apoio Inicial</h4>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase text-slate-500">Apoio A</span>
+                <h4 className="text-[9px] font-black uppercase text-blue-600 tracking-widest">Apoio Inicial e Seção</h4>
+                <div className="flex items-center gap-3">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Apoio A</span>
                   <select 
                     value={beamInput.supports[0]}
                     onChange={(e) => {
@@ -240,17 +264,17 @@ export function VigaCrossView() {
                       newSupports[0] = e.target.value as SupportType;
                       setBeamInput(prev => ({ ...prev, supports: newSupports }));
                     }}
-                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg font-bold text-[10px]"
+                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-black text-[10px] text-slate-900 outline-none focus:border-blue-500/50 transition-all appearance-none cursor-pointer"
                   >
                     <option value="fixed">Engaste</option>
                     <option value="pin">Apoio</option>
-                    <option value="free">Livre (Balanço)</option>
+                    <option value="free">Livre</option>
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase text-slate-500">Base (b)</label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">Base (b)</label>
                   <input 
                     type="number"
                     value={beamInput.sectionB}
@@ -265,11 +289,11 @@ export function VigaCrossView() {
                         spans: prev.spans.map(s => ({ ...s, inertiaCm4: newInertia }))
                       }));
                     }}
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-xs"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl font-mono text-slate-900 text-xs outline-none focus:border-blue-500/30 transition-all"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase text-slate-500">Altura (h)</label>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">Altura (h)</label>
                   <input 
                     type="number"
                     value={beamInput.sectionH}
@@ -284,46 +308,50 @@ export function VigaCrossView() {
                         spans: prev.spans.map(s => ({ ...s, inertiaCm4: newInertia }))
                       }));
                     }}
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-xs"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl font-mono text-slate-900 text-xs outline-none focus:border-blue-500/30 transition-all"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase text-slate-500">FCK (MPa)</label>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">FCK (MPa)</label>
                   <input 
                     type="number"
                     value={beamInput.fck}
                     onChange={(e) => {
                       const fck = parseFloat(e.target.value) || 0;
-                      // E = 5600 * sqrt(fck) approx
                       const newE = Math.round(0.85 * 5600 * Math.sqrt(fck) / 1000); 
                       setBeamInput(prev => ({ ...prev, fck: fck, eGPa: newE }));
                     }}
-                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-xs"
+                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl font-mono text-slate-900 text-xs outline-none focus:border-blue-500/30 transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <p className="text-[10px] font-semibold text-slate-400 italic">Vãos inseridos sequencialmente da esquerda para a direita.</p>
+            <div className="space-y-6">
+              <p className="text-[10px] font-black text-slate-400 italic tracking-widest uppercase text-center border-b border-slate-200 pb-4">
+                Topologia de Vãos (Hardy Cross)
+              </p>
               {beamInput.spans.map((span, idx) => (
-                <div key={span.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-3">
+                <div key={span.id} className="p-6 rounded-3xl bg-white border border-slate-200 space-y-4 group/span transition-all">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-[10px] font-black text-slate-600">{idx + 1}</span>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vão {span.id}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600/20 text-[10px] font-black text-blue-600 border border-blue-600/30">{idx + 1}</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Vão {span.id}</span>
                     </div>
                     {beamInput.spans.length > 1 && (
-                      <button onClick={() => removeSpan(idx)} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button 
+                        onClick={() => removeSpan(idx)} 
+                        className="p-2 text-slate-300 hover:text-red-500 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                   
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black uppercase text-slate-500">Comprimento (m)</label>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">L (m)</label>
                         <input 
                           type="number"
                           value={span.length}
@@ -332,11 +360,11 @@ export function VigaCrossView() {
                             newSpans[idx].length = parseFloat(e.target.value) || 0;
                             setBeamInput(prev => ({ ...prev, spans: newSpans }));
                           }}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-xs"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-slate-900 text-xs outline-none focus:border-blue-500/30 transition-all"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black uppercase text-slate-500">Apoio à Direita</label>
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest ml-1">Apoio Direita</label>
                         <select 
                           value={beamInput.supports[idx + 1]}
                           onChange={(e) => {
@@ -344,29 +372,28 @@ export function VigaCrossView() {
                             newSupports[idx + 1] = e.target.value as SupportType;
                             setBeamInput(prev => ({ ...prev, supports: newSupports }));
                           }}
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-xs"
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-900 text-[10px] outline-none focus:border-blue-500/30 transition-all appearance-none cursor-pointer"
                         >
                           <option value="fixed">Engaste</option>
                           <option value="pin">Apoio</option>
-                          <option value="free">Livre (Balanço)</option>
+                          <option value="free">Livre</option>
                         </select>
                       </div>
                     </div>
 
-                    {/* Editor de Cargas */}
-                    <div className="space-y-2">
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
                       <div className="flex items-center justify-between">
-                        <label className="text-[9px] font-black uppercase text-slate-500">Cargas no Vão</label>
-                        <div className="flex gap-1">
+                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Cargas Estáticas</label>
+                        <div className="flex gap-2">
                           <button 
                             onClick={() => {
                               const newSpans = [...beamInput.spans];
                               newSpans[idx].loads.push({ type: "udl", value: 10 });
                               setBeamInput(prev => ({ ...prev, spans: newSpans }));
                             }}
-                            className="text-[8px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded uppercase"
+                            className="text-[8px] font-black px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg uppercase tracking-widest border border-blue-600/20 hover:bg-blue-600/20 transition-all"
                           >
-                            + Q
+                            + Q (UDL)
                           </button>
                           <button 
                             onClick={() => {
@@ -374,55 +401,63 @@ export function VigaCrossView() {
                               newSpans[idx].loads.push({ type: "point", value: 50, position: span.length / 2 });
                               setBeamInput(prev => ({ ...prev, spans: newSpans }));
                             }}
-                            className="text-[8px] font-black px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded uppercase"
+                            className="text-[8px] font-black px-3 py-1.5 bg-blue-600/10 text-blue-600 rounded-lg uppercase tracking-widest border border-blue-600/20 hover:bg-blue-600/20 transition-all"
                           >
-                            + P
+                            + P (POINT)
                           </button>
                         </div>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {span.loads.map((load, lidx) => (
-                          <div key={lidx} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex-1 flex gap-2">
-                              <input 
-                                type="number"
-                                value={load.value}
-                                placeholder="Valor"
-                                onChange={(e) => {
-                                  const newSpans = [...beamInput.spans];
-                                  newSpans[idx].loads[lidx].value = parseFloat(e.target.value) || 0;
-                                  setBeamInput(prev => ({ ...prev, spans: newSpans }));
-                                }}
-                                className="w-16 px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[10px] font-black"
-                              />
-                              {load.type === "point" && (
+                          <div key={lidx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                            <div className="flex-1 flex gap-3">
+                              <div className="space-y-1">
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block ml-1">Valor</span>
                                 <input 
                                   type="number"
-                                  value={load.position}
-                                  placeholder="Pos"
+                                  value={load.value}
+                                  placeholder="kN"
                                   onChange={(e) => {
                                     const newSpans = [...beamInput.spans];
-                                    const targetLoad = newSpans[idx].loads[lidx];
-                                    if (targetLoad.type === "point") {
-                                      targetLoad.position = parseFloat(e.target.value) || 0;
-                                    }
+                                    newSpans[idx].loads[lidx].value = parseFloat(e.target.value) || 0;
                                     setBeamInput(prev => ({ ...prev, spans: newSpans }));
                                   }}
-                                  className="w-16 px-2 py-1 bg-slate-50 border border-slate-100 rounded text-[10px] font-black"
+                                  className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-mono text-slate-900 outline-none focus:border-blue-500/30"
                                 />
+                              </div>
+                              {load.type === "point" && (
+                                <div className="space-y-1">
+                                  <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block ml-1">Posição</span>
+                                  <input 
+                                    type="number"
+                                    value={load.position}
+                                    placeholder="m"
+                                    onChange={(e) => {
+                                      const newSpans = [...beamInput.spans];
+                                      const targetLoad = newSpans[idx].loads[lidx];
+                                      if (targetLoad.type === "point") {
+                                        targetLoad.position = parseFloat(e.target.value) || 0;
+                                      }
+                                      setBeamInput(prev => ({ ...prev, spans: newSpans }));
+                                    }}
+                                    className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-mono text-slate-900 outline-none focus:border-blue-500/30"
+                                  />
+                                </div>
                               )}
                             </div>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase">{load.type}</span>
+                            <div className="px-3 py-1 rounded-lg bg-blue-600/5 border border-blue-600/10">
+                              <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">{load.type}</span>
+                            </div>
                             <button 
                               onClick={() => {
                                 const newSpans = [...beamInput.spans];
                                 newSpans[idx].loads.splice(lidx, 1);
                                 setBeamInput(prev => ({ ...prev, spans: newSpans }));
                               }}
-                              className="p-1 hover:text-red-500"
+                              className="p-2 text-slate-300 hover:text-red-500 transition-all"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         ))}
@@ -433,85 +468,92 @@ export function VigaCrossView() {
               ))}
             </div>
             
-            <div className="mt-6 p-4 rounded-2xl bg-indigo-900 text-white shadow-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Info className="w-3.5 h-3.5 text-indigo-300" />
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Editor de Cargas</h4>
+            <div className="mt-8 p-6 rounded-[2rem] bg-slate-900 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Info className="w-12 h-12" />
               </div>
-              <p className="text-[11px] font-medium leading-relaxed opacity-90">
-                Use <b>+ Q</b> para carga distribuída e <b>+ P</b> para carga pontual. As reações são atualizadas no esquema dinamicamente após o cálculo.
+              <div className="flex items-center gap-3 mb-3 relative z-10">
+                <Info className="w-4 h-4 text-blue-400" />
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400">Guia Técnico</h4>
+              </div>
+              <p className="text-[11px] font-medium leading-relaxed text-slate-300 relative z-10">
+                O Solver utiliza o algoritmo de <b className="text-white">Hardy Cross</b> para convergência de momentos em apoios intermediários.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Visualização de Resultados */}
         <div className="lg:col-span-8 space-y-6">
-          <div className="p-8 rounded-[2rem] border border-slate-200 bg-white shadow-sm min-h-[500px] flex flex-col">
+          <div className="p-10 rounded-[2.5rem] border border-slate-200 bg-white/80 shadow-2xl min-h-[500px] flex flex-col relative">
             
             {!results ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center">
-                  <Activity className="w-10 h-10 text-slate-200" />
+              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+                <div className="w-24 h-24 bg-slate-100 rounded-[2rem] border border-slate-200 flex items-center justify-center">
+                  <Activity className="w-12 h-12 text-slate-300" />
                 </div>
                 <div>
-                  <h3 className="font-black text-lg text-slate-900">Aguardando Parâmetros</h3>
-                  <p className="text-sm text-slate-500 max-w-sm">Configure a geometria e as cargas da viga contínua e clique em "Calcular Cross" para gerar o memorial.</p>
+                  <h3 className="font-black text-xl text-slate-900 tracking-tight">Telemetria em Standby</h3>
+                  <p className="text-sm text-slate-500 max-w-sm mt-2 font-medium">Configure o modelo estrutural à esquerda e inicie o processamento.</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-8 animate-in fade-in duration-500">
+              <div className="space-y-10">
                 
-                {/* Resumo de Convergência */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
-                    <p className="text-[10px] font-black uppercase text-indigo-600">Iterações</p>
-                    <p className="text-xl font-black text-slate-900">{results.iterations.length}</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <RotateCcw className="w-3.5 h-3.5 text-blue-500" />
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Iterações</p>
+                    </div>
+                    <p className="text-3xl font-black text-slate-900 font-mono">{results.iterations.length}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
-                    <p className="text-[10px] font-black uppercase text-emerald-600">Status</p>
-                    <p className="text-xl font-black text-slate-900">{results.converged ? "Convergido" : "Processando"}</p>
+                  <div className="p-6 rounded-[2rem] bg-emerald-50 border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      <p className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.2em]">Status</p>
+                    </div>
+                    <p className="text-2xl font-black text-slate-900">{results.converged ? "CONVERGIDO" : "EM CURSO"}</p>
                   </div>
-                  <div className="p-4 rounded-2xl bg-slate-900 text-white">
-                    <p className="text-[10px] font-black uppercase text-slate-400">Erro Residual</p>
-                    <p className="text-xl font-black">{formatNumberBR(results.finalMaxUnbalanced, 4)} kNm</p>
+                  <div className="p-6 rounded-[2rem] bg-slate-900 border border-slate-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Target className="w-3.5 h-3.5 text-blue-400" />
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Resíduo Máx.</p>
+                    </div>
+                    <p className="text-2xl font-black text-white font-mono">{formatNumberBR(results.finalMaxUnbalanced, 4)} <span className="text-[10px] text-slate-500">kNm</span></p>
                   </div>
                 </div>
 
-                {/* Gráfico de Cargas e Reações */}
                 <div>
-                  <div className="flex items-center justify-between mb-4 gap-4">
-                    <div className="flex items-center gap-2">
-                      <ArrowUpDown className="w-5 h-5 text-indigo-600" />
-                      <h3 className="font-black text-xl text-slate-900">Cargas Aplicadas e Reações</h3>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">ΣCargas / ΣReações</p>
-                      <p className="text-sm font-black text-slate-900">
-                        {formatNumberBR(beamLoadSummary.totalLoad)} / {formatNumberBR(beamLoadSummary.totalReaction)} kN
-                      </p>
+                  <div className="flex items-center justify-between mb-6 gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-blue-600/10 rounded-xl border border-blue-600/20">
+                        <ArrowUpDown className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <h3 className="font-black text-lg text-slate-900 uppercase tracking-tight">Telemetria de Cargas</h3>
                     </div>
                   </div>
 
-                  <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <svg viewBox="0 0 1000 330" className="h-auto w-full overflow-visible" role="img" aria-label="Gráfico de cargas aplicadas e reações de apoio da viga">
+                  <div className="w-full overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white p-8">
+                    <svg viewBox="0 0 1000 330" className="h-auto w-full overflow-visible">
                       <defs>
                         <marker id="loadArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" />
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
                         </marker>
                         <marker id="reactionArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669" />
+                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
                         </marker>
                       </defs>
 
-                      <line x1="90" y1="170" x2="910" y2="170" stroke="#0f172a" strokeWidth="5" strokeLinecap="round" />
+                      <line x1="90" y1="170" x2="910" y2="170" stroke="#94a3b8" strokeWidth="1" />
 
                       {(() => {
                         const totalLength = beamInput.spans.reduce((sum, span) => sum + span.length, 0);
                         const scaleX = 820 / totalLength;
-                        const allLoadValues = beamInput.spans.flatMap((span) => span.loads.map((load) => load.type === "udl" ? load.value : load.value));
+                        
+                        const allLoadValues = beamInput.spans.flatMap((span) => span.loads.map((load) => load.value));
                         const reactionValues = results.nodeReactions.map((reaction) => Math.abs(reaction.verticalReaction));
                         const maxValue = Math.max(1, ...allLoadValues, ...reactionValues);
+                        
                         let xOffset = 90;
 
                         return (
@@ -530,8 +572,9 @@ export function VigaCrossView() {
                                       <g key={`udl-${span.id}-${loadIdx}`}>
                                         <path
                                           d={`M ${spanX} ${170 - arrowHeight} L ${spanX + spanW} ${170 - arrowHeight}`}
-                                          stroke="#dc2626"
-                                          strokeWidth="2"
+                                          stroke="#ef4444"
+                                          strokeWidth="1.5"
+                                          strokeOpacity="0.8"
                                         />
                                         {Array.from({ length: arrowCount }).map((_, idx) => {
                                           const x = spanX + (idx * spanW) / Math.max(1, arrowCount - 1);
@@ -541,14 +584,14 @@ export function VigaCrossView() {
                                               x1={x}
                                               y1={170 - arrowHeight}
                                               x2={x}
-                                              y2="146"
-                                              stroke="#dc2626"
-                                              strokeWidth="2"
+                                              y2="155"
+                                              stroke="#ef4444"
+                                              strokeWidth="1.5"
                                               markerEnd="url(#loadArrow)"
                                             />
                                           );
                                         })}
-                                        <text x={spanX + spanW / 2} y={158 - arrowHeight} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+                                        <text x={spanX + spanW / 2} y={155 - arrowHeight} textAnchor="middle" fontSize="10" fontWeight="900" fill="#ef4444" className="font-mono">
                                           q = {formatNumberBR(load.value)} kN/m
                                         </text>
                                       </g>
@@ -564,23 +607,22 @@ export function VigaCrossView() {
                                           x1={x}
                                           y1={170 - arrowHeight}
                                           x2={x}
-                                          y2="146"
-                                          stroke="#dc2626"
-                                          strokeWidth="3"
+                                          y2="155"
+                                          stroke="#ef4444"
+                                          strokeWidth="2.5"
                                           markerEnd="url(#loadArrow)"
                                         />
-                                        <text x={x} y={158 - arrowHeight} textAnchor="middle" fontSize="13" fontWeight="900" fill="#dc2626">
+                                        <text x={x} y={155 - arrowHeight} textAnchor="middle" fontSize="10" fontWeight="900" fill="#ef4444" className="font-mono">
                                           P = {formatNumberBR(load.value)} kN
                                         </text>
                                       </g>
                                     );
                                   })}
 
-                                  <line x1={spanX} y1="232" x2={spanX + spanW} y2="232" stroke="#cbd5e1" strokeDasharray="4 4" />
-                                  <text x={spanX + spanW / 2} y="252" textAnchor="middle" fontSize="12" fontWeight="900" fill="#64748b">
-                                    {span.id} - {formatNumberBR(span.length)} m
+                                   <line x1={spanX} y1="232" x2={spanX + spanW} y2="232" stroke="#cbd5e1" strokeDasharray="4 4" />
+                                  <text x={spanX + spanW / 2} y="252" textAnchor="middle" fontSize="10" fontWeight="900" fill="#94a3b8" className="uppercase tracking-widest">
+                                    {span.id}
                                   </text>
-                                  {spanIdx > 0 && <line x1={spanX} y1="160" x2={spanX} y2="182" stroke="#94a3b8" strokeWidth="1" />}
                                 </g>
                               );
                             })}
@@ -596,11 +638,11 @@ export function VigaCrossView() {
                                     y1={isDownward ? 186 : 250}
                                     x2={x}
                                     y2={isDownward ? 186 + arrowHeight : 250 - arrowHeight}
-                                    stroke="#059669"
-                                    strokeWidth="3"
+                                    stroke="#10b981"
+                                    strokeWidth="2.5"
                                     markerEnd="url(#reactionArrow)"
                                   />
-                                  <text x={x} y="294" textAnchor="middle" fontSize="13" fontWeight="900" fill="#059669">
+                                  <text x={x} y="294" textAnchor="middle" fontSize="10" fontWeight="900" fill="#10b981" className="font-mono">
                                     {reaction.nodeId}: {formatNumberBR(reaction.verticalReaction)} kN
                                   </text>
                                 </g>
@@ -609,57 +651,56 @@ export function VigaCrossView() {
                           </>
                         );
                       })()}
-
-                      <text x="90" y="35" fontSize="12" fontWeight="900" fill="#dc2626">Cargas para baixo</text>
-                      <text x="90" y="315" fontSize="12" fontWeight="900" fill="#059669">
-                        Reações para cima | resíduo: {formatNumberBR(beamLoadSummary.residual, 3)} kN
-                      </text>
                     </svg>
                   </div>
                 </div>
 
-                {/* Reações de Apoio */}
+                {/* Reações de Apoio HUD */}
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Target className="w-5 h-5 text-emerald-600" />
-                      <h3 className="font-black text-xl text-slate-900">Reações de Apoio</h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                        <Target className="w-5 h-5 text-emerald-500" />
+                      </div>
+                      <h3 className="font-black text-lg text-slate-900 uppercase tracking-tight">Reações de Equilíbrio</h3>
                     </div>
-                    <div className="text-[10px] font-black px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 uppercase tracking-wider">
-                      Verificação de Equilíbrio: OK
+                    <div className="text-[9px] font-black px-4 py-1.5 bg-emerald-500/10 text-emerald-600 rounded-full border border-emerald-500/20 uppercase tracking-[0.2em]">
+                      Status: Estável
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {results.nodeReactions.map((reac, idx) => (
-                      <div key={reac.nodeId} className="p-4 rounded-2xl border border-slate-100 bg-white shadow-sm">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Apoio {reac.nodeId}</p>
-                        <p className="mt-2 text-xl font-black text-slate-900">{formatNumberBR(reac.verticalReaction)} <span className="text-xs">kN</span></p>
+                      <div key={reac.nodeId} className="p-5 rounded-[1.5rem] border border-slate-200 bg-white/5 backdrop-blur-sm shadow-inner transition-all hover:bg-white/10">
+                        <p className="text-[8px] font-black uppercase text-slate-900/20 tracking-widest">Apoio {reac.nodeId}</p>
+                        <p className="mt-2 text-xl font-black text-slate-900 font-mono">{formatNumberBR(reac.verticalReaction)} <span className="text-[10px] text-slate-900/20">kN</span></p>
                       </div>
                     ))}
-                    <div className="p-4 rounded-2xl border border-indigo-100 bg-indigo-50">
-                      <p className="text-[10px] font-black uppercase text-indigo-600">Total ΣRy</p>
-                      <p className="mt-2 text-xl font-black text-indigo-900">
-                        {formatNumberBR(results.nodeReactions.reduce((s, r) => s + r.verticalReaction, 0))} kN
+                    <div className="p-5 rounded-[1.5rem] border border-blue-500/20 bg-blue-500/5 shadow-lg shadow-blue-500/5">
+                      <p className="text-[8px] font-black uppercase text-blue-600 tracking-widest">ΣRy Total</p>
+                      <p className="mt-2 text-xl font-black text-slate-900 font-mono">
+                        {formatNumberBR(results.nodeReactions.reduce((s, r) => s + r.verticalReaction, 0))} <span className="text-[10px] text-blue-600">kN</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Memorial de Cálculo Detalhado */}
+                {/* Memorial de Cálculo HUD */}
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <TableIcon className="w-5 h-5 text-indigo-600" />
-                      <h3 className="font-black text-xl text-slate-900">Memorial de Cálculo</h3>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-blue-600/10 rounded-xl border border-blue-600/20">
+                        <TableIcon className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <h3 className="font-black text-lg text-slate-900 uppercase tracking-tight">Memorial Hardy Cross</h3>
                     </div>
                     <button 
                       onClick={handleGeneratePDF}
                       disabled={generatingPDF}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all",
+                        "flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black transition-all uppercase tracking-widest",
                         generatingPDF 
-                          ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                          : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm shadow-indigo-200"
+                          ? "bg-white/5 text-slate-900/20 cursor-not-allowed" 
+                          : "bg-white text-black hover:bg-blue-50 shadow-xl"
                       )}
                     >
                       {generatingPDF ? (
@@ -674,44 +715,44 @@ export function VigaCrossView() {
                     </button>
                   </div>
                   
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                    <table className="w-full text-left text-[11px] font-bold">
-                      <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
+                  <div className="overflow-hidden rounded-[2.5rem] border border-slate-200 bg-white/80 shadow-inner">
+                    <table className="w-full text-left text-[10px] font-bold">
+                      <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                         <tr>
-                          <th className="px-4 py-3 uppercase tracking-wider">Propriedade</th>
+                          <th className="px-6 py-4 uppercase tracking-[0.2em]">Propriedade</th>
                           {results.barResults.map(b => (
-                            <th key={b.barId} className="px-4 py-3 uppercase tracking-wider text-center" colSpan={2}>Vão {b.barId}</th>
+                            <th key={b.barId} className="px-6 py-4 uppercase tracking-[0.2em] text-center" colSpan={2}>Vão {b.barId}</th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-white/5">
                         <tr>
-                          <td className="px-4 py-3 text-slate-500 uppercase">Comprimento (L)</td>
+                          <td className="px-6 py-4 text-slate-500 uppercase tracking-widest">L (m)</td>
                           {beamInput.spans.map(s => (
-                            <td key={`${s.id}-L`} className="px-2 py-3 text-center border-l border-slate-50" colSpan={2}>{s.length} m</td>
+                            <td key={`${s.id}-L`} className="px-2 py-4 text-center border-l border-slate-200 text-slate-900 font-mono" colSpan={2}>{s.length}</td>
                           ))}
                         </tr>
-                        <tr className="bg-slate-50/30">
-                          <td className="px-4 py-3 text-slate-500 uppercase">Inércia (I)</td>
+                        <tr className="bg-white/[0.02]">
+                          <td className="px-6 py-4 text-slate-500 uppercase tracking-widest">Inércia (cm⁴)</td>
                           {beamInput.spans.map(s => (
-                            <td key={`${s.id}-I`} className="px-2 py-3 text-center border-l border-slate-50" colSpan={2}>{s.inertiaCm4} cm⁴</td>
+                            <td key={`${s.id}-I`} className="px-2 py-4 text-center border-l border-slate-200 text-slate-900 font-mono" colSpan={2}>{s.inertiaCm4}</td>
                           ))}
                         </tr>
-                        <tr className="bg-indigo-50/20">
-                          <td className="px-4 py-3 text-indigo-700 font-black border-r border-slate-200 uppercase">MEP (Engaste)</td>
+                        <tr className="bg-blue-500/5">
+                          <td className="px-6 py-4 text-blue-600 font-black border-r border-slate-200 uppercase tracking-widest">MEP (Engaste)</td>
                           {results.barResults.map(b => (
                             <React.Fragment key={`${b.barId}-mep`}>
-                              <td className="px-2 py-3 text-center">{formatNumberBR(b.mepA)}</td>
-                              <td className="px-2 py-3 text-center border-r border-slate-200">{formatNumberBR(b.mepB)}</td>
+                              <td className="px-2 py-4 text-center text-blue-600 font-mono">{formatNumberBR(b.mepA)}</td>
+                              <td className="px-2 py-4 text-center border-r border-slate-200 text-blue-600 font-mono">{formatNumberBR(b.mepB)}</td>
                             </React.Fragment>
                           ))}
                         </tr>
-                        <tr className="bg-slate-900 text-white">
-                          <td className="px-4 py-4 font-black border-r border-white/10 uppercase">MOMENTO FINAL</td>
+                        <tr className="bg-white text-black">
+                          <td className="px-6 py-5 font-black border-r border-black/10 uppercase tracking-[0.2em]">MOMENTO FINAL</td>
                           {results.barResults.map(b => (
                             <React.Fragment key={`${b.barId}-final`}>
-                              <td className="px-2 py-4 text-center">{formatNumberBR(b.finalA)}</td>
-                              <td className="px-2 py-4 text-center border-r border-white/10 font-black">{formatNumberBR(b.finalB)}</td>
+                              <td className="px-2 py-5 text-center font-mono">{formatNumberBR(b.finalA)}</td>
+                              <td className="px-2 py-5 text-center border-r border-black/10 font-black font-mono">{formatNumberBR(b.finalB)}</td>
                             </React.Fragment>
                           ))}
                         </tr>
@@ -939,7 +980,7 @@ export function VigaCrossView() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-4">
                         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-600/40">
-                          <SafeShieldCheck className="h-8 w-8 text-white" />
+                          <ShieldCheck className="h-8 w-8 text-white" />
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">M5-PhD Intelligence</p>
@@ -956,7 +997,7 @@ export function VigaCrossView() {
 
                     <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-4">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Diagnóstico Técnico</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-600">Diagnóstico Técnico</p>
                         <div className="space-y-3">
                           {auditResult.findings.map((f: string, i: number) => (
                             <div key={i} className="flex gap-3 text-sm font-bold text-slate-700 leading-relaxed bg-white/50 p-3 rounded-xl border border-white/60">
@@ -967,7 +1008,7 @@ export function VigaCrossView() {
                         </div>
                       </div>
                       <div className="space-y-4">
-                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Recomendações PhD</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-600">Recomendações PhD</p>
                         <div className="space-y-3">
                           {auditResult.recommendations.map((r: string, i: number) => (
                             <div key={i} className="flex gap-3 text-sm font-bold text-blue-800 leading-relaxed bg-blue-100/50 p-3 rounded-xl border border-blue-200/40">

@@ -25,7 +25,7 @@ export default function MemberSectionView({ b, h, as_top = 0, as_bottom = 0, typ
 
   return (
     <div className="flex flex-col items-center p-4 bg-white rounded-2xl border border-black/5 shadow-sm">
-      {title && <h5 className="text-[10px] font-bold text-apple-text uppercase mb-4">{title}</h5>}
+      {title && <h5 className="text-[10px] font-bold text-slate-900 uppercase mb-4">{title}</h5>}
       
       <svg width="200" height="200" viewBox="0 0 200 200" className="drop-shadow-sm">
         {/* Seção de Concreto */}
@@ -68,11 +68,11 @@ export default function MemberSectionView({ b, h, as_top = 0, as_bottom = 0, typ
 
       <div className="mt-4 grid grid-cols-2 gap-4 w-full">
         <div className="text-center">
-          <p className="text-[8px] text-apple-muted uppercase">As Superior</p>
+          <p className="text-[8px] text-slate-600 uppercase">As Superior</p>
           <p className="text-xs font-bold">{formatNumberBR(as_top)} cm²</p>
         </div>
         <div className="text-center">
-          <p className="text-[8px] text-apple-muted uppercase">As Inferior</p>
+          <p className="text-[8px] text-slate-600 uppercase">As Inferior</p>
           <p className="text-xs font-bold">{formatNumberBR(as_bottom)} cm²</p>
         </div>
       </div>

@@ -15,7 +15,9 @@ import {
   GraduationCap,
   Download,
   X,
-  CheckCircle2
+  CheckCircle2,
+  BarChart3,
+  ArrowUpDown
 } from "lucide-react";
 import { cn, formatNumberBR } from "@/lib/utils";
 import { ModuleContainer } from "@/components/ui/ModuleContainer";
@@ -170,18 +172,92 @@ export function AcademicTrussView() {
     }, 1500);
   };
 
+  function TrussLoadReactionChart({
+    activeLoads,
+    reactions,
+    span,
+    height
+  }: {
+    activeLoads: any[];
+    reactions: { va: number; vb: number };
+    span: number;
+    height: number;
+  }) {
+    const totalLoad = activeLoads.reduce((sum, l) => sum + Math.abs(l.fz), 0);
+    const totalReaction = (reactions.va + reactions.vb);
+    
+    return (
+      <div className="p-8 rounded-[2.5rem] border border-slate-200 bg-white shadow-xl group">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-500/10 rounded-2xl group-hover:bg-blue-500/20 transition-colors">
+              <ArrowUpDown className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-black text-sm uppercase tracking-wider text-slate-900">Equilíbrio da Treliça</h3>
+              <p className="text-[10px] font-black text-slate-600 uppercase mt-0.5">∑Fy = 0 | {formatNumberBR(totalLoad)} kN</p>
+            </div>
+          </div>
+          <div className="text-right">
+             <p className="text-[10px] font-black text-slate-600 uppercase mb-1">Resíduo</p>
+             <p className="text-sm font-black text-emerald-600">{formatNumberBR(totalReaction - totalLoad, 4)} kN</p>
+          </div>
+        </div>
+
+        <svg viewBox="0 0 600 200" className="w-full h-40 overflow-visible">
+          <defs>
+            <marker id="trussLoadArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#f43f5e" />
+            </marker>
+            <marker id="trussReactArrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6" />
+            </marker>
+          </defs>
+
+          {/* Simplified Truss Shape */}
+          <path 
+            d={`M 100 150 L 300 ${150 - height * 20} L 500 150 Z`} 
+            fill="none" 
+            stroke="#e2e8f0" 
+            strokeWidth="4" 
+            strokeLinejoin="round" 
+          />
+          <line x1="100" y1="150" x2="500" y2="150" stroke="#e2e8f0" strokeWidth="4" />
+
+          {/* Load Arrows */}
+          {activeLoads.map((l, i) => {
+            const x = 100 + (Math.random() * 400); // simplified position for visual
+            return (
+              <g key={i}>
+                <line x1={x} y1="40" x2={x} y2="80" stroke="#f43f5e" strokeWidth="2" markerEnd="url(#trussLoadArrow)" />
+                <text x={x} y="35" textAnchor="middle" fontSize="10" fontWeight="900" fill="#f43f5e">{formatNumberBR(l.fz)} kN</text>
+              </g>
+            );
+          })}
+
+          {/* Reaction Arrows */}
+          <line x1="100" y1="190" x2="100" y2="155" stroke="#3b82f6" strokeWidth="3" markerEnd="url(#trussReactArrow)" />
+          <text x="100" y="195" textAnchor="middle" fontSize="11" fontWeight="900" fill="#3b82f6">Va: {formatNumberBR(reactions.va)} kN</text>
+
+          <line x1="500" y1="190" x2="500" y2="155" stroke="#3b82f6" strokeWidth="3" markerEnd="url(#trussReactArrow)" />
+          <text x="500" y="195" textAnchor="middle" fontSize="11" fontWeight="900" fill="#3b82f6">Vb: {formatNumberBR(reactions.vb)} kN</text>
+        </svg>
+      </div>
+    );
+  }
+
   return (
     <ModuleContainer
       title="Treliças Metálicas (Mestre)"
       subtitle="Dimensionamento industrial e residencial. Análise de esforços axiais e flambagem NBR 8800."
-      icon={<LayoutGrid className="h-6 w-6 text-white" />}
+      icon={<LayoutGrid className="h-6 w-6 text-slate-900" />}
       theme="academic"
       solverType="Steel Truss Solver"
     >
       <div className="grid grid-cols-12 gap-8">
         <div className="col-span-12 lg:col-span-4 space-y-6">
           <div className="p-8 rounded-[2.5rem] border border-slate-200 bg-white shadow-xl relative overflow-hidden group">
-            <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 mb-8 flex items-center gap-2">
+            <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-600 mb-8 flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
               Parâmetros da Estrutura
             </h3>
@@ -203,7 +279,7 @@ export function AcademicTrussView() {
                           : "bg-white border-slate-100 text-slate-600 hover:border-blue-200 hover:bg-blue-50/30"
                       )}
                     >
-                      <LayoutGrid className={cn("w-4 h-4", trussType === t ? "text-blue-100" : "text-slate-400")} />
+                      <LayoutGrid className={cn("w-4 h-4", trussType === t ? "text-blue-100" : "text-slate-600")} />
                       <span className="text-[8px] font-black uppercase tracking-tighter truncate w-full text-center">
                         {t.replace("_", " ")}
                       </span>
@@ -232,7 +308,7 @@ export function AcademicTrussView() {
                     return (
                       <div key={i} className="group flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-blue-200 transition-all">
                         <div className="flex flex-col min-w-[60px] border-r border-slate-100 pr-3">
-                          <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">ID do Nó</span>
+                          <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest mb-1">ID do Nó</span>
                           <input 
                             type="number" 
                             value={l.nodeId} 
@@ -246,7 +322,7 @@ export function AcademicTrussView() {
                           </span>
                         </div>
                         <div className="flex-1">
-                          <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Carga Vertical (kN)</span>
+                          <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest mb-1 block">Carga Vertical (kN)</span>
                           <input 
                             type="number" 
                             value={l.fz} 
@@ -264,13 +340,13 @@ export function AcademicTrussView() {
                   })}
                 </div>
               </div>
-              <button onClick={handleAnalyze} disabled={loading} className="w-full py-4 bg-slate-950 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
+              <button onClick={handleAnalyze} disabled={loading} className="w-full py-4 bg-slate-950 text-slate-900 rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
                 {loading ? <Activity className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
                 SOLUCIONAR TRELIÇA
               </button>
             </div>
           </div>
-          <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-xl relative overflow-hidden">
+          <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 text-slate-900 shadow-xl relative overflow-hidden">
             <GraduationCap className="absolute -right-4 -bottom-4 w-24 h-24 opacity-20 rotate-12" />
             <h4 className="text-[11px] font-black uppercase tracking-widest mb-4">Academia Mestre</h4>
             <p className="text-[11px] font-medium leading-relaxed opacity-90">Análise matricial de rigidez com verificação automática de esbeltez (λ) conforme a NBR 8800 para perfis laminados e soldados.</p>
@@ -297,7 +373,7 @@ export function AcademicTrussView() {
             />
             {!results && (
               <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
-                <p className="text-white text-[10px] font-black uppercase tracking-[0.4em]">Simulação Estrutural 3D</p>
+                <p className="text-slate-900 text-[10px] font-black uppercase tracking-[0.4em]">Simulação Estrutural 3D</p>
               </div>
             )}
           </div>
@@ -306,22 +382,22 @@ export function AcademicTrussView() {
             <div className="space-y-8 animate-in slide-in-from-bottom duration-1000">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <div className="p-6 rounded-[2.5rem] bg-white border border-slate-200">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Crítica</p>
-                    <div className="text-3xl font-black text-slate-950">{formatNumberBR(results.max_force)} <span className="text-xs text-slate-400">kN</span></div>
+                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Carga Crítica</p>
+                    <div className="text-3xl font-black text-slate-950">{formatNumberBR(results.max_force)} <span className="text-xs text-slate-600">kN</span></div>
                     <div className="mt-4 p-3 bg-emerald-50 rounded-2xl text-[10px] font-bold text-emerald-700 flex items-center gap-2">
                        <CheckCircle2 className="w-4 h-4" /> Estabilidade Global OK
                     </div>
                  </div>
 
                  <div className="p-6 rounded-[2.5rem] bg-white border border-slate-200">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Reações de Apoio</p>
+                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Reações de Apoio</p>
                     <div className="grid grid-cols-2 gap-4">
                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Va (Esquerda)</p>
+                          <p className="text-[9px] font-black text-slate-600 uppercase mb-1">Va (Esquerda)</p>
                           <p className="text-xl font-black text-indigo-600">{formatNumberBR(results.reactions.va)} <span className="text-[10px]">kN</span></p>
                        </div>
                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                          <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Vb (Direita)</p>
+                          <p className="text-[9px] font-black text-slate-600 uppercase mb-1">Vb (Direita)</p>
                           <p className="text-xl font-black text-indigo-600">{formatNumberBR(results.reactions.vb)} <span className="text-[10px]">kN</span></p>
                        </div>
                     </div>
@@ -330,7 +406,7 @@ export function AcademicTrussView() {
                     </div>
                  </div>
 
-                 <div className="p-8 rounded-[2.5rem] bg-slate-950 text-white shadow-2xl flex flex-col justify-between">
+                 <div className="p-8 rounded-[2.5rem] bg-slate-950 text-slate-900 shadow-2xl flex flex-col justify-between">
                     <div className="flex justify-between items-center mb-6">
                        <h4 className="text-sm font-black uppercase tracking-wider">Metodologia</h4>
                        <button onClick={() => setShowMemorial(true)} className="px-4 py-2 bg-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-colors">Memorial</button>
@@ -340,8 +416,8 @@ export function AcademicTrussView() {
                          <div key={i} className="flex items-start gap-3">
                             <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] font-black flex-none">{i+1}</div>
                             <div>
-                               <p className="text-[9px] font-black text-blue-400 uppercase">{s.title}</p>
-                               <p className="text-[10px] font-medium text-slate-400 leading-tight">{s.desc}</p>
+                               <p className="text-[9px] font-black text-blue-600 uppercase">{s.title}</p>
+                               <p className="text-[10px] font-medium text-slate-600 leading-tight">{s.desc}</p>
                             </div>
                          </div>
                        ))}
@@ -351,16 +427,16 @@ export function AcademicTrussView() {
               <div className="rounded-[2.5rem] border border-slate-200 bg-white overflow-hidden">
                  <div className="p-8 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center">
                     <h4 className="text-sm font-black uppercase tracking-wider">Relatório de Esforços Internos</h4>
-                    <span className="text-[10px] font-black text-slate-400 uppercase">{results.stats.members} Barras Analisadas</span>
+                    <span className="text-[10px] font-black text-slate-600 uppercase">{results.stats.members} Barras Analisadas</span>
                  </div>
                  <div className="overflow-x-auto">
                     <table className="w-full text-left">
                        <thead>
                           <tr className="bg-slate-50/20">
-                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Barra</th>
-                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo</th>
-                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Esforço (kN)</th>
-                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Taxa Uso</th>
+                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600">Barra</th>
+                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600">Tipo</th>
+                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600">Esforço (kN)</th>
+                             <th className="px-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-600">Taxa Uso</th>
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-50">
@@ -400,7 +476,7 @@ export function AcademicTrussView() {
           <div className="w-full max-w-4xl bg-white rounded-[3rem] shadow-2xl p-10 relative animate-in zoom-in-95 duration-200">
             <button onClick={() => setShowMemorial(false)} className="absolute top-8 right-8 p-3 hover:bg-slate-100 rounded-full transition-colors"><X className="w-6 h-6" /></button>
             <h2 className="text-3xl font-black text-slate-900 mb-2">Memorial de Cálculo</h2>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-10">Método de Rigidez Direta • NBR 8800</p>
+            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-widest mb-10">Método de Rigidez Direta • NBR 8800</p>
             
             <div className="grid md:grid-cols-2 gap-10">
                <div className="space-y-8">
@@ -408,23 +484,23 @@ export function AcademicTrussView() {
                     <div key={i} className="p-6 rounded-3xl bg-slate-50 border border-slate-100">
                        <h5 className="text-[11px] font-black uppercase text-blue-600 mb-2">{s.title}</h5>
                        <p className="text-xs font-medium text-slate-600 mb-4">{s.desc}</p>
-                       <div className="p-4 bg-slate-950 rounded-2xl text-[10px] font-mono text-emerald-400 border border-emerald-500/20">{s.formula}</div>
-                       <p className="mt-3 text-[10px] font-black text-slate-400 uppercase">Resultado: <span className="text-slate-900">{s.result}</span></p>
+                       <div className="p-4 bg-slate-950 rounded-2xl text-[10px] font-mono text-emerald-600 border border-emerald-500/20">{s.formula}</div>
+                       <p className="mt-3 text-[10px] font-black text-slate-600 uppercase">Resultado: <span className="text-slate-900">{s.result}</span></p>
                     </div>
                   ))}
                </div>
                <div className="space-y-8">
-                  <div className="p-8 rounded-3xl bg-slate-900 text-white">
+                  <div className="p-8 rounded-3xl bg-slate-900 text-slate-900">
                      <h5 className="text-[11px] font-black uppercase text-rose-400 mb-4">Verificação de Flambagem</h5>
-                     <p className="text-xs font-medium text-slate-400 mb-6 leading-relaxed">Considerando o coeficiente de flambagem global e as propriedades dos perfis laminados conforme Anexo G da NBR 8800.</p>
+                     <p className="text-xs font-medium text-slate-600 mb-6 leading-relaxed">Considerando o coeficiente de flambagem global e as propriedades dos perfis laminados conforme Anexo G da NBR 8800.</p>
                      <div className="space-y-4">
-                        <div className="flex justify-between items-baseline border-b border-white/5 pb-2">
+                        <div className="flex justify-between items-baseline border-b border-slate-200 pb-2">
                            <span className="text-[10px] font-black text-slate-500 uppercase">Fórmula de Euler</span>
-                           <span className="text-xs font-mono text-emerald-400">Pe = π²EI / (KL)²</span>
+                           <span className="text-xs font-mono text-emerald-600">Pe = π²EI / (KL)²</span>
                         </div>
-                        <div className="flex justify-between items-baseline border-b border-white/5 pb-2">
+                        <div className="flex justify-between items-baseline border-b border-slate-200 pb-2">
                            <span className="text-[10px] font-black text-slate-500 uppercase">Índice Esbeltez λ</span>
-                           <span className="text-xs font-mono text-emerald-400">124.5</span>
+                           <span className="text-xs font-mono text-emerald-600">124.5</span>
                         </div>
                         <div className="flex justify-between items-baseline">
                            <span className="text-[10px] font-black text-slate-500 uppercase">Status Final</span>
@@ -433,7 +509,7 @@ export function AcademicTrussView() {
                      </div>
                   </div>
                   <div className="p-8 rounded-3xl border-2 border-dashed border-slate-200">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Notas de Auditoria</p>
+                     <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Notas de Auditoria</p>
                      <ul className="space-y-3">
                         <li className="flex gap-3 text-[11px] font-medium text-slate-600"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-none" /> Nós considerados como rótulas perfeitas.</li>
                         <li className="flex gap-3 text-[11px] font-medium text-slate-600"><CheckCircle2 className="w-4 h-4 text-emerald-500 flex-none" /> Deformações axiais predominantes (1ª ordem).</li>
@@ -441,10 +517,19 @@ export function AcademicTrussView() {
                      </ul>
                   </div>
                </div>
+               
+               <div className="col-span-2">
+                  <TrussLoadReactionChart 
+                    activeLoads={activeLoads} 
+                    reactions={results.reactions} 
+                    span={span} 
+                    height={height} 
+                  />
+               </div>
             </div>
             <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-center">
-               <p className="text-[10px] font-bold text-slate-400 italic">Documento gerado automaticamente pelo Mestre Structural Engine em {new Date().toLocaleDateString('pt-BR')}</p>
-               <button className="px-8 py-3 bg-slate-950 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10 flex items-center gap-2">
+               <p className="text-[10px] font-bold text-slate-600 italic">Documento gerado automaticamente pelo Mestre Structural Engine em {new Date().toLocaleDateString('pt-BR')}</p>
+               <button className="px-8 py-3 bg-slate-950 text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10 flex items-center gap-2">
                   <Download className="w-4 h-4" /> Baixar PDF Oficial
                </button>
             </div>

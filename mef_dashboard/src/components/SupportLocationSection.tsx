@@ -157,11 +157,11 @@ function SupportPreview({
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-xs font-black uppercase tracking-widest text-[#667085]">Preview Interativo (Vista em Planta)</p>
-          <p className="text-[10px] text-apple-muted font-bold mt-0.5 italic">Dica: Arraste os pilares e as extremidades das vigas para ajustar a posição.</p>
+          <p className="text-[10px] text-slate-600 font-bold mt-0.5 italic">Dica: Arraste os pilares e as extremidades das vigas para ajustar a posição.</p>
         </div>
         <div className="flex gap-4 text-[10px] font-bold text-[#8a9ab0]">
           <div className="flex items-center gap-1.5">
-            <div className="h-2 w-2 rounded-sm bg-[#0071e3]"></div>
+            <div className="h-2 w-2 rounded-sm bg-[#2563eb]"></div>
             <span>Pilar</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -356,7 +356,7 @@ function SupportPreview({
                   y={toY(py) - by / 2}
                   width={bx}
                   height={by}
-                  fill={isOutside ? "#ef4444" : "#0071e3"}
+                  fill={isOutside ? "#ef4444" : "#2563eb"}
                   className={`opacity-90 ${isDragging ? "stroke-2 stroke-yellow-400" : ""}`}
                 />
                 <text
@@ -494,7 +494,7 @@ export function SupportLocationSection({
           <button
             type="button"
             onClick={addPillar}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#0071e3] px-3 py-2 text-sm font-bold text-white hover:bg-[#0062c7]"
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             Adicionar pilar
@@ -567,7 +567,7 @@ export function SupportLocationSection({
                     inputMode="decimal"
                     value={pillar.fz ?? 0}
                     onChange={(e) => updatePillar(index, "fz", e.target.value)}
-                    className="w-20 rounded-lg border border-[#d9dfe9] px-2 py-1 font-bold text-[#0071e3]"
+                    className="w-20 rounded-lg border border-[#d9dfe9] px-2 py-1 font-bold text-[#2563eb]"
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -605,7 +605,7 @@ export function SupportLocationSection({
                       type="button"
                       onClick={() => margearPillar(index)}
                       title="Margear (Ajustar ao limite)"
-                      className="inline-flex items-center gap-1 rounded-lg bg-[#f0f4f8] px-2 py-1 text-xs font-bold text-[#0071e3] hover:bg-[#e1e9f2]"
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#f0f4f8] px-2 py-1 text-xs font-bold text-[#2563eb] hover:bg-[#e1e9f2]"
                     >
                       <Maximize className="h-3 w-3" />
                       Margear
@@ -634,7 +634,7 @@ export function SupportLocationSection({
             <button
               type="button"
               onClick={addLineSupport}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#0071e3] px-3 py-2 text-sm font-bold text-white hover:bg-[#0062c7]"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
               Viga extra (Livre)
@@ -670,7 +670,7 @@ export function SupportLocationSection({
                     }}
                     className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
                       exists 
-                        ? "bg-[#0071e3] text-white border border-[#0071e3]" 
+                        ? "bg-blue-600 text-white border border-blue-600 shadow-sm" 
                         : "bg-white text-[#4b5563] border border-[#d1d9e6] hover:bg-[#edf1f7]"
                     }`}
                   >

@@ -42,7 +42,7 @@ export const PillarEditor: React.FC<PillarEditorProps> = ({ pillars, setPillars 
         <h3 className="font-bold text-lg">Locação e Cargas de Pilares</h3>
         <button 
           onClick={addPillar}
-          className="flex items-center gap-2 px-3 py-1.5 bg-apple-blue/10 text-apple-blue rounded-full text-xs font-bold hover:bg-apple-blue/20 transition-all"
+          className="flex items-center gap-2 px-3 py-1.5 bg-blue-600/10 text-apple-blue rounded-full text-xs font-bold hover:bg-blue-600/20 transition-all"
         >
           <Plus className="w-3.5 h-3.5" /> ADICIONAR PILAR
         </button>
@@ -51,7 +51,7 @@ export const PillarEditor: React.FC<PillarEditorProps> = ({ pillars, setPillars 
       <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
         <table className="w-full text-left border-separate border-spacing-y-2">
           <thead>
-            <tr className="text-[10px] font-black text-apple-muted uppercase tracking-widest">
+            <tr className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
               <th className="pb-2 pl-4">ID</th>
               <th className="pb-2">X (m)</th>
               <th className="pb-2">Y (m)</th>
@@ -65,7 +65,7 @@ export const PillarEditor: React.FC<PillarEditorProps> = ({ pillars, setPillars 
                 <td className="py-3 pl-4 font-bold text-sm rounded-l-xl border-y border-l border-white/40">{pillar.id}</td>
                 <td className="py-3 border-y border-white/40">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-3 h-3 text-apple-muted opacity-50" />
+                    <MapPin className="w-3 h-3 text-slate-600 opacity-50" />
                     <input 
                       type="number" 
                       value={pillar.x} 
@@ -76,7 +76,7 @@ export const PillarEditor: React.FC<PillarEditorProps> = ({ pillars, setPillars 
                 </td>
                 <td className="py-3 border-y border-white/40">
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-3 h-3 text-apple-muted opacity-50" />
+                    <MapPin className="w-3 h-3 text-slate-600 opacity-50" />
                     <input 
                       type="number" 
                       value={pillar.y} 
@@ -99,7 +99,7 @@ export const PillarEditor: React.FC<PillarEditorProps> = ({ pillars, setPillars 
                 <td className="py-3 pr-4 text-right rounded-r-xl border-y border-r border-white/40">
                   <button 
                     onClick={() => removePillar(index)}
-                    className="p-1.5 text-apple-red/40 hover:text-apple-red transition-colors"
+                    className="p-1.5 text-red-500/40 hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

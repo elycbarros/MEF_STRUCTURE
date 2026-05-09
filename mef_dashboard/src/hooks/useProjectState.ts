@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from "react";
-import { Gauge, ShieldCheck, Building2, StretchHorizontal, FileText, Wind, Box, Database, Search, Cpu, ClipboardCheck, Share2, Activity, Zap } from "lucide-react";
+import { Gauge, ShieldCheck, Building2, StretchHorizontal, FileText, Wind, Box, Database, Search, Cpu, ClipboardCheck, Share2, Activity, Zap, BookOpen, Book, Layers } from "lucide-react";
 
-export type AcademicTabId = "dashboard" | "geometria" | "porticos" | "trelicas" | "pilares_isolados" | "vigas" | "especiais" | "vigacross" | "backlog";
-export type TabId = AcademicTabId | "pilares" | "armadura" | "resultado" | "integracao" | "vento" | "tensionpro" | "ufo";
+export type AcademicTabId = "dashboard" | "geometria" | "porticos" | "trelicas" | "pilares_isolados" | "vigas" | "especiais" | "vigacross" | "backlog" | "biblioteca";
+export type TabId = AcademicTabId | "pilares" | "armadura" | "resultado" | "vento" | "tensionpro";
 type LogEntry = {
   message: string;
   type: "info" | "success" | "error" | "warning";
@@ -42,35 +42,26 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
     }]);
   }, []);
 
-  const tabs = useMemo(() => {
-    if (mode === "academic") {
-      return [
-        { id: "dashboard", label: "Painel", icon: Gauge },
-        { id: "backlog", label: "Backlog", icon: ClipboardCheck },
-        { id: "geometria", label: "Radier", icon: ShieldCheck },
-        { id: "porticos", label: "Pórticos", icon: Share2 },
-        { id: "trelicas", label: "Treliças", icon: Activity },
-        { id: "pilares_isolados", label: "Dimensionar Pilar", icon: Cpu },
-        { id: "vigas", label: "Dimensionar Viga", icon: Box },
-        { id: "especiais", label: "Paredes e Especiais", icon: Database }
-      ];
-    }
-
-    const allTabs = [
+  const { primaryTabs, secondaryTabs } = useMemo(() => {
+    const p = [
       { id: "dashboard", label: "Painel", icon: Gauge },
-      { id: "geometria", label: systemType === "radier" ? "Modo Guiado" : "Parâmetros", icon: ShieldCheck },
-      { id: "pilares", label: "Pilares", icon: Building2 },
-      { id: "armadura", label: "Armadura", icon: StretchHorizontal },
-      { id: "resultado", label: "Relatório", icon: FileText },
-      { id: "ufo", label: "UFO Stability", icon: Activity },
-      { id: "tensionpro", label: "TENSION PRO", icon: Zap },
-      { id: "vento", label: "Vento", icon: Wind },
-      { id: "especiais", label: "Especiais", icon: Box },
-      { id: "vigacross", label: "VIGA CROSS", icon: Share2 },
-      { id: "integracao", label: "PhD Console", icon: Cpu },
+      { id: "lajes", label: "LAJES", icon: Layers },
+      { id: "geometria", label: "RADIER", icon: ShieldCheck },
+      { id: "porticos", label: "PÓRTICOS", icon: Share2 },
+      { id: "trelicas", label: "TRELIÇAS", icon: Activity },
+      { id: "pilares_isolados", label: "DIMENSIONAR PILAR", icon: Cpu },
+      { id: "vigas", label: "DIMENSIONAR VIGA", icon: Box },
+      { id: "especiais", label: "PAREDES E ESPECIAIS", icon: Database },
     ];
 
-    return allTabs;
+    const s = [
+      { id: "vigacross", label: "VIGA CROSS", icon: Share2 },
+      { id: "tensionpro", label: "TENSION PRO", icon: Zap },
+      { id: "backlog", label: "Backlog", icon: ClipboardCheck },
+      { id: "biblioteca", label: "Biblioteca", icon: BookOpen }
+    ];
+
+    return { primaryTabs: p, secondaryTabs: s };
   }, [systemType, mode]);
 
   return {
@@ -88,7 +79,8 @@ export function useProjectState(mode: "academic" | "professional" | null = "prof
     setSlabType,
     docMeta,
     setDocMeta,
-    tabs,
+    primaryTabs,
+    secondaryTabs,
     b_nerv, setBNerv,
     dist_nerv, setDistNerv,
     h_mesa, setHMesa,

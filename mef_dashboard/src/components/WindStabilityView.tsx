@@ -171,7 +171,7 @@ export function WindStabilityView({
             <button
               onClick={onRunAnalysis}
               disabled={loading}
-              className="w-full py-4 mt-4 bg-[#1a1c1e] text-white rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-[#2d3135] disabled:opacity-50 transition-all shadow-lg"
+              className="w-full py-4 mt-4 bg-[#1a1c1e] text-slate-900 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-[#2d3135] disabled:opacity-50 transition-all shadow-lg"
             >
               {loading ? (
                 <Activity className="w-5 h-5 animate-spin" />
@@ -210,7 +210,7 @@ export function WindStabilityView({
                 </span>
               </div>
 
-              <div className="bg-white/50 rounded-2xl p-4 space-y-2 border border-white/50">
+              <div className="bg-white/50 rounded-2xl p-4 space-y-2 border border-slate-2000">
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-[#6a7485]">P-Delta Iterações:</span>
                   <span className="text-[#1a1c1e]">{stability.p_delta_iterations}</span>
@@ -254,7 +254,7 @@ export function WindStabilityView({
                     className="flex-1 bg-[#2b5a9e] hover:bg-[#3b82f6] transition-all rounded-t-sm group relative"
                     style={{ height: `${(lvl.q_Pa / Math.max(...profile.map((p: any) => p.q_Pa))) * 100}%` }}
                   >
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#1a1c1e] text-white text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 font-black shadow-xl">
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#1a1c1e] text-slate-900 text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 font-black shadow-xl">
                       {formatNumberBR(lvl.z, 1)}m: {formatNumberBR(lvl.q_Pa)} Pa
                     </div>
                   </div>

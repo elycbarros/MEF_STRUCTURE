@@ -44,7 +44,7 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles, slabTyp
       return {
         title: "AÇÃO CRÍTICA: Laje Protendida",
         text: "RISCO DE MORTE: Proibido executar furos sem mapeamento radiográfico ou eletromagnético dos cabos de protensão. O corte de uma cordoalha pode causar colapso progressivo imediato.",
-        color: "text-white bg-red-600 border-red-800 shadow-lg animate-pulse"
+        color: "text-slate-900 bg-red-600 border-red-800 shadow-lg animate-pulse"
       };
     }
     if (slabType === "ribbed") {
@@ -91,12 +91,12 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles, slabTyp
       <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
         {holes.length === 0 ? (
           <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            <p className="text-xs text-slate-400 font-medium">Nenhuma abertura definida para este modelo.</p>
+            <p className="text-xs text-slate-600 font-medium">Nenhuma abertura definida para este modelo.</p>
           </div>
         ) : (
           <table className="w-full text-left border-separate border-spacing-y-2">
             <thead>
-              <tr className="text-[10px] font-black text-apple-muted uppercase tracking-widest">
+              <tr className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
                 <th className="pb-2 pl-4">#</th>
                 <th className="pb-2">X Mín (m)</th>
                 <th className="pb-2">Y Mín (m)</th>
@@ -108,7 +108,7 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles, slabTyp
             <tbody>
               {holes.map((hole, index) => (
                 <tr key={index} className="bg-white/40 backdrop-blur-sm rounded-xl overflow-hidden group transition-all hover:bg-white/60">
-                  <td className="py-3 pl-4 font-bold text-sm rounded-l-xl border-y border-l border-white/40 text-slate-400">{index + 1}</td>
+                  <td className="py-3 pl-4 font-bold text-sm rounded-l-xl border-y border-l border-white/40 text-slate-600">{index + 1}</td>
                   <td className="py-3 border-y border-white/40">
                     <input 
                       type="number" 
@@ -144,7 +144,7 @@ export const HoleEditor: React.FC<HoleEditorProps> = ({ holes, setHoles, slabTyp
                   <td className="py-3 pr-4 text-right rounded-r-xl border-y border-r border-white/40">
                     <button 
                       onClick={() => removeHole(index)}
-                      className="p-1.5 text-apple-red/40 hover:text-apple-red transition-colors"
+                      className="p-1.5 text-red-500/40 hover:text-red-500 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

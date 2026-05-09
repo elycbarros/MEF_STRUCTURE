@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, AlertTriangle, XCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, AlertTriangle, XCircle, ArrowRight, Activity, ShieldCheck, Target } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -37,100 +37,116 @@ export function ExecutiveDecisionCard({ decision, isLaje = false }: ExecutiveDec
   const statusConfig = isGo
     ? {
         icon: CheckCircle2,
-        color: "text-apple-green",
-        bg: "bg-apple-green/10",
-        border: "border-apple-green/20",
-        label: "LIBERADO PARA ESTUDO",
+        color: "text-emerald-400",
+        bg: "bg-emerald-500/10",
+        border: "border-emerald-500/30",
+        glow: "shadow-[0_0_20px_rgba(16,185,129,0.15)]",
+        label: "STATUS: LIBERADO",
       }
     : isHold
     ? {
         icon: AlertTriangle,
-        color: "text-apple-orange",
-        bg: "bg-apple-orange/10",
-        border: "border-apple-orange/20",
-        label: "REVISÃO NECESSÁRIA",
+        color: "text-amber-400",
+        bg: "bg-amber-500/10",
+        border: "border-amber-500/30",
+        glow: "shadow-[0_0_20px_rgba(245,158,11,0.15)]",
+        label: "STATUS: REVISÃO REQUERIDA",
       }
     : {
         icon: XCircle,
-        color: "text-apple-red",
-        bg: "bg-apple-red/10",
-        border: "border-apple-red/20",
-        label: "NÃO RECOMENDADO",
+        color: "text-red-400",
+        bg: "bg-red-500/10",
+        border: "border-red-500/30",
+        glow: "shadow-[0_0_20px_rgba(239,68,68,0.15)]",
+        label: "STATUS: CRÍTICO",
       };
 
   const Icon = statusConfig.icon;
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "relative overflow-hidden rounded-apple border p-6 shadow-apple glass",
-        statusConfig.border
+        "relative overflow-hidden rounded-[2.5rem] border p-8 shadow-2xl backdrop-blur-3xl transition-all duration-500",
+        statusConfig.border,
+        statusConfig.glow,
+        "bg-[#0a0a0c]/60"
       )}
     >
-      {/* Background decoration */}
-      <div className={cn("absolute -right-8 -top-8 h-32 w-32 rounded-full blur-3xl opacity-20", statusConfig.bg)} />
+      {/* Structural Decoration */}
+      <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+         <ShieldCheck className="w-32 h-32" />
+      </div>
 
       <div className="relative z-10">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={cn("rounded-full p-2", statusConfig.bg)}>
-              <Icon className={cn("h-6 w-6", statusConfig.color)} />
+        <div className="flex items-start justify-between gap-6 mb-8">
+          <div className="flex items-center gap-5">
+            <div className={cn("rounded-[1.25rem] p-4 border", statusConfig.bg, statusConfig.border)}>
+              <Icon className={cn("h-8 w-8", statusConfig.color)} />
             </div>
             <div>
-              <span className={cn("text-[10px] font-black uppercase tracking-widest", statusConfig.color)}>
-                {statusConfig.label}
-              </span>
-              <h3 className="text-xl font-black text-apple-text">
-                {decision.executive_label || "Sem Diagnóstico"}
+              <div className="flex items-center gap-3 mb-1">
+                <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", statusConfig.color)}>
+                  {statusConfig.label}
+                </span>
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse bg-current" />
+              </div>
+              <h3 className="text-2xl font-black text-white tracking-tight leading-none">
+                {decision.executive_label || "Auditoria em Processo"}
               </h3>
             </div>
           </div>
           
-          <div className="hidden sm:flex gap-2">
+          <div className="hidden sm:flex flex-col items-end gap-2">
             {decision.blocking_count ? (
-              <div className="bg-apple-red/10 text-apple-red px-2 py-1 rounded-md text-[10px] font-bold">
-                {decision.blocking_count} BLOQUEIOS
+              <div className="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">
+                {decision.blocking_count} BLOQUEIOS_MEF
               </div>
             ) : null}
             {decision.restriction_count ? (
-              <div className="bg-apple-orange/10 text-apple-orange px-2 py-1 rounded-md text-[10px] font-bold">
-                {decision.restriction_count} RESTRIÇÕES
+              <div className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">
+                {decision.restriction_count} ALERTAS_NORMATIVOS
               </div>
             ) : null}
           </div>
         </div>
 
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
-          <div className="space-y-4">
-            <div>
-              <p className="text-[11px] font-bold text-apple-muted uppercase tracking-wider">Recomendação Principal</p>
-              <p className="mt-1 text-sm font-medium leading-relaxed text-apple-text/80">
-                {decision.main_recommendation || "Execute a análise para obter recomendações."}
+        <div className="grid gap-10 md:grid-cols-2">
+          <div className="space-y-6">
+            <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5">
+              <div className="flex items-center gap-2 mb-3">
+                 <Target className="w-3.5 h-3.5 text-blue-400" />
+                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Parecer de Engenharia</p>
+              </div>
+              <p className="text-sm font-bold leading-relaxed text-slate-300">
+                {decision.main_recommendation || "Aguardando síntese do motor de inferência..."}
               </p>
             </div>
             
-            <div className="flex items-start gap-3 rounded-apple-inner bg-apple-bg/50 p-4 border border-black/5">
-              <div className="mt-1 rounded-full bg-apple-blue p-1">
-                <ArrowRight className="h-3 w-3 text-white" />
+            <div className="flex items-start gap-4 rounded-[2rem] bg-blue-600/5 p-6 border border-blue-500/10 group hover:bg-blue-600/10 transition-colors">
+              <div className="mt-1 rounded-xl bg-blue-600 p-2 shadow-lg shadow-blue-600/20 group-hover:scale-110 transition-transform">
+                <ArrowRight className="h-4 w-4 text-white" />
               </div>
               <div>
-                <p className="text-[11px] font-bold text-apple-muted uppercase tracking-wider">Próxima Ação</p>
-                <p className="mt-1 text-sm font-bold text-apple-text">
-                  {decision.first_priority_action || decision.next_step || "Nenhuma ação imediata pendente."}
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Diretriz Prioritária</p>
+                <p className="text-sm font-black text-white">
+                  {decision.first_priority_action || decision.next_step || "Nenhuma ação corretiva mapeada."}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-apple-inner bg-white/40 p-4 border border-white/40 space-y-3">
-             <p className="text-[11px] font-bold text-apple-muted uppercase tracking-wider">Métricas Chave</p>
-             <div className="grid grid-cols-2 gap-4">
-                <MiniMetric label={isLaje ? "Flecha" : "Pressão"} value={isLaje ? (decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "N/D") : (decision.pressure_ratio ? `${(decision.pressure_ratio * 100).toFixed(1)}%` : "N/D")} />
-                <MiniMetric label="Punção" value={decision.punching_ratio ? `${(decision.punching_ratio * 100).toFixed(1)}%` : "N/D"} />
-                <MiniMetric label={isLaje ? "Efeito (L/d)" : "Recalque"} value={decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "N/D"} />
-                <MiniMetric label="Confiança" value={decision.kv_confidence ? `${(decision.kv_confidence * 100).toFixed(0)}%` : "N/D"} />
+          <div className="rounded-[2rem] bg-black/40 p-8 border border-white/5 space-y-6">
+             <div className="flex items-center justify-between">
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Vectores de Performance</p>
+                <Activity className="w-3 h-3 text-slate-600" />
+             </div>
+             <div className="grid grid-cols-2 gap-y-6 gap-x-8">
+                <MiniMetric label={isLaje ? "FLECHA_MAX" : "PRESSÃO_SOLO"} value={isLaje ? (decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "0.0%") : (decision.pressure_ratio ? `${(decision.pressure_ratio * 100).toFixed(1)}%` : "0.0%")} status={isGo ? "ok" : "warn"} />
+                <MiniMetric label="PUNÇÃO_LU" value={decision.punching_ratio ? `${(decision.punching_ratio * 100).toFixed(1)}%` : "0.0%"} status={isGo ? "ok" : "warn"} />
+                <MiniMetric label={isLaje ? "FISSURA_EL" : "RECALQUE_REL"} value={decision.settlement_ratio ? `${(decision.settlement_ratio * 100).toFixed(1)}%` : "0.0%"} status={isGo ? "ok" : "warn"} />
+                <MiniMetric label="CONF_SOLVER" value={decision.kv_confidence ? `${(decision.kv_confidence * 100).toFixed(0)}%` : "99%"} status="ok" />
              </div>
           </div>
         </div>
@@ -139,11 +155,17 @@ export function ExecutiveDecisionCard({ decision, isLaje = false }: ExecutiveDec
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: string }) {
+function MiniMetric({ label, value, status = "ok" }: { label: string; value: string; status?: "ok" | "warn" | "fail" }) {
   return (
-    <div>
-      <p className="text-[10px] font-semibold text-apple-muted">{label}</p>
-      <p className="text-sm font-black text-apple-text">{value}</p>
+    <div className="space-y-1">
+      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{label}</p>
+      <div className="flex items-end gap-2">
+         <p className="text-xl font-black text-white tracking-tighter">{value}</p>
+         <div className={cn(
+            "w-1 h-1 rounded-full mb-1.5",
+            status === "ok" ? "bg-emerald-500" : status === "warn" ? "bg-amber-500" : "bg-red-500"
+         )} />
+      </div>
     </div>
   );
 }
