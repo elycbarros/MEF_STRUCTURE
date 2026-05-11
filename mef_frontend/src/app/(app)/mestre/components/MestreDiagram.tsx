@@ -290,10 +290,16 @@ export function MestreSystemDiagram({
   const height = 400;
   const pad = 60;
 
-  const minX = Math.min(...nodes.map(n => n.x));
-  const maxX = Math.max(...nodes.map(n => n.x));
-  const minZ = Math.min(...nodes.map(n => n.z));
-  const maxZ = Math.max(...nodes.map(n => n.z));
+  // Calculate bounds including deformed state to avoid clipping
+  const deformedNodes = nodes.map(n => ({
+    x: n.x + (n.dx || 0) * deformedScale,
+    z: n.z + (n.dz || 0) * deformedScale
+  }));
+
+  const minX = Math.min(...nodes.map(n => n.x), ...deformedNodes.map(n => n.x));
+  const maxX = Math.max(...nodes.map(n => n.x), ...deformedNodes.map(n => n.x));
+  const minZ = Math.min(...nodes.map(n => n.z), ...deformedNodes.map(n => n.z));
+  const maxZ = Math.max(...nodes.map(n => n.z), ...deformedNodes.map(n => n.z));
 
   const rangeX = Math.max(maxX - minX, 0.1);
   const rangeZ = Math.max(maxZ - minZ, 0.1);

@@ -1,4 +1,4 @@
-import type { MestreApiResponse, MestreElementType, MestreParams, PointLoad } from './mestre-types';
+import type { MestreApiResponse, MestreElementType, MestreParams } from './mestre-types';
 
 /**
  * API Client para o Modo Mestre do Atlas Structural Engine.
@@ -19,7 +19,9 @@ export async function calculateSpecialElement(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na análise do Mestre: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro no motor estrutural';
+    throw new Error(`Erro na análise do Mestre: ${message}`);
   }
 
   return response.json();
@@ -33,7 +35,9 @@ export async function predictPhD(params: Partial<MestreParams>): Promise<unknown
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na predição PhD: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro na predição PhD';
+    throw new Error(`Erro na predição PhD: ${message}`);
   }
 
   return response.json();
@@ -41,11 +45,12 @@ export async function predictPhD(params: Partial<MestreParams>): Promise<unknown
 
 type FrameNode = Record<string, unknown>;
 type FrameMember = Record<string, unknown>;
+type FrameLoad = Record<string, unknown>;
 
 export async function analyzeMestreFrame(
   nodes: FrameNode[],
   members: FrameMember[],
-  loads: PointLoad[],
+  loads: FrameLoad[],
   supports: Record<string, number[]>
 ): Promise<MestreApiResponse> {
   const response = await fetch(`${BASE_URL}/api/mestre/frame/analyze`, {
@@ -55,11 +60,15 @@ export async function analyzeMestreFrame(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na análise de pórtico: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    // Note: Frames can return the specialized error object from api.py
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro desconhecido no servidor';
+    throw new Error(`Erro na análise de pórtico: ${message}`);
   }
 
   return response.json();
 }
+
 export async function calculateSpt(
   spt_data: unknown[],
   signal?: AbortSignal
@@ -72,7 +81,9 @@ export async function calculateSpt(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na análise de SPT: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro na análise de SPT';
+    throw new Error(`Erro na análise de SPT: ${message}`);
   }
 
   return response.json();
@@ -90,7 +101,9 @@ export async function calculateStability(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na análise de estabilidade: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro na análise de estabilidade';
+    throw new Error(`Erro na análise de estabilidade: ${message}`);
   }
 
   return response.json();
@@ -125,7 +138,9 @@ export async function calculateWind(
   });
 
   if (!response.ok) {
-    throw new Error(`Erro na análise de vento: ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro na análise de vento';
+    throw new Error(`Erro na análise de vento: ${message}`);
   }
 
   return response.json();

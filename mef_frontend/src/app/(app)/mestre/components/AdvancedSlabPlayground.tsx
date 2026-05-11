@@ -24,6 +24,16 @@ interface ColumnLoad {
   fz: number;
 }
 
+interface AdvancedSlabConfig {
+  Lx: number;
+  Ly: number;
+  h: number;
+  kv: number;
+  fck: number;
+  q_dist: number;
+  is_raft: boolean;
+}
+
 export function AdvancedSlabPlayground() {
   const { 
     params, 
@@ -38,19 +48,19 @@ export function AdvancedSlabPlayground() {
     error 
   } = useMestreStore();
 
-  const [slabConfig, setSlabConfig] = useState({
-    Lx: params.Lx || 10.0,
-    Ly: params.Ly || 10.0,
-    h: params.h || 0.40,
-    kv: params.kv || 30.0, // MN/m³ (Winkler)
-    fck: params.fck || 30.0,
-    q_dist: params.q || 5.0,
+  const [slabConfig, setSlabConfig] = useState<AdvancedSlabConfig>({
+    Lx: Number(params.Lx) || 10.0,
+    Ly: Number(params.Ly) || 10.0,
+    h: Number(params.h) || 0.40,
+    kv: Number(params.kv) || 30.0, // MN/m³ (Winkler)
+    fck: Number(params.fck) || 30.0,
+    q_dist: Number(params.q) || 5.0,
     is_raft: true
   });
 
   const [columns, setColumns] = useState<ColumnLoad[]>([]);
 
-  const updateConfig = (key: string, value: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const updateConfig = <Key extends keyof AdvancedSlabConfig>(key: Key, value: AdvancedSlabConfig[Key]) => {
     setSlabConfig(prev => ({ ...prev, [key]: value }));
     updateParams({ [key]: value });
   };

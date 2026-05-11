@@ -275,7 +275,7 @@ class ConcreteNonlinearEngine:
         solver: any,
         column_loads: np.ndarray,
         piles: list = None,
-        max_iters: int = 15,
+        max_iters: int = 30,
         tolerance: float = 0.02, # 2% de convergência na rigidez
         verbose: bool = True,
         long_term: bool = False,
@@ -335,7 +335,7 @@ class ConcreteNonlinearEngine:
             if diff < tolerance: break
             
             # Fator de amortecimento adaptativo (M5-Master)
-            damping = 0.5 if i < 3 else 0.7 
+            damping = 0.2 if i < 5 else 0.3 
             stiffness_factors = (1 - damping) * stiffness_factors + damping * new_factors
             
         return {

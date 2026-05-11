@@ -27,12 +27,15 @@ export function SlabPlayground() {
     b: currentParams.Ly ?? currentParams.b,
     h: currentParams.h,
     q: currentParams.q,
+    slab_type: 'solid',
   }), []);
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
     setIsLoading(true);
     try {
       setError(null);
+      setCalculationTrace(null);
+      setPedagogicalSteps([]);
       const data = await calculateSpecialElement('slab', buildPayload(currentParams));
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
@@ -40,8 +43,9 @@ export function SlabPlayground() {
       } else {
         setError('Falha na análise da laje.');
       }
-    } catch {
-      setError('Erro de conexão com o motor.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro de conexão com o motor.';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -85,14 +89,14 @@ export function SlabPlayground() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">Tipo</Label>
-            <Select value={params.slab_type ?? 'solid'} onValueChange={(value) => updateParams({ slab_type: value as MestreParams['slab_type'] })}>
+            <Select value="solid" onValueChange={(value) => updateParams({ slab_type: value as MestreParams['slab_type'] })}>
               <SelectTrigger className="h-9 bg-background/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="solid">Maciça</SelectItem>
-                <SelectItem value="ribbed">Nervurada</SelectItem>
-                <SelectItem value="prestressed">Protendida</SelectItem>
+                <SelectItem value="ribbed" disabled>Nervurada (em breve)</SelectItem>
+                <SelectItem value="prestressed" disabled>Protendida (em breve)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -120,7 +124,7 @@ export function SlabPlayground() {
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 flex gap-3 text-amber-700 dark:text-amber-300">
         <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs leading-relaxed">
-          Modo atual: laje equivalente para memorial didático. O modelo global de placas/radier fica para o Atlas Pro.
+          Modo ativo: laje maciça equivalente com placa Mindlin. Nervurada e protendida ainda não alteram o solver neste módulo.
         </p>
       </div>
 

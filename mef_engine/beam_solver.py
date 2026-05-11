@@ -509,14 +509,32 @@ class BeamDesigner:
         # ELS - Abertura de fissuras (Momento de Serviço)
         mk_serv = np.max(np.abs(result.M)) / 1000.0
         wk = cls.design_crack_width(mk_serv, max(flex_bottom['As_cm2'], flex_top['As_cm2']), model.section)
+        deflection_limit_mm = round(model.L * 1000 / 250, 2)
+        deflection_status = 'OK' if result.max_deflection_mm <= deflection_limit_mm else 'REVISAR'
+        crack_status = 'OK' if wk <= model.wk_limit_mm else 'REVISAR'
+        flexure_status = (
+            flex_bottom['x_d'] <= flex_bottom['x_d_lim']
+            and flex_top['x_d'] <= flex_top['x_d_lim']
+        )
+        overall_status = (
+            'ATENDE'
+            if shear['biela_status'] == 'OK'
+            and flexure_status
+            and crack_status == 'OK'
+            and deflection_status == 'OK'
+            else 'REVISAR'
+        )
         
         return {
+            'redistribution_applied': redistribution_delta,
+            'M_max_pos_kNm': round(M_max_pos, 2),
+            'M_max_neg_kNm': round(M_max_neg, 2),
             'flexure_bottom': flex_bottom,
             'flexure_top': flex_top,
             'shear': shear,
-            'crack_width': {'wk_mm': wk, 'limit_mm': model.wk_limit_mm},
-            'deflection': {'max_mm': result.max_deflection_mm, 'limit_mm': round(model.L*1000/250, 2)},
-            'overall_status': 'ATENDE' if shear['biela_status'] == 'OK' and flex_bottom['x_d'] <= flex_bottom['x_d_lim'] else 'REVISAR'
+            'crack_width': {'wk_mm': wk, 'limit_mm': model.wk_limit_mm, 'status': crack_status},
+            'deflection': {'max_mm': result.max_deflection_mm, 'limit_mm': deflection_limit_mm, 'status': deflection_status},
+            'overall_status': overall_status
         }
 
 
@@ -635,6 +653,8 @@ class ClassicalBeamSolver:
             'x_m': x.tolist(),
             'V_kN': (V / 1000.0).tolist(),
             'M_kNm': (M / 1000.0).tolist(),
+            'max_shear_kN': float(np.max(np.abs(V)) / 1000.0),
+            'max_moment_kNm': float(np.max(np.abs(M)) / 1000.0),
             'reactions': [{'x': r['x'], 'R': r['R']/1000.0} for r in internal_reactions],
             'supports_debug': str([f"x={s.x}" for s in sups])
         }
@@ -707,6 +727,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
                       distributed_loads=[DistributedLoad(**dl) for dl in proc_dist],
                       point_loads=[PointLoad(**pl) for pl in proc_points], 
                       caa=durability['caa'], 
+                      wk_limit_mm=durability['wk_limit_mm'],
                       include_self_weight=include_self_weight,
                       gamma_f=gamma_f)
 
@@ -752,6 +773,8 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
             'max_moment_kNm': result.max_moment_kNm,
             'max_shear_kN': result.max_shear_kN,
             'max_deflection_mm': result.max_deflection_mm,
+            'total_load_kN': round(total_load_n / 1000.0, 2),
+            'total_reaction_kN': round(total_reaction_kn, 2),
         },
         'design': design,
         'classical_diagrams': classical_res,
@@ -781,7 +804,9 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         "summary": {
             "L_m": L, "b_m": b, "h_m": h, "fck_MPa": fck,
             "max_moment_kNm": result.max_moment_kNm,
-            "max_shear_kN": result.max_shear_kN
+            "max_shear_kN": result.max_shear_kN,
+            "total_load_kN": round(total_load_n / 1000.0, 2),
+            "total_reaction_kN": round(total_reaction_kn, 2),
         },
         "design": design,
         "classical_diagrams": classical_res,

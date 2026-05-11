@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { Calculator, Columns, Crosshair, RotateCw, ShieldCheck, Activity } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
@@ -39,12 +40,12 @@ export function ColumnPlayground() {
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        setFullResults(data.result?.summary ?? data.result ?? data);
       } else {
         setError('Falha na análise do pilar.');
       }
-    } catch {
-      setError('Erro de conexão com o motor.');
+    } catch (columnError) {
+      setError(columnError instanceof Error ? columnError.message : 'Erro de conexão com o motor.');
     } finally {
       setIsLoading(false);
     }
@@ -191,7 +192,7 @@ export function ColumnPlayground() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: any }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+function MetricCard({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="p-3 rounded-xl bg-background/50 border border-border/50">
       <p className="text-[8px] uppercase font-black text-muted-foreground tracking-tighter">{label}</p>

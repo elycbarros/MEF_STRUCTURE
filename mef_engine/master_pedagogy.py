@@ -25,6 +25,7 @@ from reporting.pedagogy.special import (
     build_beam_opening_blackboard,
     build_tension_pro_blackboard
 )
+from reporting.pedagogy.frame import build_frame_blackboard
 
 # Registro manual para manter o dispatcher leve e explícito
 PedagogyRegistry._builders["beam"] = build_beam_blackboard
@@ -46,6 +47,7 @@ PedagogyRegistry._builders["concrete_wall"] = build_concrete_wall_blackboard
 PedagogyRegistry._builders["pile_cap"] = build_pile_cap_blackboard
 PedagogyRegistry._builders["beam_opening"] = build_beam_opening_blackboard
 PedagogyRegistry._builders["tension_pro"] = build_tension_pro_blackboard
+PedagogyRegistry._builders["frame"] = build_frame_blackboard
 
 def build_structural_blackboard(element_type: str, result: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -76,3 +78,27 @@ def build_pile_blackboard(result: Dict[str, Any], payload: Dict[str, Any] = None
 
 def build_forensic_audit(element_type: str, mef_res: dict, analytical_res: dict):
     return build_structural_blackboard("audit", mef_res, {"element_type": element_type, "analytical": analytical_res})
+
+def build_structural_audit_trail(config: Any, memorial: Any):
+    """
+    Função de compatibilidade legado para o pipeline de Lajes.
+    Mapeia os dados do memorial para o novo motor de auditoria forense.
+    """
+    # Tenta extrair resultados do MEF e Analítico do memorial de lajes
+    mef_res = memorial.get("master", {}).get("mef_summary", {})
+    analytical_res = memorial.get("verificacoes_estruturais", {})
+    
+    # Se mef_res estiver vazio, tenta no nível superior (fallback)
+    if not mef_res:
+        mef_res = memorial.get("mef_summary", {})
+        
+    # Executa a auditoria nova
+    res = build_forensic_audit("slab", mef_res, analytical_res)
+    
+    # Compatibilidade legado: slab_memorial.py espera res['summary']['opinion']
+    status = res["metadata"].get("audit_status", "review")
+    res["summary"] = {
+        "opinion": "APROVADO - O modelo numérico converge e é consistente com a teoria clássica." if status == "approved" else "REVISÃO NECESSÁRIA - Divergência técnica acima do limite normativo."
+    }
+    
+    return res

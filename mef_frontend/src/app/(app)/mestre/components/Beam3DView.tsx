@@ -485,6 +485,250 @@ function DeepBeamModel() {
   );
 }
 
+function Frame3DModel() {
+  return (
+    <group position={[0, -1, 0]}>
+      {/* Colunas */}
+      <mesh position={[-2, 1.5, 0]}>
+        <boxGeometry args={[0.2, 3, 0.2]} />
+        <meshStandardMaterial color="#e5e5e5" transparent opacity={0.8} roughness={0.3} />
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(0.2, 3, 0.2)]} />
+          <lineBasicMaterial color="#007AFF" opacity={0.3} transparent />
+        </lineSegments>
+      </mesh>
+      <mesh position={[2, 1.5, 0]}>
+        <boxGeometry args={[0.2, 3, 0.2]} />
+        <meshStandardMaterial color="#e5e5e5" transparent opacity={0.8} roughness={0.3} />
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(0.2, 3, 0.2)]} />
+          <lineBasicMaterial color="#007AFF" opacity={0.3} transparent />
+        </lineSegments>
+      </mesh>
+      {/* Viga */}
+      <mesh position={[0, 3, 0]}>
+        <boxGeometry args={[4.2, 0.25, 0.2]} />
+        <meshStandardMaterial color="#e5e5e5" transparent opacity={0.8} roughness={0.3} />
+        <lineSegments>
+          <edgesGeometry args={[new THREE.BoxGeometry(4.2, 0.25, 0.2)]} />
+          <lineBasicMaterial color="#007AFF" opacity={0.3} transparent />
+        </lineSegments>
+      </mesh>
+      
+      {/* Apoios */}
+      <mesh position={[-2, -0.1, 0]}>
+        <boxGeometry args={[0.6, 0.2, 0.6]} />
+        <meshStandardMaterial color="#333" />
+      </mesh>
+      <mesh position={[2, -0.1, 0]}>
+        <boxGeometry args={[0.6, 0.2, 0.6]} />
+        <meshStandardMaterial color="#333" />
+      </mesh>
+
+      <Html position={[0, 3.8, 0]} center>
+        <div className="bg-primary/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
+          Pórtico Rígido
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+function Bar({ p1, p2, radius = 0.04, color = "#dedede", metalness = 0.5 }: { p1: THREE.Vector3, p2: THREE.Vector3, radius?: number, color?: string, metalness?: number }) {
+  const direction = new THREE.Vector3().subVectors(p2, p1);
+  const length = direction.length();
+  if (length < 0.001) return null;
+  const center = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+  const orientation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+
+  return (
+    <mesh position={center} quaternion={orientation} castShadow>
+      <cylinderGeometry args={[radius, radius, length, 8]} />
+      <meshStandardMaterial color={color} metalness={metalness} roughness={0.3} />
+    </mesh>
+  );
+}
+
+function Truss3DModel() {
+  const { params } = useMestreStore();
+  const type = typeof params.typology === 'string' ? params.typology : 'warren';
+  const span = Number(params.L) || 12;
+  const height = Number(params.h) || 1.5;
+  const panels = Number(params.n_panels) || 6;
+  const panelWidth = span / panels;
+  
+  const getTopZ = (x: number) => {
+    if (type === 'fink' || type === 'fan') {
+       return (x <= span / 2) ? (2 * height * x / span) : (2 * height * (span - x) / span);
+    } else if (type === 'shed') {
+       return (height * x / span) + (height * 0.5);
+    } else if (type === 'double_shed') {
+       const mid = span / 2;
+       const xRel = x <= mid ? x : x - mid;
+       let z = (height * xRel / (mid / 2)) + (height * 0.5);
+       if (xRel > mid / 2) z = (height * (mid - xRel) / (mid / 2)) + (height * 0.5);
+       return z;
+    }
+    return height;
+  };
+
+  return (
+    <group position={[-span / 2, 0, 0]}>
+      {/* 1. Nós (Esferas) */}
+      {Array.from({ length: panels + 1 }).map((_, i) => {
+        const x = i * panelWidth;
+        const zT = getTopZ(x);
+        return (
+          <group key={`nodes-${i}`}>
+            <mesh position={[x, 0, 0]}>
+              <sphereGeometry args={[0.07, 12, 12]} />
+              <meshStandardMaterial color="#333" />
+            </mesh>
+            <mesh position={[x, zT, 0]}>
+              <sphereGeometry args={[0.07, 12, 12]} />
+              <meshStandardMaterial color="#333" />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* 2. Barras (Membros) */}
+      {Array.from({ length: panels }).map((_, i) => {
+        const x1 = i * panelWidth;
+        const x2 = (i + 1) * panelWidth;
+        const zT1 = getTopZ(x1);
+        const zT2 = getTopZ(x2);
+
+        const pB1 = new THREE.Vector3(x1, 0, 0);
+        const pB2 = new THREE.Vector3(x2, 0, 0);
+        const pT1 = new THREE.Vector3(x1, zT1, 0);
+        const pT2 = new THREE.Vector3(x2, zT2, 0);
+
+        return (
+          <group key={`bars-${i}`}>
+            {/* Banzos */}
+            <Bar p1={pB1} p2={pB2} radius={0.05} />
+            <Bar p1={pT1} p2={pT2} radius={0.06} />
+            {/* Verticais */}
+            <Bar p1={pB1} p2={pT1} radius={0.04} />
+            {i === panels - 1 && <Bar p1={pB2} p2={pT2} radius={0.04} />}
+            
+            {/* Diagonais - Lógica por Typologia */}
+            {(() => {
+              if (type === 'warren') {
+                return i % 2 === 0 ? <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" /> : <Bar p1={pT1} p2={pB2} radius={0.035} color="#FF9500" />;
+              } else if (type === 'howe') {
+                return i < panels / 2 ? <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" /> : <Bar p1={pT1} p2={pB2} radius={0.035} color="#FF9500" />;
+              } else if (type === 'pratt') {
+                return i < panels / 2 ? <Bar p1={pT1} p2={pB2} radius={0.035} color="#FF9500" /> : <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" />;
+              } else if (type === 'shed' || type === 'double_shed') {
+                return <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" />;
+              } else if (type === 'fink') {
+                if (i < panels / 2) {
+                   return i % 2 === 0 ? <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" /> : <Bar p1={pB2} p2={pT1} radius={0.035} color="#FF9500" />;
+                } else {
+                   return i % 2 === 0 ? <Bar p1={pB2} p2={pT1} radius={0.035} color="#FF9500" /> : <Bar p1={pB1} p2={pT2} radius={0.035} color="#FF9500" />;
+                }
+              } else if (type === 'fan') {
+                return i < panels / 2 ? <Bar p1={new THREE.Vector3(0, 0, 0)} p2={pT2} radius={0.035} color="#FF9500" /> : <Bar p1={new THREE.Vector3(span, 0, 0)} p2={pT1} radius={0.035} color="#FF9500" />;
+              }
+              return null;
+            })()}
+          </group>
+        );
+      })}
+
+      <Html position={[span / 2, height + 1.2, 0]} center>
+        <div className="bg-primary/90 text-white text-[11px] font-bold px-4 py-1.5 rounded-full shadow-2xl whitespace-nowrap capitalize border border-white/30 backdrop-blur-md">
+          {type.replace('_', ' ')}: {span}m x {height}m
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+type SystemNode = {
+  id: string | number;
+  x?: number;
+  y?: number;
+  z?: number;
+};
+
+type SystemMember = {
+  node_i: string | number;
+  node_j: string | number;
+};
+
+function isSystemNode(value: unknown): value is SystemNode {
+  if (!value || typeof value !== 'object') return false;
+  const node = value as Record<string, unknown>;
+  return (
+    (typeof node.id === 'string' || typeof node.id === 'number') &&
+    (node.x === undefined || typeof node.x === 'number') &&
+    (node.y === undefined || typeof node.y === 'number') &&
+    (node.z === undefined || typeof node.z === 'number')
+  );
+}
+
+function isSystemMember(value: unknown): value is SystemMember {
+  if (!value || typeof value !== 'object') return false;
+  const member = value as Record<string, unknown>;
+  return (
+    (typeof member.node_i === 'string' || typeof member.node_i === 'number') &&
+    (typeof member.node_j === 'string' || typeof member.node_j === 'number')
+  );
+}
+
+function getResultArray<T>(fullResults: unknown, key: string, guard: (value: unknown) => value is T): T[] {
+  if (!fullResults || typeof fullResults !== 'object') return [];
+  const value = (fullResults as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value.filter(guard) : [];
+}
+
+function System3DModel() {
+  const { fullResults } = useMestreStore();
+  const nodes = getResultArray(fullResults, 'nodes', isSystemNode);
+  const members = getResultArray(fullResults, 'members', isSystemMember);
+
+  if (nodes.length === 0) return null;
+
+  return (
+    <group position={[0, -0.5, 0]}>
+      {members.map((m, i) => {
+        const ni = nodes.find((n) => n.id === m.node_i);
+        const nj = nodes.find((n) => n.id === m.node_j);
+        if (!ni || !nj) return null;
+
+        const p1 = new THREE.Vector3(ni.x ?? 0, ni.z ?? 0, -(ni.y ?? 0));
+        const p2 = new THREE.Vector3(nj.x ?? 0, nj.z ?? 0, -(nj.y ?? 0));
+        const center = p1.clone().lerp(p2, 0.5);
+        const direction = p2.clone().sub(p1);
+        const length = direction.length();
+        if (length < 0.001) return null;
+        const orientation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+
+        return (
+          <mesh key={i} position={center} quaternion={orientation} castShadow>
+            <boxGeometry args={[0.08, length, 0.08]} />
+            <meshStandardMaterial color="#dedede" metalness={0.6} roughness={0.2} />
+            <lineSegments>
+              <edgesGeometry args={[new THREE.BoxGeometry(0.08, length, 0.08)]} />
+              <lineBasicMaterial color="#007AFF" opacity={0.3} transparent />
+            </lineSegments>
+          </mesh>
+        );
+      })}
+      {/* Apoios em destaque */}
+      {nodes.filter((n) => n.id === 0 || n.id === nodes.length - 1).map((n, i) => (
+        <mesh key={`sup-${i}`} position={[n.x ?? 0, n.z ?? 0, -(n.y ?? 0)]}>
+          <boxGeometry args={[0.3, 0.1, 0.3]} />
+          <meshStandardMaterial color="#333" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function GenericSpecialModel({ type }: { type: MestreElementType }) {
   return (
     <group>
@@ -506,8 +750,14 @@ function GenericSpecialModel({ type }: { type: MestreElementType }) {
 }
 
 export function Beam3DView() {
-  const { selectedElementType } = useMestreStore();
-  const model = selectedElementType === 'pile' ? (
+  const { selectedElementType, fullResults, isLoading } = useMestreStore();
+  
+  // Se temos resultados reais e estamos em um módulo de sistema, mostramos o 1:1
+  const showActualSystem = (selectedElementType === 'frames' || selectedElementType === 'trusses') && fullResults?.nodes;
+
+  const model = showActualSystem ? (
+    <System3DModel />
+  ) : selectedElementType === 'pile' ? (
     <PileModel />
   ) : selectedElementType === 'pile_cap' ? (
     <PileCapModel />
@@ -533,12 +783,24 @@ export function Beam3DView() {
     <DeepBeamModel />
   ) : selectedElementType === 'beam' ? (
     <BeamModel />
+  ) : selectedElementType === 'frames' ? (
+    <Frame3DModel />
+  ) : selectedElementType === 'trusses' ? (
+    <Truss3DModel />
   ) : (
     <GenericSpecialModel type={selectedElementType} />
   );
 
   return (
     <div className="w-full h-full bg-[#f8f9fa] dark:bg-[#0a0a0a] rounded-2xl overflow-hidden relative border border-border/50">
+      {isLoading && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/20 backdrop-blur-[2px]">
+          <div className="flex flex-col items-center gap-3">
+             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+             <span className="text-[10px] font-bold text-primary uppercase tracking-widest animate-pulse">Orquestrando MEF...</span>
+          </div>
+        </div>
+      )}
       <Canvas shadows>
         <PerspectiveCamera makeDefault position={[5, 3, 5]} fov={40} />
         <OrbitControls makeDefault minPolarAngle={0} maxPolarAngle={Math.PI / 1.75} />

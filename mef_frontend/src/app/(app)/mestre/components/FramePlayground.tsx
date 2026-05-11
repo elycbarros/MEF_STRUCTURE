@@ -11,6 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MestreSystemDiagram } from './MestreDiagram';
 
+interface FrameConfig {
+  n_bays: number;
+  n_levels: number;
+  bay_width: number;
+  level_height: number;
+  b: number;
+  h: number;
+  q: number;
+}
+
 export function FramePlayground() {
   const { 
     params, 
@@ -26,17 +36,17 @@ export function FramePlayground() {
   } = useMestreStore();
 
   // Local state for frame configuration
-  const [frameConfig, setFrameConfig] = useState({
-    n_bays: params.n_bays ?? 1,
-    n_levels: params.n_levels ?? 1,
-    bay_width: params.bay_width ?? 5.0,
-    level_height: params.level_height ?? 3.0,
-    b: params.b ?? 0.20,
-    h: params.h ?? 0.50,
-    q: params.q ?? 15.0 // kN/m
+  const [frameConfig, setFrameConfig] = useState<FrameConfig>({
+    n_bays: Number(params.n_bays) || 1,
+    n_levels: Number(params.n_levels) || 1,
+    bay_width: Number(params.bay_width) || 5.0,
+    level_height: Number(params.level_height) || 3.0,
+    b: Number(params.b) || 0.20,
+    h: Number(params.h) || 0.50,
+    q: Number(params.q) || 15.0 // kN/m
   });
 
-  const updateConfig = (key: string, value: string) => {
+  const updateConfig = (key: keyof FrameConfig, value: string) => {
     const val = Number(value);
     if (!isNaN(val)) {
       setFrameConfig(prev => ({ ...prev, [key]: val }));

@@ -137,6 +137,10 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         q2 = float(dl.get("q_end", dl.get("q_start", 0.0)))
         total_distributed_kn += 0.5 * (q1 + q2) * max(float(dl.get("x_end", 0.0)) - float(dl.get("x_start", 0.0)), 0.0)
     total_point_kn = sum(float(p.get("P", 0.0)) for p in point_loads)
+    summary_total_load = float(summary.get("total_load_kN", 0.0) or 0.0)
+    explicit_actions_kn = total_point_kn + total_distributed_kn
+    self_weight_kn = max(summary_total_load - explicit_actions_kn, 0.0)
+    total_actions_kn = summary_total_load if summary_total_load > 0.0 else explicit_actions_kn
     
     reactions_raw = result.get("reactions", {})
     total_reaction = sum(float(r.get('R', 0.0)) for r in reactions_raw.values())
@@ -144,10 +148,10 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     me.add_step(
         id="beam-load-summary",
         title="Análise de Cargas e Equilíbrio Global",
-        formula=r"F_{total} = \sum P_i + \int q(x) dx, \quad \sum R_v = F_{total}",
-        substitution=rf"F_{{total}} = {fmt(total_point_kn, 1)} + {fmt(total_distributed_kn, 1)}",
-        result=rf"F_{{total}} = {fmt(total_point_kn + total_distributed_kn, 2)}\,kN \approx \sum R = {fmt(total_reaction, 2)}\,kN",
-        explanation="O equilíbrio estático global é verificado pela soma das reações nodais contra as ações aplicadas.",
+        formula=r"F_{total} = \sum P_i + \int q(x) dx + P_p, \quad \sum R_v = F_{total}",
+        substitution=rf"F_{{total}} = {fmt(total_point_kn, 1)} + {fmt(total_distributed_kn, 1)} + {fmt(self_weight_kn, 1)}",
+        result=rf"F_{{total}} = {fmt(total_actions_kn, 2)}\,kN \approx \sum R = {fmt(total_reaction, 2)}\,kN",
+        explanation="O equilíbrio estático global considera cargas informadas, cargas pontuais e peso próprio quando ativado no solver.",
         norm="Mecânica Estrutural"
     )
 
@@ -238,7 +242,11 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     )
 
     # 6. Comparação Cross-Validation (UI/UX Requirement)
-    m_classic = float(summary.get("max_moment_classic", (total_distributed_kn * L / 8) if total_distributed_kn > 0 else 0))
+    classical_moments = diagrams.get("M_kNm", [])
+    if classical_moments:
+        m_classic = max(abs(float(m)) for m in classical_moments)
+    else:
+        m_classic = float(summary.get("max_moment_classic", (total_actions_kn * L / 8) if total_actions_kn > 0 else 0))
     m_mef = float(summary.get("max_moment_kNm", 0.0))
     me.add_comparison_step(m_classic, m_mef)
     

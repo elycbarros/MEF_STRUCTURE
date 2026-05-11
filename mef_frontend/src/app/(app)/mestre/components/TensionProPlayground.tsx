@@ -4,11 +4,19 @@ import { useCallback, useState } from 'react';
 import { Zap, Calculator, Activity, Ruler, ShieldCheck, Info } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps } from '@/lib/mestre-types';
+import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+interface TensionParams {
+  span: number;
+  q_service: number;
+  p0: number;
+  eccentricity: number;
+  cable_type: string;
+}
 
 export function TensionProPlayground() {
   const { 
@@ -24,15 +32,15 @@ export function TensionProPlayground() {
     error 
   } = useMestreStore();
 
-  const [tensionParams, setTensionParams] = useState({
-    span: params.L || 10.0,
-    q_service: params.q || 20.0,
-    p0: params.p0 || 1200.0, // kN
-    eccentricity: params.ecc || 0.15, // m
+  const [tensionParams, setTensionParams] = useState<TensionParams>({
+    span: Number(params.L) || 10.0,
+    q_service: Number(params.q) || 20.0,
+    p0: Number(params.p0) || 1200.0, // kN
+    eccentricity: Number(params.ecc) || 0.15, // m
     cable_type: 'bonded'
   });
 
-  const updateParam = (key: string, value: string) => {
+  const updateParam = (key: keyof Omit<TensionParams, 'cable_type'>, value: string) => {
     const val = Number(value);
     if (!isNaN(val)) {
       setTensionParams(prev => ({ ...prev, [key]: val }));
@@ -44,7 +52,8 @@ export function TensionProPlayground() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await calculateSpecialElement('tension_pro', tensionParams);
+      const payload: Partial<MestreParams> = { ...tensionParams };
+      const data = await calculateSpecialElement('tension_pro', payload);
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? null);

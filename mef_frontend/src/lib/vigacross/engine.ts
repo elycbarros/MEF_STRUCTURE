@@ -60,12 +60,15 @@ function fixedEndMoments(span: SpanInput): EndMoments {
   );
 }
 
-function isReleased(support: SupportType): boolean {
-  return support === 'pin' || support === 'free';
+function endIsReleased(support: SupportType, nodeIndex: number, lastNodeIndex: number): boolean {
+  if (support === 'free') return true;
+  if (support === 'pin') return nodeIndex === 0 || nodeIndex === lastNodeIndex;
+  return false;
 }
 
-function nodeActive(support: SupportType): boolean {
-  return support !== 'free';
+function nodeCanRotate(support: SupportType, nodeIndex: number, lastNodeIndex: number): boolean {
+  if (nodeIndex === 0 || nodeIndex === lastNodeIndex) return false;
+  return support === 'pin';
 }
 
 function endMoment(bar: BarState, end: 'A' | 'B'): number {
@@ -77,11 +80,26 @@ export function solveCross(input: BeamInput): CrossSolveResult {
   const tolerance = input.tolerance ?? 0.001;
   const maxIterations = input.maxIterations ?? 50;
   const nodes = Array.from({ length: input.spans.length + 1 }, (_, i) => `N${i + 1}`);
+  const lastNodeIndex = nodes.length - 1;
 
   const bars: BarState[] = input.spans.map((span, i) => {
     const mep = fixedEndMoments(span);
-    const aReleased = isReleased(input.supports[i]);
-    const bReleased = isReleased(input.supports[i + 1]);
+    const aReleased = endIsReleased(input.supports[i], i, lastNodeIndex);
+    const bReleased = endIsReleased(input.supports[i + 1], i + 1, lastNodeIndex);
+    let momentA = mep.left;
+    let momentB = mep.right;
+
+    if (aReleased) {
+      const releaseCorrection = -momentA;
+      momentA = 0;
+      if (!bReleased) momentB += 0.5 * releaseCorrection;
+    }
+    if (bReleased) {
+      const releaseCorrection = -momentB;
+      momentB = 0;
+      if (!aReleased) momentA += 0.5 * releaseCorrection;
+    }
+
     return {
       barId: span.id || `B${i + 1}`,
       span,
@@ -89,8 +107,8 @@ export function solveCross(input: BeamInput): CrossSolveResult {
       bNode: i + 1,
       kRel: (span.inertiaCm4 || input.defaultInertiaCm4) / span.length,
       mep,
-      momentA: aReleased ? 0 : mep.left,
-      momentB: bReleased ? 0 : mep.right,
+      momentA,
+      momentB,
       aReleased,
       bReleased,
     };
@@ -105,7 +123,7 @@ export function solveCross(input: BeamInput): CrossSolveResult {
     const nodeResults: CrossIteration['nodeResults'] = [];
 
     for (let n = 0; n < nodes.length; n += 1) {
-      if (!nodeActive(input.supports[n])) continue;
+      if (!nodeCanRotate(input.supports[n], n, lastNodeIndex)) continue;
 
       const connected: ConnectedEnd[] = bars.flatMap((bar): ConnectedEnd[] => {
         if (bar.aNode === n && !bar.aReleased) return [{ bar, atEnd: 'A' as const }];
@@ -179,9 +197,12 @@ function solveReactions(spans: SpanInput[], bars: BarEndResult[], nodes: string[
     const L = span.length;
     const totalLoad = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L : l.value), 0);
     const mLoadL = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L * (L / 2) : l.value * l.position), 0);
-    const RB = (mLoadL + bar.finalA - bar.finalB) / L;
+    const leftMoment = bar.finalA;
+    const rightMoment = -bar.finalB;
+    const RA = (rightMoment - leftMoment + mLoadL) / L;
+    const RB = totalLoad - RA;
     reactions[i + 1].verticalReaction += RB;
-    reactions[i].verticalReaction += totalLoad - RB;
+    reactions[i].verticalReaction += RA;
   });
   return reactions;
 }
@@ -192,11 +213,9 @@ function buildDiagrams(spans: SpanInput[], bars: BarEndResult[], input: BeamInpu
   spans.forEach((span, i) => {
     const L = span.length;
     const leftM = bars[i].finalA;
-    const rightM = bars[i].finalB;
-    const totalLoad = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L : l.value), 0);
+    const rightM = -bars[i].finalB;
     const mLoadL = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L * (L / 2) : l.value * l.position), 0);
-    const RB = (mLoadL + leftM - rightM) / L;
-    const RA = totalLoad - RB;
+    const RA = (rightM - leftM + mLoadL) / L;
 
     // EI (kN.m2)
     const E = input.eGPa || 210;

@@ -18,7 +18,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-type TrussTypology = 'warren' | 'howe' | 'pratt' | 'shed';
+type TrussTypology = 'warren' | 'howe' | 'pratt' | 'shed' | 'double_shed' | 'fink' | 'fan';
+
+interface TrussConfig {
+  typology: TrussTypology;
+  span: number;
+  height: number;
+  panels: number;
+  section_area: number;
+  q: number;
+}
 
 export function TrussPlayground() {
   const { 
@@ -34,25 +43,44 @@ export function TrussPlayground() {
     error 
   } = useMestreStore();
 
-  const [trussConfig, setTrussConfig] = useState({
-    typology: (params.truss_type as TrussTypology) || 'warren',
-    span: params.L || 12.0,
-    height: params.h || 1.5,
-    panels: params.n_panels || 6,
-    section_area: params.area_cm2 || 15.0,
-    q: params.q || 5.0 // kN at each top node
+  const [trussConfig, setTrussConfig] = useState<TrussConfig>({
+    typology: typeof params.truss_type === 'string' ? params.truss_type as TrussTypology : 'warren',
+    span: Number(params.L) || 12.0,
+    height: Number(params.h) || 1.5,
+    panels: Number(params.n_panels) || 6,
+    section_area: Number(params.area_cm2) || 15.0,
+    q: Number(params.q) || 5.0 // kN at each top node
   });
 
-  const updateConfig = (key: string, value: string | number) => {
-    setTrussConfig(prev => ({ ...prev, [key]: value }));
-    updateParams({ [key]: value });
+  const updateConfig = (key: keyof TrussConfig, value: string) => {
+    const parsedValue = key === 'typology' ? value as TrussTypology : Number(value);
+    if (key !== 'typology' && isNaN(parsedValue as number)) return;
+
+    setTrussConfig(prev => ({ ...prev, [key]: parsedValue }));
+    const paramKey = key === 'span' ? 'L' : key === 'height' ? 'h' : key === 'panels' ? 'n_panels' : key;
+    updateParams({ [paramKey]: parsedValue });
   };
 
   const handleCalculate = useCallback(async () => {
+    const { typology, span, height, panels, q } = trussConfig;
+    
+    // Validação de Entrada
+    if (!span || span <= 0 || isNaN(Number(span))) {
+      setError("O vão total deve ser maior que zero.");
+      return;
+    }
+    if (!height || height <= 0 || isNaN(Number(height))) {
+      setError("A altura da treliça deve ser maior que zero.");
+      return;
+    }
+    if (!panels || panels < 2 || isNaN(Number(panels))) {
+      setError("O número de painéis deve ser pelo menos 2.");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const { typology, span, height, panels, q } = trussConfig;
       const nodes = [];
       const members = [];
       const loads = [];
@@ -64,25 +92,38 @@ export function TrussPlayground() {
 
       // 1. Generate Nodes (Bottom and Top chords)
       for (let i = 0; i <= panels; i++) {
-        // Bottom chord
+        const x = i * panelWidth;
         const bId = i;
-        nodes.push({ id: bId, x: i * panelWidth, y: 0, z: 0 });
+        nodes.push({ id: bId, x, y: 0, z: 0 });
         
-        // Top chord
         const tId = i + panels + 1;
-        nodes.push({ id: tId, x: i * panelWidth, y: 0, z: height });
-
-        // Loads on top chord
-        if (i > 0 && i < panels) {
-           loads.push({ node_id: tId, fz: -q });
-        } else {
-           loads.push({ node_id: tId, fz: -q/2 });
+        let zTop = height;
+        
+        // Custom geometry per typology
+        if (typology === 'fink' || typology === 'fan') {
+          // Triangular shape
+          zTop = (x <= span / 2) ? (2 * height * x / span) : (2 * height * (span - x) / span);
+        } else if (typology === 'shed') {
+          // Sawtooth shape (sloped)
+          zTop = (height * x / span) + (height * 0.5);
+        } else if (typology === 'double_shed') {
+          // M-shape or double slope
+          const mid = span / 2;
+          const xRel = x <= mid ? x : x - mid;
+          zTop = (height * xRel / (mid / 2)) + (height * 0.5);
+          if (xRel > mid / 2) zTop = (height * (mid - xRel) / (mid / 2)) + (height * 0.5);
         }
+
+        nodes.push({ id: tId, x, y: 0, z: zTop });
+
+        // Loads on top chord (Gravity loads)
+        const loadFactor = (i === 0 || i === panels) ? 0.5 : 1.0;
+        loads.push({ node_id: tId, Fz: -q * loadFactor });
       }
 
       // 2. Generate Supports
-      supports[0] = [0, 1, 2]; // Pinned
-      supports[panels] = [1, 2]; // Roller (Z fixed, Y fixed, X free)
+      supports[0] = [0, 1, 2, 3, 4, 5]; // Fixed/Pinned
+      supports[panels] = [1, 2, 5]; // Roller
 
       // 3. Generate Members
       let mId = 0;
@@ -92,35 +133,43 @@ export function TrussPlayground() {
         const t1 = i + panels + 1;
         const t2 = i + panels + 2;
 
-        // Bottom chord
+        // Banzos
         members.push({ id: mId++, node_i: b1, node_j: b2, section });
-        // Top chord
         members.push({ id: mId++, node_i: t1, node_j: t2, section });
-        // Verticals
+        
+        // Verticais
         members.push({ id: mId++, node_i: b1, node_j: t1, section });
         if (i === panels - 1) {
           members.push({ id: mId++, node_i: b2, node_j: t2, section });
         }
 
-        // Diagonals
+        // Diagonais - Lógica por Typologia
         if (typology === 'warren') {
-          if (i % 2 === 0) {
-            members.push({ id: mId++, node_i: b1, node_j: t2, section });
-          } else {
-            members.push({ id: mId++, node_i: t1, node_j: b2, section });
-          }
+          if (i % 2 === 0) members.push({ id: mId++, node_i: b1, node_j: t2, section });
+          else members.push({ id: mId++, node_i: t1, node_j: b2, section });
         } else if (typology === 'howe') {
-          if (i < panels / 2) {
-            members.push({ id: mId++, node_i: b1, node_j: t2, section });
-          } else {
-            members.push({ id: mId++, node_i: t1, node_j: b2, section });
-          }
+          if (i < panels / 2) members.push({ id: mId++, node_i: b1, node_j: t2, section });
+          else members.push({ id: mId++, node_i: t1, node_j: b2, section });
         } else if (typology === 'pratt') {
+          if (i < panels / 2) members.push({ id: mId++, node_i: t1, node_j: b2, section });
+          else members.push({ id: mId++, node_i: b1, node_j: t2, section });
+        } else if (typology === 'shed' || typology === 'double_shed') {
+          // Always same direction for shed
+          members.push({ id: mId++, node_i: b1, node_j: t2, section });
+        } else if (typology === 'fink') {
+          // Fink pattern (W-shape diagonals in half-spans)
           if (i < panels / 2) {
-            members.push({ id: mId++, node_i: t1, node_j: b2, section });
+             if (i % 2 === 0) members.push({ id: mId++, node_i: b1, node_j: t2, section });
+             else members.push({ id: mId++, node_i: b2, node_j: t1, section });
           } else {
-            members.push({ id: mId++, node_i: b1, node_j: t2, section });
+             if (i % 2 === 0) members.push({ id: mId++, node_i: b2, node_j: t1, section });
+             else members.push({ id: mId++, node_i: b1, node_j: t2, section });
           }
+        } else if (typology === 'fan') {
+          // Fan pattern - radiating from bottom nodes
+          const midPanel = Math.floor(panels / 2);
+          if (i < midPanel) members.push({ id: mId++, node_i: 0, node_j: t2, section });
+          else members.push({ id: mId++, node_i: panels, node_j: t1, section });
         }
       }
 
@@ -171,6 +220,9 @@ export function TrussPlayground() {
                 <SelectItem value="howe">Howe</SelectItem>
                 <SelectItem value="pratt">Pratt</SelectItem>
                 <SelectItem value="shed">Shed (Sawtooth)</SelectItem>
+                <SelectItem value="double_shed">Double Shed</SelectItem>
+                <SelectItem value="fink">Fink (Industrial)</SelectItem>
+                <SelectItem value="fan">Fan Truss</SelectItem>
               </SelectContent>
             </Select>
           </div>

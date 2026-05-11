@@ -124,7 +124,7 @@ async def calculate_column(req: ColumnRequest):
     loads = ColumnLoads(Nd_kN=req.Nd_kN, Mxd_kNm=req.Mxd_kNm, Myd_kNm=req.Myd_kNm)
     design = solve_column_section(sec, loads)
     shortening = analyze_shortening(sec, req.Nd_kN, req.n_floors_for_shortening)
-    pedagogical_steps = build_column_blackboard(sec, loads, design)
+    pedagogical_steps = build_column_blackboard({**design, "b": req.b, "h": req.h, "fck": req.fck}, req.model_dump())
     res = {
         "success": True,
         "design": design,

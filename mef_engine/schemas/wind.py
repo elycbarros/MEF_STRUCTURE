@@ -3,8 +3,8 @@ from typing import Optional
 
 class WindRequest(BaseModel):
     v0: float = Field(30.0, ge=1.0, le=80.0, description="Velocidade básica do vento (m/s)")
-    altura_total: float = Field(15.0, gt=1.0, le=800.0, description="Altura total da estrutura (m)")
-    largura: float = Field(1.0, gt=0.1, le=300.0, description="Largura exposta ao vento (m)")
+    altura_total: float = Field(15.0, gt=0.1, le=800.0, description="Altura total da estrutura (m)")
+    largura: float = Field(1.0, gt=0.01, le=300.0, description="Largura exposta ao vento (m)")
     profundidade: Optional[float] = Field(None, gt=0.1, le=300.0, description="Profundidade da estrutura (m)")
     step: float = Field(1.0, gt=0.1, le=20.0, description="Incremento vertical para discretização do vento (m)")
     cf: Optional[float] = Field(None, ge=0.0, le=5.0, description="Coeficiente de força aerodinâmico")

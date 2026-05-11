@@ -23,6 +23,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
+type LoadCaseType = 'pp' | 'perm' | 'acid' | 'wind';
+type LoadCaseUpdate = Partial<{ name: string; type: LoadCaseType; factor: number }>;
+type LengthUnit = 'm' | 'cm' | 'mm';
+type ForceUnit = 'kN' | 'tf';
+type StressUnit = 'MPa' | 'kPa';
+
 export function EngineeringSettings() {
   const { 
     unitConfig, 
@@ -41,18 +47,20 @@ export function EngineeringSettings() {
     setLoadCases(loadCases.filter(c => c.id !== id));
   };
 
-  const updateLoadCase = (id: string, updates: Partial<{ name: string; type: string; factor: number }>) => {
+  const updateLoadCase = (id: string, updates: LoadCaseUpdate) => {
     setLoadCases(loadCases.map(c => c.id === id ? { ...c, ...updates } : c));
   };
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5">
-          <Settings className="w-4 h-4" />
-          <span className="text-xs font-medium">Configurações Globais</span>
-        </Button>
-      </SheetTrigger>
+      <SheetTrigger 
+        render={
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5">
+            <Settings className="w-4 h-4" />
+            <span className="text-xs font-medium">Configurações Globais</span>
+          </Button>
+        }
+      />
       <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto">
         <SheetHeader className="pb-6">
           <SheetTitle className="flex items-center gap-2">
@@ -74,7 +82,7 @@ export function EngineeringSettings() {
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase">Comprimento</Label>
-                <Select value={unitConfig.length} onValueChange={(v: any) => updateUnitConfig({ length: v })}> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                <Select value={unitConfig.length} onValueChange={(v) => updateUnitConfig({ length: v as LengthUnit })}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -87,7 +95,7 @@ export function EngineeringSettings() {
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase">Força</Label>
-                <Select value={unitConfig.force} onValueChange={(v: any) => updateUnitConfig({ force: v })}> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+                <Select value={unitConfig.force} onValueChange={(v) => updateUnitConfig({ force: v as ForceUnit })}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -99,7 +107,7 @@ export function EngineeringSettings() {
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase">Tensão</Label>
-                <Select value={unitConfig.stress} onValueChange={(v) => updateUnitConfig({ stress: v })}>
+                <Select value={unitConfig.stress} onValueChange={(v) => updateUnitConfig({ stress: v as StressUnit })}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -134,7 +142,7 @@ export function EngineeringSettings() {
                     onChange={(e) => updateLoadCase(lc.id, { name: e.target.value })}
                     className="h-8 text-xs bg-background/50 flex-1"
                   />
-                  <Select value={lc.type} onValueChange={(v) => updateLoadCase(lc.id, { type: v })}>
+                  <Select value={lc.type} onValueChange={(v) => updateLoadCase(lc.id, { type: v as LoadCaseType })}>
                     <SelectTrigger className="h-8 w-24 text-[10px]">
                       <SelectValue />
                     </SelectTrigger>

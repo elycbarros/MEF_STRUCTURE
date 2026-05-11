@@ -493,6 +493,15 @@ class RadierMindlinWinklerV2:
                 pile_reactions_total += r_pile
 
         reactions_total = float(np.sum(qsoil * self._tributary_areas)) + pile_reactions_total
+        
+        # Somar reações de apoios discretos (pilares rígidos)
+        if self.model.supports:
+            for sup in self.model.supports:
+                nodes4, weights4 = self._find_cell_and_shape_weights(sup['x'], sup['y'])
+                kz = sup.get('kz', 1e15)
+                # Reação total no apoio = k * w_ponderado
+                w_sup = np.sum(disp[nodes4, 0] * weights4)
+                reactions_total += w_sup * kz
         loads_total = float(np.sum(F[::3]))
         residual = float(reactions_total - loads_total)
         residual_ratio = float(abs(residual) / max(abs(loads_total), 1.0))

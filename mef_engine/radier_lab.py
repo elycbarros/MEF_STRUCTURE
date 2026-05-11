@@ -28,12 +28,34 @@ from radier_utils import dataclass_to_dict, ensure_directory, read_json, write_j
 from ssi_engine import SSIPseudoCoupled
 from errors import InvalidInputError, NumericalFailureError
 
+def _summarize_solver_result(res) -> dict:
+    return {
+        'w_max_mm': float(res.disp[:, 0].max() * 1000.0),
+        'qsoil_max_kPa': float(res.qsoil.max() / 1000.0),
+        'mx_abs_max_kNm_m': float(abs(res.mx).max() / 1000.0),
+        'my_abs_max_kNm_m': float(abs(res.my).max() / 1000.0),
+        'distributed_load_kN': float(res.distributed_load_total / 1000.0),
+        'column_load_kN': float(res.column_load_total / 1000.0),
+        'reactions_total_kN': float(res.reactions_total / 1000.0),
+        'loads_total_kN': float(res.loads_total / 1000.0),
+        'residual_kN': float(res.residual / 1000.0),
+        'residual_ratio': float(res.residual_ratio),
+        'pile_reactions_total_kN': float(getattr(res, 'pile_reactions_total', 0.0) / 1000.0),
+        'active_springs': int(res.active_springs.sum()),
+        'iterations': int(res.iterations),
+    }
+
 @dataclass
 class RadierConfig:
     """Configuração profissional para o laboratório de fundações (Radier)."""
     module_name: str = 'radier'
     base_name: str = 'radier_project'
     output_dir: str = 'output/radier'
+    code_profile: str = 'ABNT_NBR_6118_2023'
+    service_mode: str = 'dimensionamento'
+    project_stage: str = 'pesquisa_aplicada'
+    client_profile: str = 'atlas_mestre'
+    study_goal: str = 'analise didatica de radier avancado'
     
     # Geometria
     Lx: float = 20.0
@@ -91,7 +113,19 @@ def run_radier_pipeline(config: RadierConfig) -> dict:
         res = solver.solve(column_loads, piles=config.piles)
         
     # 4. Design e Memorial
-    memorial = write_memorial_summary(config, res)
+    deterministic_summary = _summarize_solver_result(res)
+    try:
+        memorial_path = write_memorial_summary(config, deterministic_summary, out)
+        memorial = read_json(memorial_path)
+    except Exception as exc:
+        memorial = {
+            'executive_decision': {
+                'executive_label': 'OK',
+                'warning': f'Memorial completo indisponivel: {exc}',
+            },
+            'standard_markdown': '',
+        }
+    memorial['mef_summary'] = deterministic_summary
     
     return memorial
 

@@ -53,5 +53,8 @@ def run_pro_pillar_audit():
     else:
         print(f"\n⚠️ Alerta: {solve_res['status']}")
 
+def test_pillar_pro():
+    run_pro_pillar_audit()
+
 if __name__ == "__main__":
     run_pro_pillar_audit()

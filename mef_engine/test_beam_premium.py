@@ -54,14 +54,17 @@ def run_premium_beam_audit():
     )
     
     print(f"\n🏗️ Detalhamento Sugerido (Executive Grade):")
-    print(f"   Superior (Apoio): {det_summary['sup']['spec']} (lb={det_summary['sup']['lb']} cm)")
-    print(f"   Inferior (Vão): {det_summary['inf']['spec']} (lb={det_summary['inf']['lb']} cm)")
+    print(f"   Superior (Apoio): {det_summary['sup']['spec']} (lb={det_summary['sup']['lb_nec']} cm)")
+    print(f"   Inferior (Vão): {det_summary['inf']['spec']} (lb={det_summary['inf']['lb_nec']} cm)")
     print(f"   Estribos: {det_summary['stirrups']}")
     
     if design['overall_status'] == 'ATENDE':
         print("\n🏆 RESULTADO: VIGA VALIDADA (Nível Premium)")
     else:
         print(f"\n⚠️ ALERTA: {design['overall_status']}")
+
+def test_beam_premium():
+    run_premium_beam_audit()
 
 if __name__ == "__main__":
     run_premium_beam_audit()

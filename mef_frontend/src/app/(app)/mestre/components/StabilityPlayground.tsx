@@ -2,13 +2,13 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Wind, Activity, Calculator, Brain, Building2, Ruler } from 'lucide-react';
+import { Wind, Activity, Calculator, Brain, Building2, Ruler, Shield } from 'lucide-react';
 import { useCallback } from 'react';
 import { calculateStability } from '@/lib/api-mestre';
 import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
 
 export function StabilityPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, isLoading } = useMestreStore();
+  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults, isLoading, error } = useMestreStore();
 
   const updateParam = (key: string, value: string | number) => {
     const val = typeof value === 'string' ? parseFloat(value) : value;
@@ -18,6 +18,7 @@ export function StabilityPlayground() {
 
   const handleCalculate = useCallback(async (p: Partial<MestreParams>) => {
     setIsLoading(true);
+    setError(null);
     try {
       const stabilityParams = {
         v0: Number(p.v0 || 30.0),
@@ -28,22 +29,24 @@ export function StabilityPlayground() {
       const data = await calculateStability(stabilityParams);
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace({
+        setCalculationTrace(data.calculation_trace ?? {
           requested_type: 'stability',
           solver_module: 'WindEngine.estimate_gamma_z',
           blackboard_builder: 'build_stability_blackboard',
           classical_check: true,
           mef_check: false
         });
+        setFullResults(data.result ?? data);
       } else {
         setError("Falha na análise de estabilidade.");
       }
-    } catch {
-      setError("Erro de conexão com o motor de vento/estabilidade.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro de conexão com o motor de vento/estabilidade.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setIsLoading, setPedagogicalSteps, setError]);
+  }, [setCalculationTrace, setFullResults, setIsLoading, setPedagogicalSteps, setError]);
 
   return (
     <div className="space-y-6">
@@ -123,6 +126,13 @@ export function StabilityPlayground() {
           <Brain className="w-4 h-4" />
         </Button>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
+          <Shield className="w-4 h-4 mt-0.5 shrink-0" />
+          <p className="text-xs font-medium leading-relaxed">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

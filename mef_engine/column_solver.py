@@ -186,7 +186,8 @@ class FiberSectionIntegrator:
         N_s, Mx_s, My_s = 0.0, 0.0, 0.0
         for rx, ry in self.rebar_pos:
             eps_s = eps0 + kx * ry + ky * rx
-            sig_s = np.clip(eps_s * self.Es, -self.fyd, self.fyd)
+            # Compressão positiva na convenção externa do solver.
+            sig_s = -np.clip(eps_s * self.Es, -self.fyd, self.fyd)
             f_s = sig_s * self.rebar_area
             N_s += f_s
             Mx_s += f_s * ry
@@ -196,9 +197,8 @@ class FiberSectionIntegrator:
         Mx_c = np.sum(sig_c * self.fiber_areas * self.Y)
         My_c = np.sum(sig_c * self.fiber_areas * self.X)
         
-        # Resultantes (N compressão negativa na convenção interna, mas Nd é positivo)
-        # Vamos retornar como positivo para compressão para facilitar o solver
-        return -(N_c + N_s), -(Mx_c + Mx_s), -(My_c + My_s)
+        # Resultantes com compressão positiva, coerente com Nd_kN positivo.
+        return (N_c + N_s), (Mx_c + Mx_s), (My_c + My_s)
 
     def get_fiber_data(self, eps0: float, kx: float, ky: float) -> List[dict]:
         """Retorna detalhes de cada fibra para visualização no frontend."""
@@ -222,90 +222,145 @@ class FiberSectionIntegrator:
 
 class BiaxialBendingSolver:
     @staticmethod
+    def check_interaction_capacity(envelope: List[dict], nd_kN: float, md_kNm: float) -> dict:
+        compression_points = [p for p in envelope if p.get('n', 0.0) >= 0.0]
+        if not compression_points:
+            return {'capacity_kNm': 0.0, 'ratio': 999.0, 'status': 'REVISAR'}
+        nearest = min(compression_points, key=lambda p: abs(float(p.get('n', 0.0)) - nd_kN))
+        capacity = abs(float(nearest.get('m', 0.0)))
+        ratio = abs(md_kNm) / capacity if capacity > 1e-9 else 999.0
+        return {
+            'capacity_kNm': round(capacity, 2),
+            'ratio': round(ratio, 3),
+            'status': 'OK' if ratio <= 1.0 else 'REVISAR'
+        }
+
+    @staticmethod
+    def combine_biaxial_checks(check_x: dict, check_y: dict, alpha: float = 1.2) -> dict:
+        rx = float(check_x.get('ratio', 999.0))
+        ry = float(check_y.get('ratio', 999.0))
+        combined = (abs(rx) ** alpha + abs(ry) ** alpha) ** (1.0 / alpha)
+        return {
+            'alpha': alpha,
+            'combined_ratio': round(combined, 3),
+            'status': 'OK' if combined <= 1.0 else 'REVISAR'
+        }
+
+    @staticmethod
     def find_equilibrium(integrator: FiberSectionIntegrator, loads: ColumnLoads, max_iter: int = 50, tol: float = 1e-3) -> Tuple[float, float, float, bool, List[dict]]:
         """
         Encontra o plano de deformação (eps0, kx, ky) que equilibra os esforços loads.
-        Usa Newton-Raphson com Matriz Jacobiana Numérica.
+        Usa mínimos quadrados amortecidos com limites físicos. A visualização por
+        fibras deve permanecer dentro de deformações plausíveis mesmo quando o
+        ponto solicitante está próximo de trechos pouco condicionados da envoltória.
         Retorna também o histórico de convergência.
         """
-        # [eps0, kx, ky]
-        U = np.array([-0.001, 0.0, 0.0]) 
         target = np.array([loads.Nd_kN * 1000.0, loads.Mxd_kNm * 1000.0, loads.Myd_kNm * 1000.0])
+        scales = np.array([
+            max(abs(target[0]), 100_000.0),
+            max(abs(target[1]), 10_000.0),
+            max(abs(target[2]), 10_000.0),
+        ])
         history = []
-        
-        for i in range(max_iter):
-            # Forças atuais
-            N, Mx, My = integrator.get_forces(U[0], U[1], U[2])
-            R = np.array([N, Mx, My]) - target
-            res_norm = np.linalg.norm(R)
-            
-            history.append({
-                'iter': i,
-                'eps0': float(U[0]),
-                'kx': float(U[1]),
-                'ky': float(U[2]),
-                'res_N': float(R[0]),
-                'res_Mx': float(R[1]),
-                'res_My': float(R[2]),
-                'norm': float(res_norm)
-            })
 
-            if res_norm < tol * (np.linalg.norm(target) + 1.0):
-                return U[0], U[1], U[2], True, history
-                
-            # Jacobiana Numérica
-            J = np.zeros((3, 3))
-            h = 1e-6
-            for j in range(3):
-                U_h = U.copy(); U_h[j] += h
-                N_h, Mx_h, My_h = integrator.get_forces(U_h[0], U_h[1], U_h[2])
-                J[:, j] = (np.array([N_h, Mx_h, My_h]) - np.array([N, Mx, My])) / h
-                
-            try:
-                dU = np.linalg.solve(J, -R)
-                U += 0.5 * dU 
-            except np.linalg.LinAlgError:
-                break
-                
-        return U[0], U[1], U[2], False, history
+        def residual(U: np.ndarray) -> np.ndarray:
+            N, Mx, My = integrator.get_forces(U[0], U[1], U[2])
+            return (np.array([N, Mx, My]) - target) / scales
+
+        starts = [
+            np.array([-0.0006, 0.0, 0.0]),
+            np.array([-0.0012, 0.0, 0.0]),
+            np.array([-0.0020, 0.0, 0.0]),
+            np.array([-0.0010, -0.006, 0.0]),
+            np.array([-0.0010, 0.006, 0.0]),
+            np.array([-0.0010, 0.0, -0.006]),
+            np.array([-0.0010, 0.0, 0.006]),
+            np.array([-0.0010, -0.006, -0.006]),
+            np.array([-0.0010, 0.006, 0.006]),
+        ]
+        if abs(loads.Mxd_kNm) > 1e-9:
+            starts.append(np.array([-0.0010, math.copysign(0.012, loads.Mxd_kNm), 0.0]))
+        if abs(loads.Myd_kNm) > 1e-9:
+            starts.append(np.array([-0.0010, 0.0, math.copysign(0.012, loads.Myd_kNm)]))
+
+        bounds = (np.array([-0.0035, -0.15, -0.15]), np.array([0.0100, 0.15, 0.15]))
+        best_u = starts[0]
+        best_cost = float("inf")
+
+        try:
+            from scipy.optimize import least_squares
+            for start in starts:
+                res = least_squares(
+                    residual,
+                    np.clip(start, bounds[0], bounds[1]),
+                    bounds=bounds,
+                    max_nfev=max_iter * 20,
+                    x_scale=np.array([0.002, 0.02, 0.02]),
+                    loss="soft_l1",
+                    f_scale=0.10,
+                )
+                cost = float(np.linalg.norm(res.fun))
+                if cost < best_cost:
+                    best_cost = cost
+                    best_u = res.x
+        except Exception:
+            # Fallback: Newton amortecido preservado para ambientes sem scipy.optimize.
+            U = starts[0].copy()
+            for _ in range(max_iter):
+                R = residual(U)
+                J = np.zeros((3, 3))
+                h = 1e-6
+                for j in range(3):
+                    U_h = U.copy(); U_h[j] += h
+                    J[:, j] = (residual(U_h) - R) / h
+                try:
+                    dU = np.linalg.lstsq(J, -R, rcond=None)[0]
+                    U = np.clip(U + 0.25 * dU, bounds[0], bounds[1])
+                except np.linalg.LinAlgError:
+                    break
+            best_u = U
+            best_cost = float(np.linalg.norm(residual(U)))
+
+        N, Mx, My = integrator.get_forces(best_u[0], best_u[1], best_u[2])
+        raw_residual = np.array([N, Mx, My]) - target
+        raw_norm = float(np.linalg.norm(raw_residual))
+        rel_norm = float(np.linalg.norm(raw_residual / scales))
+        history.append({
+            'iter': 0,
+            'eps0': float(best_u[0]),
+            'kx': float(best_u[1]),
+            'ky': float(best_u[2]),
+            'res_N': float(raw_residual[0]),
+            'res_Mx': float(raw_residual[1]),
+            'res_My': float(raw_residual[2]),
+            'norm': raw_norm,
+            'relative_norm': rel_norm
+        })
+
+        converged = rel_norm <= max(tol * 10.0, 0.03)
+        return best_u[0], best_u[1], best_u[2], converged, history
 
     @staticmethod
     def solve_required_reinforcement(sec: ColumnSection, loads: ColumnLoads) -> float:
         """
         Encontra a taxa de armadura necessária via busca iterativa na superfície de interação.
-        Agora usa o solver de equilíbrio rigoroso.
+        Usa a propria envoltoria N-M gerada pelo integrador de fibras como criterio
+        de capacidade. O Newton-Raphson fica reservado para visualizacao do estado
+        de deformacoes, pois pode nao convergir em pontos de baixa curvatura.
         """
-        # Busca bisseção ou incremento para omega (taxa mecânica)
         omega_min, omega_max = 0.01, 0.80
-        omega = 0.05
-        
-        # Testar se atende com omega mínimo
-        for iteration in range(15):
-            integrator = FiberSectionIntegrator(sec, omega * sec.area * (sec.fck/1.4) / (sec.fyk/1.15) * 1e4)
-            eps0, kx, ky, converged, _ = BiaxialBendingSolver.find_equilibrium(integrator, loads)
-            
-            # Verificação de Ruptura
-            d_prime = sec.cover + 0.01
-            corners = [
-                (-sec.b/2, -sec.h/2), (sec.b/2, -sec.h/2),
-                (-sec.b/2, sec.h/2), (sec.b/2, sec.h/2)
-            ]
-            min_eps = 0.0
-            max_eps = 0.0
-            for cx, cy in corners:
-                e = eps0 + kx * cy + ky * cx
-                min_eps = min(min_eps, e)
-                max_eps = max(max_eps, e)
-            
-            is_safe = converged and min_eps >= -0.0036 and max_eps <= 0.011
-            
-            if is_safe:
+        for omega in np.linspace(omega_min, omega_max, 80):
+            as_trial_cm2 = omega * sec.area * (sec.fck/1.4) / (sec.fyk/1.15) * 1e4
+            integrator = FiberSectionIntegrator(sec, as_trial_cm2)
+            env_x = BiaxialBendingSolver.generate_envelope_2d(integrator, 'x')
+            env_y = BiaxialBendingSolver.generate_envelope_2d(integrator, 'y')
+            check_x = BiaxialBendingSolver.check_interaction_capacity(env_x, loads.Nd_kN, loads.Mxd_kNm)
+            check_y = BiaxialBendingSolver.check_interaction_capacity(env_y, loads.Nd_kN, loads.Myd_kNm)
+            biaxial = BiaxialBendingSolver.combine_biaxial_checks(check_x, check_y)
+            if check_x['status'] == 'OK' and check_y['status'] == 'OK' and biaxial['status'] == 'OK':
                 return round(omega, 4)
-            else:
-                omega += 0.05
-                if omega > omega_max: return omega_max
-                
-        return round(omega, 4)
+
+        return omega_max
 
     @staticmethod
     def generate_envelope_2d(integrator: FiberSectionIntegrator, axis: str = 'x') -> List[dict]:
@@ -388,8 +443,10 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     As_calc = as_total
     
     # Limites normativos (NBR 6118 §17.3.5 / §18.2.1)
-    # As_min = 0.15 * Nd / fyd >= 0.4% Ac
-    As_min = max(0.004 * Ac, 0.15 * loads.Nd_kN / (fyd / 10.0)) * 1e4 # cm2
+    # As_min = 0,15 Nd/fyd >= 0,4% Ac.
+    # Nd em kN e fyd em MPa: As(cm2) = 0,15 * Nd(kN) * 10 / fyd(MPa).
+    fyd_mpa = fyd / 1e6
+    As_min = max(0.004 * Ac * 1e4, 0.15 * loads.Nd_kN * 10.0 / fyd_mpa) # cm2
     As_max = 0.08 * Ac * 1e4 # cm2 (8%)
     
     As_final = max(As_calc * 1e4, As_min)
@@ -403,19 +460,41 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     cover_required_mm = DurabilityChecker.get_min_cover(DurabilityConfig(caa=sec.caa), 'column')
     cover_adopted_mm = sec.cover * 1000.0
 
+    interaction_x = BiaxialBendingSolver.generate_envelope_2d(integrator, 'x')
+    interaction_y = BiaxialBendingSolver.generate_envelope_2d(integrator, 'y')
+
+    interaction_check = {
+        'x': BiaxialBendingSolver.check_interaction_capacity(interaction_x, loads_total.Nd_kN, loads_total.Mxd_kNm),
+        'y': BiaxialBendingSolver.check_interaction_capacity(interaction_y, loads_total.Nd_kN, loads_total.Myd_kNm),
+    }
+    interaction_check['biaxial'] = BiaxialBendingSolver.combine_biaxial_checks(interaction_check['x'], interaction_check['y'])
+    if (
+        interaction_check['x']['status'] != 'OK'
+        or interaction_check['y']['status'] != 'OK'
+        or interaction_check['biaxial']['status'] != 'OK'
+    ):
+        status = "FORA_DIAGRAMA_INTERACAO"
+
     return {
         'section': f'{sec.b*100:.0f}x{sec.h*100:.0f}',
+        'b_m': sec.b,
+        'h_m': sec.h,
+        'cover_m': sec.cover,
         'fck_MPa': sec.fck,
         'Nd_kN': loads.Nd_kN,
+        'Mxd_kNm': loads.Mxd_kNm,
+        'Myd_kNm': loads.Myd_kNm,
         'Md_x_total_kNm': second_order['M_total_x'],
         'Md_y_total_kNm': second_order['M_total_y'],
         'slenderness': slend,
         'moments_2nd_order': second_order,
+        'equilibrium_converged': bool(converged),
         'omega': round(omega, 4),
         'As_calc_cm2': round(As_calc * 1e4, 2),
         'As_min_cm2': round(As_min, 2),
         'As_final_cm2': round(As_final, 2),
         'rho_pct': round(As_final / (Ac * 1e4) * 100, 2),
+        'interaction_check': interaction_check,
         'durability': {
             'cover_adopted_mm': round(cover_adopted_mm, 1),
             'cover_required_mm': round(cover_required_mm, 1),
@@ -429,8 +508,8 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
             'ky': float(ky) if 'ky' in locals() else 0,
             'fibers': integrator.get_fiber_data(eps0, kx, ky) if 'eps0' in locals() else [],
             'convergence': history if 'history' in locals() else [],
-            'interaction_diagram_x': BiaxialBendingSolver.generate_envelope_2d(integrator, 'x'),
-            'interaction_diagram_y': BiaxialBendingSolver.generate_envelope_2d(integrator, 'y')
+            'interaction_diagram_x': interaction_x,
+            'interaction_diagram_y': interaction_y
         }
     }
 

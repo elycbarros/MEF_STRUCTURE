@@ -31,14 +31,25 @@ async def calculate_wind(input: WindRequest):
         cf_manual=input.cf
     )
     
-    from wind_memorial import build_wind_memorial
-    results["memorial_markdown"] = build_wind_memorial(results)
+    from reporting.pedagogy.stability import build_stability_blackboard
+    
+    # Adicionar dados extras para o blackboard
+    results.update({
+        "v0": input.v0,
+        "q0_kN_m2": results['summary']['max_q_Pa'] / 1000.0
+    })
+    
+    blackboard = build_stability_blackboard(results)
     
     # Salvar para debug/cache
     ensure_directory("output_api")
     write_json(os.path.join("output_api", "last_wind_results.json"), results)
     
-    return results
+    return {
+        "success": True,
+        "pedagogical_steps": blackboard,
+        **results
+    }
 
 @router.post("/wind-stability")
 async def calculate_wind_stability(input: WindStabilityRequest):

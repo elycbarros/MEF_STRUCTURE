@@ -57,5 +57,8 @@ def run_skyscraper_stability_audit():
     else:
         print("\n⚠️ Verificação manual recomendada para convergência física.")
 
+def test_frame_premium():
+    run_skyscraper_stability_audit()
+
 if __name__ == "__main__":
     run_skyscraper_stability_audit()

@@ -45,8 +45,9 @@ export function WindPlayground() {
       } else {
         setError("Falha no cálculo de vento.");
       }
-    } catch {
-      setError("Erro de conexão com o motor NBR 6123.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro de conexão com o motor NBR 6123.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }

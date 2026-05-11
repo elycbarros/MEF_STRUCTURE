@@ -11,6 +11,34 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+function parseLeadingNumber(value: string): number | null {
+  const match = value.replace(',', '.').match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function getDuelSeverity(entry: { classical_value: string; mef_value: string; difference_percent: number }) {
+  const classical = parseLeadingNumber(entry.classical_value);
+  const mef = parseLeadingNumber(entry.mef_value);
+  const absoluteDelta = classical !== null && mef !== null ? Math.abs(mef - classical) : null;
+  const isMillimeter = entry.classical_value.includes('mm') || entry.mef_value.includes('mm');
+  const isMomentPerMeter = entry.classical_value.includes('kNm/m') || entry.mef_value.includes('kNm/m');
+
+  if (isMillimeter && absoluteDelta !== null) {
+    if (absoluteDelta <= 0.10) return 'low';
+    if (absoluteDelta <= 0.50) return 'medium';
+  }
+
+  if (isMomentPerMeter && absoluteDelta !== null) {
+    if (absoluteDelta <= 1.0) return 'low';
+    if (absoluteDelta <= 2.0) return 'medium';
+  }
+
+  const percent = Math.abs(entry.difference_percent);
+  if (percent < 5) return 'low';
+  if (percent <= 15) return 'medium';
+  return 'high';
+}
+
 export function StructuralDuel() {
   const { calculationTrace } = useMestreStore();
   
@@ -33,8 +61,9 @@ export function StructuralDuel() {
 
       <div className="grid grid-cols-1 gap-3">
         {calculationTrace.duel.map((entry, idx) => {
-          const isHighDivergence = Math.abs(entry.difference_percent) > 15;
-          const isLowDivergence = Math.abs(entry.difference_percent) < 5;
+          const severity = getDuelSeverity(entry);
+          const isHighDivergence = severity === 'high';
+          const isLowDivergence = severity === 'low';
 
           return (
             <div key={idx} className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card hover:border-primary/30 transition-all duration-300">
@@ -75,11 +104,13 @@ export function StructuralDuel() {
 
                   <TooltipProvider>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
-                          <Info className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
+                      <TooltipTrigger 
+                        render={
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:text-primary">
+                            <Info className="w-4 h-4" />
+                          </Button>
+                        }
+                      />
                       <TooltipContent side="left" className="max-w-[280px] p-3 text-[11px] leading-relaxed">
                         <p className="font-bold mb-1 uppercase tracking-widest text-[9px]">Insight Pedagógico</p>
                         {entry.insight}

@@ -91,7 +91,7 @@ async def export_academic_column_pdf(request: ColumnRequest):
         sec = ColumnSection(b=request.b, h=request.h, fck=request.fck, cover=cover_m, caa=request.caa, L_free=request.L_free)
         loads = ColumnLoads(Nd_kN=request.Nd_kN, Mxd_kNm=request.Mxd_kNm, Myd_kNm=request.Myd_kNm)
         design = solve_column_section(sec, loads)
-        blackboard = build_column_blackboard(sec, loads, design)
+        blackboard = build_column_blackboard({**design, "b": request.b, "h": request.h, "fck": request.fck}, request.model_dump())
         pdf_path = os.path.join(output_dir, "engine_mestre_pilar_memorial_pedagogico.pdf")
         generate_academic_blackboard_pdf(pdf_path, blackboard, {
             "disciplina": "Concreto Armado",
@@ -103,6 +103,8 @@ async def export_academic_column_pdf(request: ColumnRequest):
             media_type="application/pdf",
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

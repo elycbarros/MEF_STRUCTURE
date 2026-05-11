@@ -64,6 +64,22 @@ export function TechnicalDiagram({ data }: { data: TechnicalDiagramData }) {
             <line x1="530" y1="245" x2="330" y2="245" stroke="currentColor" strokeWidth="3" markerEnd={`url(#arrow-${kind})`} />
             <text x="370" y="75" fontSize="18" fontWeight="800">MURO DE ARRIMO H = {label(v.h)} m</text>
           </g>
+        ) : kind === 'frame' ? (
+          <g>
+            <path d="M 200 300 V 150 H 560 V 300" fill="none" stroke="currentColor" strokeWidth="4" />
+            <line x1="180" y1="300" x2="220" y2="300" stroke="currentColor" strokeWidth="3" />
+            <line x1="540" y1="300" x2="580" y2="300" stroke="currentColor" strokeWidth="3" />
+            {/* Hachuras de apoio */}
+            <path d="M190 310 L210 300 M200 310 L220 300 M180 310 L200 300" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+            <path d="M550 310 L570 300 M560 310 L580 300 M540 310 L560 300" stroke="currentColor" strokeWidth="1" opacity="0.5" />
+            
+            <path d="M 200 150 L 560 150" stroke="#007AFF" strokeWidth="2" strokeDasharray="4 4" opacity="0.6" />
+            <circle cx="200" cy="150" r="6" fill="#007AFF" />
+            <circle cx="560" cy="150" r="6" fill="#007AFF" />
+            
+            <text x="380" y="80" textAnchor="middle" fontSize="22" fontWeight="900" fill="#007AFF">MODELO MATRICIAL 3D</text>
+            <text x="380" y="365" textAnchor="middle" fontSize="14" fontWeight="700" opacity="0.7">MÉTODO DA RIGIDEZ DIRETA — ATLAS ENGINE</text>
+          </g>
         ) : kind === 'stair' ? (
           <g>
             {Array.from({ length: 8 }).map((_, i) => (

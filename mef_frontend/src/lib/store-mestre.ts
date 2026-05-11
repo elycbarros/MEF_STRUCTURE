@@ -46,9 +46,6 @@ export const useMestreStore = create<MestreState>((set) => ({
   selectedElementType: 'beam',
   sidebarCollapsed: false,
   viewMode: 'interactive',
-  unitConfig: { length: 'm', force: 'kN', stress: 'MPa' },
-  loadCases: [],
-  combinations: [],
   params: {
     L: 6.0,
     b: 0.20,

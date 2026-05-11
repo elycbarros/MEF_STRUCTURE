@@ -16,7 +16,13 @@ export type MestreElementType =
   | "deep_beam"
   | "spt"
   | "stability"
-  | "vento";
+  | "wind"
+  | "vento"
+  | "frames"
+  | "trusses"
+  | "advanced_slab"
+  | "tension_pro"
+  | "tech_library";
 
 export type SupportType = "pinned" | "fixed" | "spring";
 

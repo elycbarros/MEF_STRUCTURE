@@ -1,96 +1,111 @@
 {
-  "w_max_mm": 14.830726249711578,
+  "w_max_mm": 40.54722337531603,
   "qsoil_max_kPa": 0.0,
-  "mx_abs_max_kNm_m": 22.664530698170694,
-  "my_abs_max_kNm_m": 22.66453069817305,
+  "mx_abs_max_kNm_m": 30.150292156144168,
+  "my_abs_max_kNm_m": 30.150292156148,
   "distributed_load_kN": 448.0,
   "column_load_kN": 21000.0,
-  "reactions_total_kN": 0.0,
+  "reactions_total_kN": 21448.000296251877,
   "loads_total_kN": 21448.0,
-  "residual_kN": -21448.0,
-  "residual_ratio": 1.0,
+  "residual_kN": 0.0002962518781423569,
+  "residual_ratio": 1.3812564255052074e-08,
   "pile_reactions_total_kN": 0.0,
   "active_springs": 441,
   "iterations": 2,
   "nlf_audit": {
-    "total_iterations": 15,
+    "total_iterations": 18,
     "convergence_history": [
       {
         "iteration": 1,
-        "max_stiffness_diff": 0.8,
-        "n_elements_cracked": 32
+        "max_stiffness_diff": 0.85,
+        "n_elements_cracked": 75
       },
       {
         "iteration": 2,
-        "max_stiffness_diff": 0.32,
-        "n_elements_cracked": 33
+        "max_stiffness_diff": 0.68,
+        "n_elements_cracked": 82
       },
       {
         "iteration": 3,
-        "max_stiffness_diff": 0.18824655673145518,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.5440000000000002,
+        "n_elements_cracked": 94
       },
       {
         "iteration": 4,
-        "max_stiffness_diff": 0.20024843809939297,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.43520000000000014,
+        "n_elements_cracked": 100
       },
       {
         "iteration": 5,
-        "max_stiffness_diff": 0.19838851629623522,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.34816000000000014,
+        "n_elements_cracked": 102
       },
       {
         "iteration": 6,
-        "max_stiffness_diff": 0.20036689942060004,
-        "n_elements_cracked": 34
+        "max_stiffness_diff": 0.2785280000000001,
+        "n_elements_cracked": 112
       },
       {
         "iteration": 7,
-        "max_stiffness_diff": 0.20418418966564966,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.19496960000000005,
+        "n_elements_cracked": 122
       },
       {
         "iteration": 8,
-        "max_stiffness_diff": 0.2199249261180588,
-        "n_elements_cracked": 32
+        "max_stiffness_diff": 0.14449731802010635,
+        "n_elements_cracked": 144
       },
       {
         "iteration": 9,
-        "max_stiffness_diff": 0.2307448171143549,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.14283784387924847,
+        "n_elements_cracked": 152
       },
       {
         "iteration": 10,
-        "max_stiffness_diff": 0.25205275452270726,
-        "n_elements_cracked": 26
+        "max_stiffness_diff": 0.14311474335039653,
+        "n_elements_cracked": 152
       },
       {
         "iteration": 11,
-        "max_stiffness_diff": 0.2635677921260512,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.12343688678002673,
+        "n_elements_cracked": 156
       },
       {
         "iteration": 12,
-        "max_stiffness_diff": 0.2872967166501552,
-        "n_elements_cracked": 22
+        "max_stiffness_diff": 0.09930139955188866,
+        "n_elements_cracked": 156
       },
       {
         "iteration": 13,
-        "max_stiffness_diff": 0.2958314188620136,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.07687792406313043,
+        "n_elements_cracked": 160
       },
       {
         "iteration": 14,
-        "max_stiffness_diff": 0.29360314135702914,
-        "n_elements_cracked": 18
+        "max_stiffness_diff": 0.05837709035923877,
+        "n_elements_cracked": 162
       },
       {
         "iteration": 15,
-        "max_stiffness_diff": 0.29596217359086896,
-        "n_elements_cracked": 35
+        "max_stiffness_diff": 0.04220476353071534,
+        "n_elements_cracked": 162
+      },
+      {
+        "iteration": 16,
+        "max_stiffness_diff": 0.03026875351792857,
+        "n_elements_cracked": 162
+      },
+      {
+        "iteration": 17,
+        "max_stiffness_diff": 0.021621793089572017,
+        "n_elements_cracked": 162
+      },
+      {
+        "iteration": 18,
+        "max_stiffness_diff": 0.015417556422309242,
+        "n_elements_cracked": 162
       }
     ],
-    "is_stable": false
+    "is_stable": true
   }
 }

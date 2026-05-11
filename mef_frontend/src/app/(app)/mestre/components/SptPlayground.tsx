@@ -9,13 +9,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Search, Layers, Calculator, Brain } from 'lucide-react';
+import { Plus, Trash2, Search, Layers, Calculator, Brain, Shield } from 'lucide-react';
 import { useCallback } from 'react';
 import { calculateSpt } from '@/lib/api-mestre';
 import { extractMestreSteps, type SoilLayer } from '@/lib/mestre-types';
 
 export function SptPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, isLoading } = useMestreStore();
+  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults, isLoading, error } = useMestreStore();
 
   const handleLayerChange = (index: number, field: keyof SoilLayer, value: SoilLayer[keyof SoilLayer]) => {
     const newLayers = [...params.layers];
@@ -41,6 +41,7 @@ export function SptPlayground() {
 
   const handleCalculate = useCallback(async (currentLayers: SoilLayer[]) => {
     setIsLoading(true);
+    setError(null);
     try {
       // Ajustar dados para o formato esperado pelo backend (spt_data)
       const sptData = currentLayers.map(l => ({
@@ -52,22 +53,24 @@ export function SptPlayground() {
       const data = await calculateSpt(sptData);
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace({
+        setCalculationTrace(data.calculation_trace ?? {
           requested_type: 'spt',
           solver_module: 'GeotechnicalEngine.analyze_spt',
           blackboard_builder: 'build_spt_blackboard',
           classical_check: true,
           mef_check: false
         });
+        setFullResults(data.result ?? data);
       } else {
         setError("Falha na análise de SPT.");
       }
-    } catch {
-      setError("Erro de conexão com o motor geotécnico.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro de conexão com o motor geotécnico.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setIsLoading, setPedagogicalSteps, setError]);
+  }, [setCalculationTrace, setFullResults, setIsLoading, setPedagogicalSteps, setError]);
 
   return (
     <div className="space-y-6">
@@ -155,6 +158,13 @@ export function SptPlayground() {
           <Brain className="w-4 h-4" />
         </Button>
       </div>
+
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
+          <Shield className="w-4 h-4 mt-0.5 shrink-0" />
+          <p className="text-xs font-medium leading-relaxed">{error}</p>
+        </div>
+      )}
     </div>
   );
 }

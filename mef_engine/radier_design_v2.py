@@ -244,6 +244,14 @@ def check_serviceability_flexure(
         'wk_limit_mm': cfg.wk_limit_mm,
         'wk_x_ok': np.maximum(wk_x_bottom, wk_x_top) <= cfg.wk_limit_mm,
         'wk_y_ok': np.maximum(wk_y_bottom, wk_y_top) <= cfg.wk_limit_mm,
+        'w_m': df['w_mean_m'] if 'w_mean_m' in df.columns else (df['w_m'] if 'w_m' in df.columns else 0.0),
+        'mx_Nm_per_m': df['mx_Nm_per_m'],
+        'my_Nm_per_m': df['my_Nm_per_m'],
+        'mxy_Nm_per_m': df['mxy_Nm_per_m'],
+        'Asx_bottom_adot_cm2_m': df['Asx_bottom_adot_cm2_m'],
+        'Asx_top_adot_cm2_m': df['Asx_top_adot_cm2_m'],
+        'Asy_bottom_adot_cm2_m': df['Asy_bottom_adot_cm2_m'],
+        'Asy_top_adot_cm2_m': df['Asy_top_adot_cm2_m'],
     })
     out.to_csv(out_csv, index=False)
     return out_csv
