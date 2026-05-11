@@ -46,9 +46,28 @@ class ForensicAuditEngine:
         # 3. Alerta de Segurança e Status
         status = "approved" if error_pct < 1 and abs(diff_m) < 15 else "review"
         
+        # 4. Dados para o "Duelo Estrutural" UI
+        duel = [
+            {
+                "parameter": "Equilíbrio Global (Forças)",
+                "classical_value": f"{fmt(total_load)} kN (Ação)",
+                "mef_value": f"{fmt(total_reaction)} kN (Reação)",
+                "difference_percent": float(error_pct),
+                "insight": "O erro de equilíbrio indica a precisão numérica do sistema. Valores < 1% confirmam a convergência da matriz de rigidez."
+            },
+            {
+                "parameter": "Momento Fletor Máximo",
+                "classical_value": f"{fmt(m_an)} kNm",
+                "mef_value": f"{fmt(m_mef)} kNm",
+                "difference_percent": float(diff_m),
+                "insight": "Diferenças entre MEF e Analítico ocorrem devido a deformações por cisalhamento e refinamento de malha no modelo numérico."
+            }
+        ]
+        
         audit_payload = me.build()
         audit_payload["metadata"]["audit_status"] = status
         audit_payload["metadata"]["residual_kN"] = residual
+        audit_payload["duel"] = duel
         
         return audit_payload
 

@@ -1,12 +1,37 @@
 import numpy as np
+import math
 from typing import Any
 from .base import MemorialEngine
 
-def build_lajes_blackboard(model: Any, result: Any) -> dict:
+def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Lajes Maciças", "slab")
     fmt = me._fmt
     
+    # Suporte a modelos legados ou novos dicionários
+    model = payload.get("model") if payload else None
+    if not model:
+        model = res.get("model") # Tenta pegar do resultado se não estiver no payload
+    
     me.add_standard_info()
+    
+    # Diagrama de Referência
+    me.add_step(
+        id="slab-diagram-ref",
+        title="Visualização da Laje e Curvatura",
+        formula=r"\text{Corte e Diagrama de Momentos}",
+        substitution=r"\text{Modelo: Placa de Mindlin-Reissner}",
+        result=r"\text{Diagrama de Flechas e Esforços}",
+        explanation="Esquema gráfico da laje indicando as condições de contorno e a deformada sob carga.",
+        norm="NBR 6118",
+        diagramData=me.technical_diagram(
+            "slab",
+            "Diagrama técnico de laje",
+            Lx=getattr(model, "Lx", 5.0),
+            Ly=getattr(model, "Ly", 4.0),
+            h=getattr(model.material, "h", 0.16),
+        )
+    )
+    
     fck = getattr(model.material, 'fck', 30.0)
     me.add_step(
         id="slab-materials",
@@ -51,7 +76,7 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
     )
     
     # 3. Momentos e Taxas
-    mx_max = np.max(np.abs(result.mx)) / 1000.0 # kNm/m
+    mx_max = np.max(np.abs(res.mx)) / 1000.0 # kNm/m
     me.add_step(
         id="slab-moments",
         title="Solicitações Máximas (MEF)",
@@ -63,7 +88,7 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
     )
     
     # 4. Verificação de Flecha (ELS)
-    w_max_mm = np.max(np.abs(result.disp[:, 0])) * 1000.0
+    w_max_mm = np.max(np.abs(res.disp[:, 0])) * 1000.0
     l_span = min(model.Lx, model.Ly)
     limit_mm = (l_span * 1000.0) / 250.0
     me.add_validation_step(
@@ -76,10 +101,38 @@ def build_lajes_blackboard(model: Any, result: Any) -> dict:
         explanation="A flecha máxima deve ser limitada para evitar danos em alvenarias e desconforto visual.",
         norm="NBR 6118, 13.3"
     )
+
+    # 5. Detalhamento da Armadura (Faixa de 1m)
+    # Estimativa de braço de alavanca z ~ 0.9d
+    d_m = h - 0.03
+    as_x_cm2 = (mx_max * 1.4) / (0.9 * d_m * 43.48) if d_m > 0 else 0.0
+    phi_mm = 8.0
+    area_1phi = (phi_mm**2 * 3.1415 / 400.0)
+    spacing_cm = min(20.0, area_1phi / as_x_cm2 * 100) if as_x_cm2 > 0 else 20.0
+    n_bars = math.ceil(100 / spacing_cm)
+
+    me.add_step(
+        id="slab-detailing",
+        title="Detalhamento da Armadura de Flexão (Faixa de 1m)",
+        formula=r"A_s = \frac{M_d}{0,9d \cdot f_{yd}}",
+        substitution=rf"M_{{x,max}} = {fmt(mx_max, 2)}\,kNm/m \quad \phi = {fmt(phi_mm, 1)}\,mm",
+        result=rf"\phi{fmt(phi_mm, 1)} \, c/ {fmt(spacing_cm, 1)}\,cm",
+        explanation="As barras são distribuídas uniformemente por metro linear para resistir aos esforços de placa.",
+        norm="NBR 6118, 20.1",
+        detailingData={
+            "type": "beam_section",
+            "b": 1.0, 
+            "h": h, 
+            "cover": float(getattr(model, 'cover_mm', 25)) / 1000.0,
+            "layers": [
+                {"position": "bottom", "bars": [{"count": n_bars, "diameter": phi_mm}]}
+            ]
+        }
+    )
     
     return me.build()
 
-def build_punching_slab_blackboard(res: dict) -> dict:
+def build_punching_slab_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Punção em Lajes", "punching")
     fmt = me._fmt
     
@@ -108,7 +161,7 @@ def build_punching_slab_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_ribbed_slab_blackboard(res: dict) -> dict:
+def build_ribbed_slab_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Lajes Nervuradas", "ribbed_slab")
     fmt = me._fmt
     
@@ -136,7 +189,7 @@ def build_ribbed_slab_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_prestressed_slab_blackboard(res: dict) -> dict:
+def build_prestressed_slab_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Lajes Protendidas", "prestressed_slab")
     fmt = me._fmt
     

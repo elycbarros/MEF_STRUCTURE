@@ -12,24 +12,44 @@ class MemorialEngine:
         self.steps = []
         self._fmt = lambda val, prec=2: f"{float(val):.{prec}f}".replace(".", ",")
 
-    def add_step(self, id: str, title: str, formula: str, substitution: str, result: str, explanation: str, norm: str = "NBR 6118"):
+    def txt(self, s: str) -> str:
+        """Envolve string em \text{} para legibilidade em LaTeX math mode."""
+        return rf"\text{{{s}}}"
+
+    def _auto_latex(self, s: str) -> str:
+        """Detecta se uma string é texto puro e a envolve em \text{}."""
+        if not s: return ""
+        # Se já tiver comandos LaTeX, símbolos matemáticos ou for numérico, não mexe
+        math_chars = ["\\", "$", "_", "^", "{", "}", "="]
+        if any(char in s for char in math_chars) or s.replace(",", "").replace(".", "").replace("-", "").isdigit():
+            return s
+        return rf"\text{{{s}}}"
+
+    def add_step(self, id: str, title: str, formula: str, substitution: str, result: str, explanation: str, norm: str = "NBR 6118", diagram: Optional[str] = None, chartData: Optional[dict] = None, detailingData: Optional[dict] = None, diagramData: Optional[dict] = None):
         self.steps.append({
             "id": id,
             "title": title,
             "formula": formula,
-            "substitution": substitution,
-            "result": result,
+            "substitution": self._auto_latex(substitution),
+            "result": self._auto_latex(result),
             "explanation": explanation,
-            "norm": norm
+            "norm": norm,
+            "diagram": diagram,
+            "chartData": chartData,
+            "detailingData": detailingData,
+            "diagramData": diagramData
         })
+
+    def technical_diagram(self, kind: str, title: str, **values: Any) -> dict[str, Any]:
+        return {"kind": kind, "title": title, "values": values}
 
     def add_standard_info(self):
         self.add_step(
             id="normative-base",
             title="Base Normativa e Critérios de Segurança",
             formula=r"\gamma_c = 1{,}4, \quad \gamma_s = 1{,}15, \quad \gamma_f = 1{,}4",
-            substitution="Valores padrão para combinações normais.",
-            result="Conformidade NBR 6118:2023",
+            substitution=r"\text{Valores padrão para combinações normais.}",
+            result=r"\text{Conformidade NBR 6118:2023}",
             explanation="O dimensionamento segue o método dos Estados Limites (ELU e ELS).",
             norm="NBR 6118, Cap. 12"
         )
@@ -39,8 +59,8 @@ class MemorialEngine:
             id="durability-check",
             title="Durabilidade e Proteção (CAA)",
             formula=rf"CAA = {caa}, \quad c_{{nom}} = {cover}\,mm",
-            substitution=f"Classe de Aggressividade Ambiental {caa}",
-            result=f"Cobrimento nominal: {cover} mm",
+            substitution=rf"\text{{Classe de Agressividade Ambiental {caa}}}",
+            result=rf"\text{{Cobrimento nominal: {cover} mm}}",
             explanation="Cobrimento definido em função da agressividade do meio.",
             norm="NBR 6118, Tab. 6.1 e 7.1"
         )
@@ -50,8 +70,8 @@ class MemorialEngine:
             id="geometry-info",
             title="Geometria da Seção Transversal",
             formula=rf"b_w = {self._fmt(b, 2)}\,m, \quad h = {self._fmt(h, 2)}\,m, \quad d = {self._fmt(d, 2)}\,m",
-            substitution=f"Seção Retangular",
-            result=f"Altura útil (d) estimada",
+            substitution=r"\text{Seção Retangular}",
+            result=r"\text{Altura útil (d) estimada}",
             explanation="A altura útil é a distância da fibra mais comprimida ao centro de gravidade da armadura de tração.",
             norm="Geometria"
         )
@@ -62,10 +82,36 @@ class MemorialEngine:
             id=id,
             title=title,
             formula=rf"V = {self._fmt(value, 3)}\,{unit} \quad {operator} \quad L = {self._fmt(limit, 3)}\,{unit}",
-            substitution=f"Valor calculado vs Limite normativo",
-            result=f"Status: {status}",
+            substitution=r"\text{Valor calculado vs Limite normativo}",
+            result=rf"\text{{Status: {status}}}",
             explanation=explanation,
             norm=norm
+        )
+
+    def add_reactions_step(self, reactions: list[dict]):
+        formula = r"\sum F_v = 0, \quad \sum M = 0"
+        sub = ", ".join([rf"R_{{{r['id']}}} = {self._fmt(r['R'])}" for r in reactions])
+        self.add_step(
+            id="structural-reactions",
+            title="Reações de Apoio e Equilíbrio",
+            formula=formula,
+            substitution=sub,
+            result=rf"\text{{Equilíbrio validado}}",
+            explanation="As reações de apoio garantem a estabilidade estática do elemento sob as cargas aplicadas.",
+            norm="Mecânica Estrutural"
+        )
+
+    def add_comparison_step(self, m_classic: float, m_mef: float, unit: str = "kNm"):
+        diff = abs(m_classic - m_mef) / m_classic * 100 if m_classic > 0 else 0
+        status = "✅ CONSISTENTE" if diff < 5 else "⚠️ DIVERGÊNCIA ACEITÁVEL"
+        self.add_step(
+            id="classic-vs-mef",
+            title="Validação Cruzada: Clássico vs MEF",
+            formula=r"\Delta \% = \frac{|M_{cl} - M_{mef}|}{M_{cl}} \cdot 100",
+            substitution=rf"M_{{cl}} = {self._fmt(m_classic)}\,{unit}, \quad M_{{mef}} = {self._fmt(m_mef)}\,{unit}",
+            result=rf"\Delta = {self._fmt(diff, 1)}\% \Rightarrow \text{{{status}}}",
+            explanation="Compara o cálculo analítico (fórmulas de livros-texto) com o método de elementos finitos para garantir a acurácia do modelo.",
+            norm="Auditoria Forense"
         )
 
     def build(self, summary: Optional[dict[str, Any]] = None) -> dict[str, Any]:

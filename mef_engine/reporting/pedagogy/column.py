@@ -2,19 +2,15 @@ import math
 from typing import Any
 from .base import MemorialEngine
 
-def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] = None) -> dict[str, Any]:
+def build_column_blackboard(res: dict, payload: dict = None) -> dict[str, Any]:
     """
     Cria um roteiro didatico para pilares (Elite Tier).
     """
-    # Extração de dados (suporta objetos ColumnSection ou dicionários)
-    if hasattr(sec, 'b'):
-        b = float(sec.b)
-        h = float(sec.h)
-        fck = float(sec.fck)
-    else:
-        b = float(sec.get("b", 0.20))
-        h = float(sec.get("h", 0.20))
-        fck = float(sec.get("fck", 30.0))
+    # Extração de dados
+    b = float(res.get("b", 0.20))
+    h = float(res.get("h", 0.20))
+    fck = float(res.get("fck", 30.0))
+    design = res # No novo formato, os dados de design estão no próprio resultado
 
     me = MemorialEngine("Memorial de Cálculo: Pilar de Concreto Armado", "column")
     fmt = me._fmt
@@ -82,10 +78,34 @@ def build_column_blackboard(sec: Any, loads: Any = None, design: dict[str, Any] 
             explanation="A taxa de armadura deve estar entre 0,4% e 8% (considerando sobrepasse).",
             norm="NBR 6118, 17.3.5.3"
         )
+        
+    # 1.5 Detalhamento Gráfico
+    if design:
+        as_total = float(design.get("As_tot", 0.0))
+        n_bars = int(design.get("n_bars", 4))
+        phi_mm = float(design.get("phi_mm", 12.5))
+        
+        me.add_step(
+            id="col-detailing-section",
+            title="Detalhamento da Seção Transversal",
+            formula=r"A_{s,ef} = n_{bars} \cdot A_{s,1\phi}",
+            substitution=rf"A_{{s,ef}} = {n_bars} \cdot {fmt(phi_mm**2 * 3.1415/400, 2)}\,cm^2",
+            result=rf"{n_bars}\phi{fmt(phi_mm, 1)} \Rightarrow A_{{s,ef}} = {fmt(as_total, 2)}\,cm^2",
+            explanation="Distribuição de armadura longitudinal e estribos conforme exigências de ductilidade.",
+            norm="NBR 6118, 18.2.3",
+            detailingData={
+                "type": "column_section",
+                "b": b, "h": h, "cover": 0.03,
+                "layers": [
+                    {"position": "bottom", "bars": [{"count": n_bars // 2, "diameter": phi_mm}]},
+                    {"position": "top", "bars": [{"count": n_bars - (n_bars // 2), "diameter": phi_mm}]}
+                ]
+            }
+        )
 
     return me.build()
 
-def build_column_advanced_blackboard(res: dict) -> dict:
+def build_column_advanced_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Pilares Avançados", "column_advanced")
     fmt = me._fmt
     

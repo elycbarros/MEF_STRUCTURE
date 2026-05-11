@@ -1,7 +1,8 @@
 from typing import Any
+import math
 from .base import MemorialEngine
 
-def build_retaining_wall_blackboard(res: dict) -> dict:
+def build_retaining_wall_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Muros de Arrimo", "retaining_wall")
     fmt = me._fmt
     
@@ -13,7 +14,8 @@ def build_retaining_wall_blackboard(res: dict) -> dict:
         substitution=rf"k_a = \tan^2(45^\circ - {fmt(res.get('phi_soil', 30))}^\circ/2)",
         result=rf"k_a = {fmt(res.get('ka'), 3)}",
         explanation="O coeficiente Ka define a parcela da pressão vertical que se transforma em pressão lateral do solo.",
-        norm="NBR 11682"
+        norm="NBR 11682",
+        diagramData=me.technical_diagram("retaining_wall", "Corte técnico - muro de arrimo", h=res.get("h_wall", 4.0), base=res.get("b_base", 2.5))
     )
     
     me.add_validation_step(
@@ -40,8 +42,8 @@ def build_retaining_wall_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_stairs_blackboard(res: dict) -> dict:
-    me = MemorialEngine("Roteiro Didático: Escadas", "stairs")
+def build_stairs_blackboard(res: dict, payload: dict = None) -> dict:
+    me = MemorialEngine("Roteiro Didático: Escadas", "stair")
     fmt = me._fmt
     fck = float(res.get("fck", 25))
     fcd = fck / 1.4
@@ -66,7 +68,8 @@ def build_stairs_blackboard(res: dict) -> dict:
         substitution=rf"\alpha = {fmt(res.get('alpha_deg'), 1)}^\circ, \quad \text{{thick}} = {fmt(res.get('thick', 0.15), 2)}\,m",
         result=rf"g_{{pp}} = {fmt(res.get('g_pp', 4.0), 2)}\,kN/m^2",
         explanation="O peso próprio considera a projeção inclinada da laje e o peso médio dos degraus.",
-        norm="NBR 6120"
+        norm="NBR 6120",
+        diagramData=me.technical_diagram("stair", "Corte técnico - escada", L=res.get("L_horizontal", 4.0), alpha=res.get("alpha_deg", 30.0), h=res.get("thick", 0.15))
     )
     
     me.add_step(
@@ -78,10 +81,36 @@ def build_stairs_blackboard(res: dict) -> dict:
         explanation="Cálculo do esforço fletor máximo para dimensionamento da armadura longitudinal.",
         norm="NBR 6118"
     )
+
+    # 4. Detalhamento da Armadura
+    as_calc = float(res.get('as_calc_cm2', 5.0))
+    phi_mm = float(res.get('phi_mm', 10.0))
+    # Estimativa de espaçamento
+    spacing = min(20.0, (phi_mm**2 * 3.1415 / 400.0) / as_calc * 100) if as_calc > 0 else 20.0
+    n_bars = math.ceil(100 / spacing)
+
+    me.add_step(
+        id="stairs-detailing",
+        title="Detalhamento da Armadura de Flexão (Faixa de 1m)",
+        formula=r"A_s = \frac{M_d}{0,9d \cdot f_{yd}}",
+        substitution=rf"M_d = {fmt(res.get('m_max_kNm'), 2)}\,kNm/m \quad \phi = {fmt(phi_mm, 1)}\,mm",
+        result=rf"\phi{fmt(phi_mm, 1)} \, c/ {fmt(spacing, 1)}\,cm",
+        explanation="As barras longitudinais são dispostas na face inferior da laje da escada para resistir aos momentos de tração.",
+        norm="NBR 6118, 20.1",
+        detailingData={
+            "type": "beam_section",
+            "b": 1.0, 
+            "h": float(res.get('thick', 0.15)), 
+            "cover": 0.025,
+            "layers": [
+                {"position": "bottom", "bars": [{"count": n_bars, "diameter": phi_mm}]}
+            ]
+        }
+    )
     
     return me.build()
 
-def build_elevated_reservoir_blackboard(res: dict) -> dict:
+def build_elevated_reservoir_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Reservatórios Elevados", "reservoir")
     fmt = me._fmt
     depth = res.get('H', res.get('depth', 3.0))
@@ -94,7 +123,8 @@ def build_elevated_reservoir_blackboard(res: dict) -> dict:
         substitution=rf"p_{{max}} = 10 \cdot {fmt(depth, 2)}",
         result=rf"p_{{max}} = {fmt(res.get('p_max_kPa'), 1)}\,kN/m^2",
         explanation="A pressão hidrostática é a principal solicitação em paredes de reservatórios.",
-        norm="NBR 6118"
+        norm="NBR 6118",
+        diagramData=me.technical_diagram("reservoir", "Diagrama técnico - reservatório", depth=depth, pressure=res.get("p_max_kPa", 0.0))
     )
     
     me.add_validation_step(
@@ -110,7 +140,7 @@ def build_elevated_reservoir_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_corbel_blackboard(res: dict) -> dict:
+def build_corbel_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Consolos Curtos", "corbel")
     fmt = me._fmt
     
@@ -133,12 +163,13 @@ def build_corbel_blackboard(res: dict) -> dict:
         substitution=rf"A_s = {fmt(res.get('f_tirante_kN'))} / 43,48",
         result=rf"A_s = {fmt(res.get('as_principal_cm2'), 2)}\,cm^2",
         explanation="O tirante de aço deve resistir integralmente à componente horizontal de tração.",
-        norm="NBR 6118"
+        norm="NBR 6118",
+        diagramData=me.technical_diagram("corbel", "Biela e tirante - consolo", a=res.get("a_dist", 0.25), d=res.get("d_eff", 0.45))
     )
     
     return me.build()
 
-def build_gerber_tooth_blackboard(res: dict) -> dict:
+def build_gerber_tooth_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Dentes Gerber", "gerber_tooth")
     fmt = me._fmt
     
@@ -163,12 +194,13 @@ def build_gerber_tooth_blackboard(res: dict) -> dict:
         substitution=rf"V_d = {fmt(res.get('vd_kN') * 1.4)}, \quad a/d = \text{{projeto}}",
         result=rf"A_{{sh}} = {fmt(res.get('as_tirante_cm2'), 2)}\,cm^2",
         explanation="O tirante horizontal resiste à tração causada pela excentricidade do apoio.",
-        norm="NBR 6118, 22.5.4.2"
+        norm="NBR 6118, 22.5.4.2",
+        diagramData=me.technical_diagram("gerber_tooth", "Dente Gerber - esquema de tirantes", vd=res.get("vd_kN", 0.0), hd=res.get("hd_kN", 0.0))
     )
     
     return me.build()
 
-def build_deep_beam_blackboard(res: dict) -> dict:
+def build_deep_beam_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Vigas Parede", "deep_beam")
     fmt = me._fmt
     
@@ -193,12 +225,13 @@ def build_deep_beam_blackboard(res: dict) -> dict:
         substitution=rf"L = \text{{vão}}, \quad h = \text{{altura}}",
         result=rf"z = {fmt(res.get('z_m'), 2)}\,m",
         explanation="O braço de alavanca é reduzido devido à concentração de tensões na parte inferior da viga parede.",
-        norm="NBR 6118"
+        norm="NBR 6118",
+        diagramData=me.technical_diagram("deep_beam", "Viga parede - fluxo de compressão", L=res.get("l_span", 4.0), h=res.get("height", 3.0))
     )
     
     return me.build()
 
-def build_helical_stairs_blackboard(res: dict) -> dict:
+def build_helical_stairs_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Escadas Helicoidais", "helical_stairs")
     fmt = me._fmt
     
@@ -228,7 +261,7 @@ def build_helical_stairs_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_pile_cap_blackboard(res: dict) -> dict:
+def build_pile_cap_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Blocos sobre Estacas", "pile_cap")
     fmt = me._fmt
     
@@ -268,7 +301,7 @@ def build_pile_cap_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_beam_opening_blackboard(res: dict) -> dict:
+def build_beam_opening_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Furos em Vigas", "beam_opening")
     fmt = me._fmt
     
@@ -296,7 +329,7 @@ def build_beam_opening_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_concrete_wall_blackboard(res: dict) -> dict:
+def build_concrete_wall_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Paredes de Concreto", "concrete_wall")
     fmt = me._fmt
     
@@ -321,6 +354,48 @@ def build_concrete_wall_blackboard(res: dict) -> dict:
         unit="kN/m",
         explanation="A capacidade resistente considera a redução devido aos efeitos de segunda ordem.",
         norm="NBR 16055"
+    )
+    
+    return me.build()
+
+def build_tension_pro_blackboard(res: dict, payload: dict = None) -> dict:
+    me = MemorialEngine("Roteiro Didático: Protensão (Tension Pro)", "tension_pro")
+    fmt = me._fmt
+    
+    me.add_standard_info()
+    
+    # 1. Carga Equivalente
+    me.add_step(
+        id="tension-equivalent",
+        title="Carga Equivalente de Protensão",
+        formula=r"q_{eq} = \frac{8 \cdot P \cdot e}{L^2}",
+        substitution=rf"P = {fmt(res.get('p0_kN'))}\,kN, \quad e = {fmt(res.get('eccentricity_m'))}\,m",
+        result=rf"q_{{eq}} = {fmt(res.get('q_eq_kNm'), 2)}\,kN/m",
+        explanation="A curvatura do cabo gera uma força distribuída ascendente que combate a carga gravitacional.",
+        norm="NBR 6118"
+    )
+    
+    # 2. Balanço de Cargas
+    me.add_step(
+        id="tension-balance",
+        title="Grau de Balanceamento",
+        formula=r"\text{Balanço} = \frac{q_{eq}}{q_{serv}} \cdot 100\%",
+        substitution=rf"q_{{serv}} = {fmt(res.get('q_service_kNm'))}\,kN/m",
+        result=rf"\text{Balanço} = {fmt(res.get('balance_ratio'), 1)}\%",
+        explanation="Indica quanto da carga de serviço é compensada pela protensão.",
+        norm="Prática de Projeto"
+    )
+    
+    # 3. Tensões em Serviço
+    me.add_validation_step(
+        id="tension-stress",
+        title="Tensão na Fibra Inferior (Tração)",
+        value=float(res.get("stress_bottom_MPa", 0)),
+        limit=float(res.get("fctm_MPa", 2.0)),
+        operator="<=",
+        unit="MPa",
+        explanation="Verifica se a seção permanece comprimida ou com tração controlada.",
+        norm="NBR 6118"
     )
     
     return me.build()

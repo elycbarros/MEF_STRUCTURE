@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ class PedagogyRegistry:
         """
         composite_steps = []
         composite_title = "Memorial Estrutural Unificado"
+        duel_data = []
         
         for cfg in element_configs:
             etype = cfg.get('type')
@@ -45,6 +46,11 @@ class PedagogyRegistry:
             payload = cfg.get('payload', {})
             
             blackboard = cls.get_blackboard(etype, result, payload)
+            
+            # Coletar Duelo se existir
+            if "duel" in blackboard:
+                duel_data.extend(blackboard["duel"])
+            
             # Prefixar IDs para evitar colisão no frontend
             for step in blackboard.get("steps", []):
                 step["id"] = f"{etype}-{step['id']}"
@@ -59,7 +65,8 @@ class PedagogyRegistry:
                 "is_composite": True,
                 "element_count": len(element_configs)
             },
-            "steps": composite_steps
+            "steps": composite_steps,
+            "duel": duel_data
         }
 
     @classmethod

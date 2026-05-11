@@ -1,0 +1,176 @@
+'use client';
+
+import { Button } from '@/components/ui/button';
+import { Download, FileText, Printer, Share2 } from 'lucide-react';
+import { useMestreStore } from '@/lib/store-mestre';
+
+export function MemorialHeader() {
+  const { selectedElementType, calculationTrace } = useMestreStore();
+
+  const handlePrint = () => window.print();
+
+  const handleExportHTML = () => {
+    const { pedagogicalSteps, selectedElementType } = useMestreStore.getState();
+    if (pedagogicalSteps.length === 0) return;
+
+    const stepsHtml = pedagogicalSteps.map((step, index) => `
+      <div class="step-card">
+        <div class="step-header">
+          <span class="step-number">PASSO ${index + 1}</span>
+          <h2 class="step-title">${step.title}</h2>
+        </div>
+        
+        <div class="formula-box">
+          <div class="latex-content">
+            \\[ ${step.formula} \\]
+          </div>
+        </div>
+
+        <div class="details-grid">
+          <div class="detail-item">
+            <span class="detail-label">Substituição</span>
+            <div class="latex-inline">\\( ${step.substitution} \\)</div>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Resultado</span>
+            <div class="latex-inline highlight">\\( ${step.result} \\)</div>
+          </div>
+        </div>
+
+        ${step.diagramData ? `
+          <div class="diagram-container">
+            <div class="diagram-placeholder">
+              <strong>${step.diagramData.title}</strong>
+              <span>${step.diagramData.kind}</span>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="explanation">
+          <p>${step.explanation}</p>
+          ${step.norm ? `<span class="norm-tag">${step.norm}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="pt-br">
+      <head>
+        <meta charset="UTF-8">
+        <title>Memorial Atlas - ${selectedElementType.toUpperCase()}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+        <style>
+          :root { --primary: #007AFF; --text: #1d1d1f; --bg: #f5f5f7; --card: #ffffff; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; color: var(--text); background: var(--bg); line-height: 1.5; padding: 40px 20px; margin: 0; }
+          .container { max-width: 850px; margin: 0 auto; }
+          header { text-align: center; margin-bottom: 60px; border-bottom: 2px solid var(--primary); padding-bottom: 30px; }
+          .brand { font-size: 24px; font-weight: 900; letter-spacing: -1px; color: var(--primary); margin: 0; }
+          .report-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #86868b; margin-top: 10px; }
+          
+          .step-card { background: var(--card); border-radius: 20px; padding: 40px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); page-break-inside: avoid; }
+          .step-header { margin-bottom: 25px; }
+          .step-number { font-size: 10px; font-weight: 900; color: var(--primary); letter-spacing: 2px; display: block; margin-bottom: 5px; }
+          .step-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
+          
+          .formula-box { background: #f9f9fb; border: 1px solid #e5e5e7; border-radius: 12px; padding: 30px; margin: 25px 0; text-align: center; overflow-x: auto; }
+          .details-grid { display: grid; grid-cols: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+          .detail-item { background: #fdfdfd; border: 1px solid #f0f0f2; border-radius: 12px; padding: 20px; }
+          .detail-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #86868b; display: block; margin-bottom: 8px; }
+          .latex-inline { font-size: 16px; }
+          .highlight { color: var(--primary); font-weight: 700; }
+          
+          .diagram-container { margin: 30px 0; text-align: center; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 12px; }
+          .diagram-placeholder { min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid #1d1d1f; color: #1d1d1f; text-transform: uppercase; letter-spacing: 1px; }
+          .diagram-placeholder span { margin-top: 8px; color: #86868b; font-size: 10px; }
+          
+          .explanation { border-top: 1px solid #f0f0f2; pt-20; margin-top: 20px; padding-top: 20px; }
+          .explanation p { font-size: 14px; color: #424245; font-style: italic; margin-bottom: 15px; }
+          .norm-tag { font-size: 10px; font-weight: 700; background: rgba(0,122,255,0.08); color: var(--primary); padding: 4px 10px; rounded: 4px; border: 1px solid rgba(0,122,255,0.1); }
+          
+          footer { text-align: center; margin-top: 80px; color: #86868b; font-size: 12px; }
+          @media print { body { background: white; padding: 0; } .step-card { box-shadow: none; border: 1px solid #eee; } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <header>
+            <h1 class="brand">ATLAS STRUCTURAL ENGINE</h1>
+            <div class="report-title">Memorial Descritivo — ${selectedElementType.toUpperCase()}</div>
+            <div style="font-size: 12px; color: #86868b; margin-top: 15px;">Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}</div>
+          </header>
+
+          ${stepsHtml}
+
+          <footer>
+            <p>© ${new Date().getFullYear()} Atlas structural. Desenvolvido para Auditoria e Pedagogia Estrutural de Alta Fidelidade.</p>
+          </footer>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Memorial_Atlas_${selectedElementType}_${new Date().getTime()}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="flex items-center justify-between mb-6 print:hidden">
+      <div>
+        <h2 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
+          <FileText className="w-6 h-6 text-primary" />
+          Memorial Descritivo
+        </h2>
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest mt-1">
+          Elite Pedagogy — {selectedElementType}
+        </p>
+        {calculationTrace && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+            <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-primary">
+              Solver: {calculationTrace.solver_module ?? 'não informado'}
+            </span>
+            <span className="rounded-md border border-border bg-muted/40 px-2 py-1 text-muted-foreground">
+              Clássico: {calculationTrace.classical_check ? 'sim' : 'não'}
+            </span>
+            <span className="rounded-md border border-border bg-muted/40 px-2 py-1 text-muted-foreground">
+              MEF: {calculationTrace.mef_check ? 'sim' : 'não'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+          onClick={handlePrint}
+        >
+          <Printer className="w-4 h-4" />
+          <span className="hidden sm:inline">Imprimir / PDF</span>
+        </Button>
+        
+        <Button 
+          variant="default" 
+          size="sm" 
+          className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+          onClick={handleExportHTML}
+        >
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Memorial Completo</span>
+        </Button>
+
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+          <Share2 className="w-4 h-4 text-muted-foreground" />
+        </Button>
+      </div>
+    </div>
+  );
+}

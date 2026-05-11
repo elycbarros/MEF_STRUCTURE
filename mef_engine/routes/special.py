@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from radier_utils import sanitize_for_json
 from typing import Dict, List
@@ -32,8 +32,10 @@ async def calculate_special(req: SpecialElementRequest):
         build_stairs_blackboard, 
         build_footing_blackboard, 
         build_beam_blackboard,
+        build_lajes_blackboard,
         build_column_blackboard,
         build_column_detailing_blackboard,
+        build_pile_cap_blackboard,
         build_concrete_wall_blackboard,
         build_retaining_wall_blackboard,
         build_elevated_reservoir_blackboard,
@@ -49,8 +51,18 @@ async def calculate_special(req: SpecialElementRequest):
     params = req.params
     res = {}
     blackboard = None
+    trace = {
+        "requested_type": type,
+        "solver_module": None,
+        "blackboard_builder": None,
+        "classical_check": False,
+        "mef_check": False,
+    }
 
-    if type == "stair":
+    if type in ("stair", "stairs"):
+        canonical_type = "stair"
+        trace["requested_type"] = canonical_type
+        trace.update(solver_module="SpecialElementsSolver.solve_stair", blackboard_builder="build_stairs_blackboard", classical_check=True)
         res = solver.solve_stair(
             L_horizontal=params.get('L', 4.0), 
             H_vertical=params.get('H', 3.0), 
@@ -60,15 +72,102 @@ async def calculate_special(req: SpecialElementRequest):
             width=params.get('width', 1.2),
         )
         blackboard = build_stairs_blackboard(res)
-        
+
+    elif type == "slab":
+        trace.update(solver_module="lajes_solver.LajesMindlinSolver", blackboard_builder="build_lajes_blackboard", classical_check=True, mef_check=True)
+        from lajes_solver import LajeModel, LajesMindlinSolver, Material, LineSupport, SupportType
+        Lx = float(params.get('Lx', params.get('L', 5.0)))
+        Ly = float(params.get('Ly', params.get('b', 4.0)))
+        h = float(params.get('h', 0.16))
+        fck = float(params.get('fck', 30.0))
+        q_kN_m2 = float(params.get('q', 5.0))
+        nx = int(params.get('nx', 9))
+        ny = int(params.get('ny', 9))
+        E = 5600.0 * (fck ** 0.5) * 1e6
+        model = LajeModel(
+            Lx=Lx,
+            Ly=Ly,
+            nx=max(3, nx),
+            ny=max(3, ny),
+            material=Material(E=E, nu=0.20, h=h),
+            q_perm=0.0,
+            q_acid=q_kN_m2 * 1000.0,
+            line_supports=[
+                LineSupport(id="B1", x1=0.0, y1=0.0, x2=Lx, y2=0.0, support_type=SupportType.PINNED),
+                LineSupport(id="B2", x1=Lx, y1=0.0, x2=Lx, y2=Ly, support_type=SupportType.PINNED),
+                LineSupport(id="B3", x1=Lx, y1=Ly, x2=0.0, y2=Ly, support_type=SupportType.PINNED),
+                LineSupport(id="B4", x1=0.0, y1=Ly, x2=0.0, y2=0.0, support_type=SupportType.PINNED),
+            ],
+        )
+        setattr(model, "caa", int(params.get("caa", 2)))
+        setattr(model, "cover_mm", float(params.get("cover_mm", 25.0)))
+        slab_result = LajesMindlinSolver(model).solve()
+        mx_max = float(abs(slab_result.mx).max() / 1000.0)
+        my_max = float(abs(slab_result.my).max() / 1000.0)
+        w_max_mm = float(abs(slab_result.disp[:, 0]).max() * 1000.0)
+        alpha = 1.0 / 8.0
+        classical = {
+            "method": "faixa equivalente simplesmente apoiada",
+            "mx_ref_kNm_m": q_kN_m2 * Lx**2 * alpha,
+            "my_ref_kNm_m": q_kN_m2 * Ly**2 * alpha,
+        }
+        res = {
+            "type": "slab",
+            "summary": {
+                "Lx_m": Lx,
+                "Ly_m": Ly,
+                "h_m": h,
+                "fck_MPa": fck,
+                "q_kN_m2": q_kN_m2,
+                "max_mx_kNm_m": mx_max,
+                "max_my_kNm_m": my_max,
+                "max_deflection_mm": w_max_mm,
+                "analysis_type": "MEF_PLACA_MINDLIN",
+            },
+            "mef": {
+                "nodes": int(len(slab_result.nodes)),
+                "elements": int(len(slab_result.elements)),
+                "reactions_total_kN": float(slab_result.reactions_total / 1000.0),
+                "distributed_load_total_kN": float(slab_result.distributed_load_total / 1000.0),
+                "residual_kN": float(slab_result.residual / 1000.0),
+            },
+            "classical": classical,
+            "duel": [
+                {
+                    "parameter": "Momento Fletor Máximo (Mx)",
+                    "classical_value": f"{classical['mx_ref_kNm_m']:.2f} kNm/m",
+                    "mef_value": f"{mx_max:.2f} kNm/m",
+                    "difference_percent": float(((mx_max - classical['mx_ref_kNm_m']) / classical['mx_ref_kNm_m']) * 100),
+                    "insight": "A diferença ocorre pois o método MEF considera a rigidez torcional da placa e a distribuição bidimensional real, enquanto o método clássico de faixa equivalente é uma simplificação conservadora unidimensional."
+                },
+                {
+                    "parameter": "Flecha Máxima (w)",
+                    "classical_value": f"{(5/384)*(q_kN_m2*1000)*(Lx**4)/(E*(h**3/12))*1000:.2f} mm",
+                    "mef_value": f"{w_max_mm:.2f} mm",
+                    "difference_percent": float(((w_max_mm - (5/384)*(q_kN_m2*1000)*(Lx**4)/(E*(h**3/12))*1000) / ((5/384)*(q_kN_m2*1000)*(Lx**4)/(E*(h**3/12))*1000)) * 100),
+                    "insight": "O MEF de Mindlin inclui a deformação por cisalhamento, resultando em flechas ligeiramente maiores que a teoria clássica de Kirchhoff em placas espessas."
+                }
+            ]
+        }
+        blackboard = build_lajes_blackboard(slab_result, {"model": model, **params})
+
     elif type == "beam":
-        res = solver.solve_beam(
-            L=params.get('L', 6.0),
+        trace.update(solver_module="beam_solver.run_beam_analysis", blackboard_builder="build_beam_blackboard", classical_check=True, mef_check=True)
+        from beam_solver import run_beam_analysis
+        L = params.get('L', 6.0)
+        res = run_beam_analysis(
+            L=L,
             b=params.get('b', 0.20),
             h=params.get('h', 0.50),
-            q_kN_m=params.get('q', 20.0),
             fck=params.get('fck', 30.0),
-            asymmetric_offset=params.get('asymmetric_offset', 0.0)
+            bf=params.get('bf', 0.0),
+            hf=params.get('hf', 0.0),
+            supports=params.get('supports') or [{'x': 0, 'type': 'pinned'}, {'x': L, 'type': 'pinned'}],
+            distributed_loads=params.get('distributed_loads') or [{'x_start': 0, 'x_end': L, 'q_start': params.get('q', 20.0), 'q_end': params.get('q', 20.0)}],
+            point_loads=params.get('point_loads') or [],
+            caa=params.get('caa', 2),
+            cover=params.get('cover_mm', None),
+            asymmetric_offset=params.get('asymmetric_offset', 0.0),
         )
         
         # Injetar Detalhamento Módulo 6-7
@@ -91,15 +190,16 @@ async def calculate_special(req: SpecialElementRequest):
             blackboard['steps'].append({
                 "id": "det-sep",
                 "title": "--- Detalhamento Executivo ---",
-                "formula_latex": r"\text{Módulos 6-7: Ancoragem e Decalagem}",
-                "result_latex": "",
-                "explanation": "Início do roteiro de detalhamento das armaduras.",
-                "norm_ref": "NBR 6118",
-                "status": "INFO"
+                "formula": r"\text{Módulos 6-7: Ancoragem e Decalagem}",
+                "substitution": r"\text{Início do detalhamento normativo}",
+                "result": r"\text{Pronto para detalhamento}",
+                "explanation": "Início do roteiro de detalhamento das armaduras conforme NBR 6118.",
+                "norm": "NBR 6118",
             })
             blackboard['steps'].extend(bb_det['steps'])
 
     elif type == "column":
+        trace.update(solver_module="column_solver.solve_column_section", blackboard_builder="build_column_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_column(
             b=params.get('b', 0.40),
             h=params.get('h', 0.40),
@@ -113,16 +213,28 @@ async def calculate_special(req: SpecialElementRequest):
         blackboard = build_column_blackboard(res)
 
     elif type == "footing":
-        res = solver.solve_footing(
-            Nd_kN=params.get('Nd', 500.0),
-            sigma_adm_kPa=params.get('sigma_adm', 300.0),
-            ap=params.get('ap', 0.20),
-            bp=params.get('bp', 0.40),
-            fck=params.get('fck', 25.0)
+        trace.update(solver_module="footing_solver.solve_isolated_footing", blackboard_builder="build_footing_blackboard", classical_check=True, mef_check=False)
+        from footing_solver import solve_isolated_footing
+        res = solve_isolated_footing(params)
+        blackboard = build_footing_blackboard(res, params)
+
+    elif type == "pile_cap":
+        trace.update(solver_module="pile_cap_solver.solve_pile_cap_2_piles", blackboard_builder="build_pile_cap_blackboard", classical_check=True, mef_check=False)
+        from pile_cap_solver import solve_pile_cap_2_piles
+        res = solve_pile_cap_2_piles(
+            nd_kN=params.get('Nd', 1000.0),
+            dist_piles=params.get('dist_piles', 1.6),
+            ap=params.get('ap', 0.30),
+            bp=params.get('bp', 0.30),
+            diam_pile=params.get('diam_pile', 0.40),
+            d_height=params.get('d_height', 0.65),
+            fck=params.get('fck', 30.0),
+            fyk=params.get('fyk', 500.0),
         )
-        blackboard = build_footing_blackboard(res)
+        blackboard = build_pile_cap_blackboard(res, params)
     
     elif type == "concrete_wall":
+        trace.update(solver_module="ColumnEngine.solve_concrete_wall", blackboard_builder="build_concrete_wall_blackboard", classical_check=True, mef_check=False)
         from engines.column_engine import ColumnEngine
         res = ColumnEngine.solve_concrete_wall(
             nd_kN_m=params.get('Nd', 500.0),
@@ -133,6 +245,7 @@ async def calculate_special(req: SpecialElementRequest):
         blackboard = build_concrete_wall_blackboard(res)
 
     elif type == "retaining_wall":
+        trace.update(solver_module="SpecialElementsSolver.solve_retaining_wall", blackboard_builder="build_retaining_wall_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_retaining_wall(
             h=params.get('h_wall', 4.0),
             gamma=params.get('gamma_soil', 18.0),
@@ -144,6 +257,7 @@ async def calculate_special(req: SpecialElementRequest):
         blackboard = build_retaining_wall_blackboard(res)
 
     elif type == "reservoir":
+        trace.update(solver_module="SpecialElementsSolver.solve_reservoir", blackboard_builder="build_elevated_reservoir_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_reservoir(
             length=params.get('length', 5.0),
             width=params.get('width', 3.0),
@@ -152,8 +266,9 @@ async def calculate_special(req: SpecialElementRequest):
         blackboard = build_elevated_reservoir_blackboard(res)
 
     elif type == "corbel":
+        trace.update(solver_module="SpecialElementsSolver.solve_corbel", blackboard_builder="build_corbel_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_corbel(
-            fd_kN=params.get('fd_kN', 200.0),
+            fd_kN=params.get('fd_kN', params.get('Nd', params.get('nd', 200.0))),
             a_dist=params.get('a_dist', 0.25),
             d_eff=params.get('d_eff', 0.45),
             fck=params.get('fck', 30.0)
@@ -161,42 +276,113 @@ async def calculate_special(req: SpecialElementRequest):
         blackboard = build_corbel_blackboard(res)
 
     elif type == "gerber_tooth":
+        trace.update(solver_module="SpecialElementsSolver.solve_gerber_tooth", blackboard_builder="build_gerber_tooth_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_gerber_tooth(
             vd_kN=params.get('vd_kN', 150.0),
             hd_kN=params.get('hd_kN', 30.0),
             a_dist=params.get('a_dist', 0.15),
             d_eff=params.get('d_eff', 0.40),
-            b_width=params.get('b_width', 0.20),
+            b_width=params.get('b_width', params.get('b', 0.20)),
             fck=params.get('fck', 30.0)
         )
         blackboard = build_gerber_tooth_blackboard(res)
 
     elif type == "deep_beam":
+        trace.update(solver_module="SpecialElementsSolver.solve_deep_beam", blackboard_builder="build_deep_beam_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_deep_beam(
-            fd_kN_m=params.get('L', 100.0), # Simplificado: usando L como carga para teste
+            fd_kN_m=params.get('fd_kN_m', params.get('q', 100.0)),
             l_span=params.get('L', 4.0),
             height=params.get('h', 3.0)
         )
         blackboard = build_deep_beam_blackboard(res)
 
     elif type == "helical_stairs":
+        trace.update(solver_module="SpecialElementsSolver.solve_helical_stairs", blackboard_builder="build_helical_stairs_blackboard", classical_check=True, mef_check=False)
         res = solver.solve_helical_stairs(
             radius=params.get('radius', 2.5),
             angle_total_deg=params.get('angle_total_deg', 180.0),
             h_step=params.get('h_step', 0.18),
-            thick=params.get('thick', 0.15),
+            thick=params.get('thick', params.get('t', 0.15)),
             q_acid=params.get('q_acid', 3.0)
         )
         blackboard = build_helical_stairs_blackboard(res)
 
+    elif type == "pile":
+        trace.update(solver_module="piles_engine.PilesEngine.run_full_analysis", blackboard_builder="build_pile_blackboard", classical_check=True, mef_check=False)
+        from piles_engine import PilesEngine, PileConfig, SoilLayer
+        
+        # Converte lista de camadas do frontend para SoilLayer
+        layers_data = params.get('layers', [
+            {"depth_m": 2.0, "thickness_m": 2.0, "nspt": 5, "soil_type": "areia_fofa"},
+            {"depth_m": 10.0, "thickness_m": 8.0, "nspt": 15, "soil_type": "argila_rija"},
+            {"depth_m": 15.0, "thickness_m": 5.0, "nspt": 30, "soil_type": "areia_compacta"},
+        ])
+        
+        layers = [SoilLayer(**l) for l in layers_data]
+        
+        config = PileConfig(
+            type=params.get('pile_type', 'bored'),
+            diameter_m=params.get('diameter', 0.40),
+            length_m=params.get('length', 12.0),
+            fck=params.get('fck', 30.0),
+            layers=layers
+        )
+        
+        engine = PilesEngine()
+        res = engine.run_full_analysis(config, applied_load_kN=params.get('Nd', 500.0))
+        
+        from master_pedagogy import build_pile_blackboard
+        blackboard = build_pile_blackboard(res)
+    
+    elif type == "tension_pro":
+        trace.update(solver_module="SpecialElementsSolver.solve_tension_pro", blackboard_builder="build_tension_pro_blackboard", classical_check=True, mef_check=False)
+        res = solver.solve_tension_pro(
+            span=params.get('span', 10.0),
+            q_service=params.get('q_service', 20.0),
+            p0=params.get('p0', 1200.0),
+            eccentricity=params.get('eccentricity', 0.15)
+        )
+        blackboard = build_tension_pro_blackboard(res)
+
+    elif type == "advanced_slab":
+        trace.update(solver_module="SpecialElementsSolver.solve_advanced_slab", classical_check=False, mef_check=True)
+        res = solver.solve_advanced_slab(
+            Lx=params.get('Lx', 10.0),
+            Ly=params.get('Ly', 10.0),
+            h=params.get('h', 0.40),
+            fck=params.get('fck', 30.0),
+            q_dist=params.get('q_dist', 5.0),
+            kv=params.get('kv', 30.0),
+            is_raft=params.get('is_raft', True),
+            columns=params.get('columns', [])
+        )
+        # Use full report if available
+        return {
+            "success": True,
+            "result": res["summary"],
+            "calculation_trace": trace,
+            "memorial_markdown": res["memorial"],
+            "full_results": res["full_data"]
+        }
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Tipo de elemento Mestre não suportado: {type}")
+
     # Garantir que res seja um dicionário e tenha uma chave 'summary' para o frontend
     if isinstance(res, dict) and 'summary' not in res and 'result' not in res:
         res = {"summary": res}
+    if isinstance(res, dict):
+        # Tenta extrair duelo do resultado direto ou do blackboard (pedagogia)
+        duel = res.get("duel") or (blackboard.get("duel") if isinstance(blackboard, dict) else None)
+        if duel:
+            trace["duel"] = duel
+        res["calculation_trace"] = trace
 
     return {
-        "success": True if res else False, 
-        "result": res, 
-        "pedagogical_steps": blackboard
+        "success": True,
+        "result": sanitize_for_json(res) if res else {},
+        "pedagogical_steps": blackboard,
+        "calculation_trace": trace,
     }
 
 @router.post("/calculate/spt")

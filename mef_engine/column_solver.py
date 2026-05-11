@@ -280,36 +280,83 @@ class BiaxialBendingSolver:
         omega = 0.05
         
         # Testar se atende com omega mínimo
-        for iteration in range(10):
+        for iteration in range(15):
             integrator = FiberSectionIntegrator(sec, omega * sec.area * (sec.fck/1.4) / (sec.fyk/1.15) * 1e4)
             eps0, kx, ky, converged, _ = BiaxialBendingSolver.find_equilibrium(integrator, loads)
             
-            # Critério de Ruptura (NBR 6118)
-            # eps_c_min >= -0.0035, eps_s_max <= 0.010
-            # Vamos verificar as fibras extremas
+            # Verificação de Ruptura
             d_prime = sec.cover + 0.01
             corners = [
                 (-sec.b/2, -sec.h/2), (sec.b/2, -sec.h/2),
                 (-sec.b/2, sec.h/2), (sec.b/2, sec.h/2)
             ]
-            max_eps_c = 0.0
-            min_eps_c = 0.0
+            min_eps = 0.0
+            max_eps = 0.0
             for cx, cy in corners:
                 e = eps0 + kx * cy + ky * cx
-                max_eps_c = max(max_eps_c, e)
-                min_eps_c = min(min_eps_c, e)
+                min_eps = min(min_eps, e)
+                max_eps = max(max_eps, e)
             
-            # Verificação simplificada de ELU
-            is_safe = converged and min_eps_c >= -0.0045 and max_eps_c <= 0.012 # Margem maior para omega search
+            is_safe = converged and min_eps >= -0.0036 and max_eps <= 0.011
             
             if is_safe:
-                if iteration == 0: return omega # Atende com mínimo
-                break
+                return round(omega, 4)
             else:
                 omega += 0.05
                 if omega > omega_max: return omega_max
                 
         return round(omega, 4)
+
+    @staticmethod
+    def generate_envelope_2d(integrator: FiberSectionIntegrator, axis: str = 'x') -> List[dict]:
+        """
+        Gera a curva de interação N x M para um eixo específico (x ou y).
+        Varre os domínios de deformação da NBR 6118.
+        """
+        points = []
+        h = integrator.sec.h if axis == 'x' else integrator.sec.b
+        
+        # Casos de deformação limite (NBR 6118)
+        # 1. Tração pura (eps = +0.010 em toda seção)
+        # 2. Domínio 2 (eps_s = 0.010, eps_c varia de 0 a -0.0035)
+        # 3. Domínios 3, 4, 4a (eps_c = -0.0035, eps_s varia de 0.010 a eps_yd)
+        # 4. Domínio 5 (eps_c = -0.0035 em uma borda, -0.002 na outra?)
+        # 5. Compressão pura (eps = -0.002 em toda seção)
+        
+        # Vamos simplificar varrendo a posição da linha neutra 'x' de -2h a 2h
+        # E mantendo a deformação na borda mais solicitada no limite (-0.0035 ou +0.010)
+        
+        n_steps = 40
+        
+        # Lado da Tração (Domínio 1 e 2)
+        for x_ratio in np.linspace(-1.0, 0.5, n_steps // 2):
+            # eps_s_max = 0.010
+            # x = x_ratio * h
+            # eps_c_top = (x / (x - (h - 0.04))) * 0.010 ... simplificando:
+            eps_max = 0.010
+            x_pos = x_ratio * h
+            # Curvatura k = eps_max / (d - x)
+            d = h - 0.04
+            k = eps_max / (d - x_pos)
+            eps_pivot = -k * x_pos
+            
+            n, mx, my = integrator.get_forces(eps_pivot, k if axis == 'x' else 0, k if axis == 'y' else 0)
+            points.append({'n': round(n/1000, 1), 'm': round(mx/1000 if axis == 'x' else my/1000, 1)})
+
+        # Lado da Compressão (Domínio 3, 4, 5)
+        for x_ratio in np.linspace(0.5, 3.0, n_steps // 2):
+            # eps_c_max = -0.0035
+            eps_min = -0.0035
+            x_pos = x_ratio * h
+            k = -eps_min / x_pos
+            eps_pivot = eps_min + k * (h/2) # no centro
+            
+            n, mx, my = integrator.get_forces(eps_pivot, k if axis == 'x' else 0, k if axis == 'y' else 0)
+            points.append({'n': round(n/1000, 1), 'm': round(mx/1000 if axis == 'x' else my/1000, 1)})
+            
+        # Ordenar por N para facilitar plotagem
+        points.sort(key=lambda p: p['n'])
+        return points
 
 def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     """
@@ -381,7 +428,9 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
             'kx': float(kx) if 'kx' in locals() else 0,
             'ky': float(ky) if 'ky' in locals() else 0,
             'fibers': integrator.get_fiber_data(eps0, kx, ky) if 'eps0' in locals() else [],
-            'convergence': history if 'history' in locals() else []
+            'convergence': history if 'history' in locals() else [],
+            'interaction_diagram_x': BiaxialBendingSolver.generate_envelope_2d(integrator, 'x'),
+            'interaction_diagram_y': BiaxialBendingSolver.generate_envelope_2d(integrator, 'y')
         }
     }
 

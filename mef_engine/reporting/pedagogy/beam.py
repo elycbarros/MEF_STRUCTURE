@@ -26,6 +26,70 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     # 1. Informações Normativas e Materiais
     me.add_standard_info()
     
+    # Diagramas de Esforços (Duelo Analítico: MEF vs Clássico)
+    diagrams = result.get("classical_diagrams", {})
+    x_m = diagrams.get("x_m", [])
+    v_mef = result.get("diagrams", {}).get("V_kN", [])
+    v_classic = diagrams.get("V_kN", [])
+    m_mef = result.get("diagrams", {}).get("M_kNm", [])
+    m_classic = diagrams.get("M_kNm", [])
+    x_nodes = result.get("diagrams", {}).get("x_m", [])
+    
+    # Preparação de Reações para o Gráfico
+    chart_reactions = []
+    reactions_raw = result.get("reactions", {})
+    # Ordenar por x para rotular Va, Vb, Vc...
+    sorted_reacts = sorted(reactions_raw.items(), key=lambda item: float(item[0]))
+    for i, (x_pos, r_data) in enumerate(sorted_reacts):
+        label = chr(65 + i) # A, B, C...
+        chart_reactions.append({
+            "x": float(x_pos),
+            "value": float(r_data.get('R', 0.0)),
+            "label": f"V_{label.lower()}"
+        })
+
+    if x_nodes and v_mef:
+        me.add_step(
+            id="beam-shear-diagram",
+            title="Diagrama de Esforços Cortantes (DEC)",
+            formula=r"V(x) = \text{Esforço Transversal ao longo do eixo}",
+            substitution=r"\text{Duelo Analítico: MEF (Rigidez) vs Clássico (Macaulay)}",
+            result=rf"V_{{max}} = {fmt(max(abs(v) for v in v_mef), 2)}\,kN",
+            explanation="O DEC representa a variação das forças verticais internas. A comparação entre MEF e o modelo clássico valida a discretização da malha.",
+            norm="Mecânica Estrutural",
+            chartData={
+                "type": "shear",
+                "label": "Esforço Cortante (V)",
+                "unit": "kN",
+                "series": [
+                    {"name": "MEF (Nodal)", "points": [{"x": round(x, 2), "y": round(v, 2)} for x, v in zip(x_nodes, v_mef)]},
+                    {"name": "Clássico", "points": [{"x": round(x, 2), "y": round(v, 2)} for x, v in zip(x_m, v_classic)], "dashed": True}
+                ],
+                "reactions": chart_reactions
+            }
+        )
+
+    if x_nodes and m_mef:
+        me.add_step(
+            id="beam-moment-diagram",
+            title="Diagrama de Momentos Fletores (DMF)",
+            formula=r"M(x) = \int V(x) dx",
+            substitution=r"\text{Duelo Analítico: MEF (Rigidez) vs Clássico (Macaulay)}",
+            result=rf"M_{{max}} = {fmt(max(abs(m) for m in m_mef), 2)}\,kNm",
+            explanation="O DMF define o posicionamento das armaduras longitudinais. A convergência entre os modelos garante a segurança do dimensionamento.",
+            norm="Mecânica Estrutural",
+            chartData={
+                "type": "moment",
+                "label": "Momento Fletor (M)",
+                "unit": "kNm",
+                "series": [
+                    {"name": "MEF (Nodal)", "points": [{"x": round(x, 2), "y": round(m, 2)} for x, m in zip(x_nodes, m_mef)]},
+                    {"name": "Clássico", "points": [{"x": round(x, 2), "y": round(m, 2)} for x, m in zip(x_m, m_classic)], "dashed": True}
+                ],
+                "reactions": chart_reactions
+            }
+        )
+
     # 1.1 Materiais e Resistências de Cálculo
     fcd = fck / 1.4
     fyd = 500 / 1.15 # MPa
@@ -42,6 +106,12 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="As resistências de cálculo (design values) são obtidas aplicando-se os coeficientes de segurança ponderadores.",
         norm="NBR 6118:2023, 12.3.3"
     )
+
+    # Reações e Equilíbrio (UI/UX Requirement)
+    reactions_raw = result.get("reactions", {})
+    reactions_list = [{"id": str(k), "R": float(v.get('R', 0.0))} for k, v in reactions_raw.items()]
+    if reactions_list:
+        me.add_reactions_step(reactions_list)
 
     me.add_durability_step(caa, cover)
     me.add_geometry_step(b, h, d)
@@ -103,7 +173,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         title="Posição da Linha Neutra e Ductilidade",
         formula=r"k_x = \frac{1 - \sqrt{1 - 2\mu/\eta}}{\lambda}, \quad k_x \leq k_{x,lim}",
         substitution=rf"k_x = {fmt(kx, 3)}, \quad k_{{x,lim}} = {fmt(kx_lim, 2)}",
-        result=rf"\text{{Status: }} {'OK (Domínio 2/3)' if kx <= kx_lim else 'ALERTA (Domínio 4/Arm. Dupla)'}",
+        result=me.txt(f"Status: {'OK (Domínio 2/3)' if kx <= kx_lim else 'ALERTA (Domínio 4/Arm. Dupla)'}"),
         explanation="Verifica-se a ductilidade da seção. Para concretos até C50, kx deve ser limitado a 0,45 para garantir aviso de ruptura.",
         norm="NBR 6118, 14.6.4.3"
     )
@@ -114,7 +184,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         title="Cálculo da Armadura Longitudinal de Tração",
         formula=r"A_s = \frac{M_{sd}}{f_{yd} \cdot z}, \quad z = d \cdot (1 - 0,5 \lambda k_x)",
         substitution=rf"z = {fmt(d, 2)} \cdot (1 - 0,4 \cdot {fmt(kx, 3)}), \quad f_{{yd}} = {fmt(fyd, 1)}\,MPa",
-        result=rf"A_s = {fmt(as_bottom, 2)}\,cm^2",
+        result=rf"A_s = {fmt(as_bottom, 2)}\,\text{{cm}}^2",
         explanation="Área de aço necessária para equilibrar o momento fletor solicitante de cálculo.",
         norm="NBR 6118, 17.2.2"
     )
@@ -129,7 +199,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         title="Cisalhamento: Esmagamento da Biela",
         formula=r"V_{Rd2} = 0,27 \cdot \alpha_{v1} \cdot f_{cd} \cdot b_w \cdot d",
         substitution=rf"V_{{sd}} = {fmt(v_sd, 1)}\,kN, \quad V_{{Rd2}} = {fmt(v_rd2, 1)}\,kN",
-        result=rf"\text{{Status: }} {shear.get('biela_status', 'OK')}",
+        result=me.txt(f"Status: {shear.get('biela_status', 'OK')}"),
         explanation="A verificação VRd2 garante que o concreto diagonal não esmagará sob esforços de compressão.",
         norm="NBR 6118, 17.4.2.2"
     )
@@ -139,7 +209,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         title="Armadura Transversal (Estribos)",
         formula=r"A_{sw}/s = \frac{V_{sw}}{0,9 \cdot d \cdot f_{ywd}}",
         substitution=rf"V_{{sw}} = {fmt(shear.get('Vsw_kN', 0.0), 1)}\,kN",
-        result=rf"A_{{sw}}/s = {fmt(asw_final, 2)}\,cm^2/m",
+        result=rf"A_{{sw}}/s = {fmt(asw_final, 2)}\,\text{{cm}}^2/m",
         explanation="Os estribos são dimensionados para resistir à parcela de tração diagonal não absorvida pelo concreto.",
         norm="NBR 6118, 17.4.2.2"
     )
@@ -166,5 +236,10 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="A flecha é calculada considerando a inércia equivalente de Branson (seção fissurada).",
         norm="NBR 6118, 17.3.2"
     )
+
+    # 6. Comparação Cross-Validation (UI/UX Requirement)
+    m_classic = float(summary.get("max_moment_classic", (total_distributed_kn * L / 8) if total_distributed_kn > 0 else 0))
+    m_mef = float(summary.get("max_moment_kNm", 0.0))
+    me.add_comparison_step(m_classic, m_mef)
     
     return me.build()

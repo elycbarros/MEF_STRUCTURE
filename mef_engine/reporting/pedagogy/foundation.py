@@ -1,12 +1,35 @@
 from typing import Any
+import math
 from .base import MemorialEngine
 
-def build_footing_blackboard(res: dict[str, Any]) -> dict[str, Any]:
+def build_footing_blackboard(res: dict[str, Any], payload: dict = None) -> dict[str, Any]:
     me = MemorialEngine("Roteiro Didático: Sapatas", "footing")
     fmt = me._fmt
     
     # 1. Padronização Mestre
     me.add_standard_info()
+    
+    # Diagrama de Referência
+    me.add_step(
+        id="footing-diagram-ref",
+        title="Visualização da Fundação Isolada",
+        formula=r"\text{Corte Transversal: Sapata e Pilar}",
+        substitution=r"\text{Elementos: Sapata, Pescoço e Armadura}",
+        result=r"\text{Diagrama Geotécnico}",
+        explanation="Esquema gráfico da sapata indicando a profundidade de fundação (NF) e distribuição de pressões.",
+        norm="NBR 6122 / NBR 6118",
+        diagramData=me.technical_diagram(
+            "footing",
+            "Vista em corte - sapata isolada",
+            A=res.get("A_m", 1.5),
+            B=res.get("B_m", 1.5),
+            h=res.get("h_m", 0.4),
+            ap=res.get("a_col_m", res.get("ap", 0.4)),
+            bp=res.get("b_col_m", res.get("bp", 0.4)),
+            sigma=res.get("sigma_max_kPa", 0.0),
+        )
+    )
+    
     fck = float(res.get("fck", 25.0))
     # Note: add_material_step is not in base.py yet, but MemorialEngine can be extended
     # For now we use add_step manually for consistency if needed, or I'll update base.py
@@ -15,8 +38,8 @@ def build_footing_blackboard(res: dict[str, Any]) -> dict[str, Any]:
         id="footing-materials",
         title="Materiais e Resistências",
         formula=rf"f_{{ck}} = {fmt(fck, 1)}\,MPa",
-        substitution=f"Concreto C{int(fck)}",
-        result=f"f_cd = {fmt(fck/1.4, 2)} MPa",
+        substitution=rf"\text{{Concreto C{int(fck)}}}",
+        result=rf"f_{{cd}} = {fmt(fck/1.4, 2)}\,\text{{MPa}}",
         explanation="Resistência característica do concreto para fundações.",
         norm="NBR 6118 / NBR 6122"
     )
@@ -29,7 +52,7 @@ def build_footing_blackboard(res: dict[str, Any]) -> dict[str, Any]:
         title="Pressão no Solo",
         formula=r"\sigma = \frac{N_d}{A \cdot B}",
         substitution=rf"\sigma = \frac{{{fmt(res.get('Nd_kN'))}}}{{{fmt(res.get('A_m'))} \cdot {fmt(res.get('B_m'))}}}",
-        result=rf"\sigma = {fmt(res.get('sigma_max_kPa'))}\,kPa",
+        result=rf"\sigma = {fmt(res.get('sigma_max_kPa'))}\,\text{{kPa}}",
         explanation="Verifica se a carga da sapata ultrapassa a capacidade de carga do solo.",
         norm="NBR 6122"
     )
@@ -46,6 +69,32 @@ def build_footing_blackboard(res: dict[str, Any]) -> dict[str, Any]:
         result=r"\text{Sapata Rígida}" if is_rigid else r"\text{Sapata Flexível}",
         explanation="Sapatas rígidas permitem considerar distribuição linear de tensões no solo.",
         norm="NBR 6118, 22.6"
+    )
+    
+    # 4. Detalhamento da Armadura
+    as_x = float(res.get("As_x_cm2", res.get("as_a_cm2", 5.0)))
+    as_y = float(res.get("As_y_cm2", res.get("as_b_cm2", 5.0)))
+    phi_mm = float(res.get("phi_mm", 10.0))
+    n_x = math.ceil(as_x / (phi_mm**2 * 3.1415 / 400.0)) if as_x > 0 else 2
+    n_y = math.ceil(as_y / (phi_mm**2 * 3.1415 / 400.0)) if as_y > 0 else 2
+
+    me.add_step(
+        id="footing-detailing",
+        title="Detalhamento da Armadura de Flexão",
+        formula=r"A_s = \frac{M_d}{0,9d \cdot f_{yd}}",
+        substitution=rf"A_{{s,x}} = {fmt(as_x)}\,cm^2, \quad A_{{s,y}} = {fmt(as_y)}\,cm^2",
+        result=rf"Eixo X: {n_x}\phi{fmt(phi_mm, 1)} \quad Eixo Y: {n_y}\phi{fmt(phi_mm, 1)}",
+        explanation="As barras são distribuídas em malha na base da sapata para resistir aos momentos fletores em ambas as direções.",
+        norm="NBR 6118, 22.6.4",
+        detailingData={
+            "type": "beam_section",
+            "b": float(res.get("A_m", 1.5)), 
+            "h": float(res.get("h_m", 0.4)), 
+            "cover": float(res.get("cover_mm", 40)) / 1000.0,
+            "layers": [
+                {"position": "bottom", "bars": [{"count": n_x, "diameter": phi_mm}]}
+            ]
+        }
     )
     
     return me.build()
@@ -75,7 +124,15 @@ def build_integrated_foundation_blackboard(spt_res: dict, footing_res: dict) -> 
         substitution=rf"N_{{spt}} = {fmt(spt_res.get('nspt_design'))}",
         result=rf"\sigma_{{adm}} = {fmt(spt_res.get('sigma_adm_kPa'))}\,kPa",
         explanation="A tensão admissível do solo é estimada a partir do ensaio de penetração padrão (SPT).",
-        norm="NBR 6122"
+        norm="NBR 6122",
+        diagramData=me.technical_diagram(
+            "footing",
+            "Vista em corte - sapata isolada",
+            A=footing_res.get("a_m", footing_res.get("A_m", 1.5)),
+            B=footing_res.get("b_m", footing_res.get("B_m", 1.5)),
+            h=footing_res.get("h_m", 0.4),
+            sigma=footing_res.get("sigma_real_kPa", 0.0),
+        )
     )
     
     # 2. Dimensionamento da Sapata
@@ -139,6 +196,75 @@ def build_foundation_beam_blackboard(res: dict) -> dict:
         unit="kN",
         explanation="A reação no pilar interno deve ser positiva (compressão). Se for negativa, a sapata interna pode levantar.",
         norm="Equilíbrio"
+    )
+    
+    return me.build()
+
+def build_pile_blackboard(res: dict, payload: dict = None) -> dict:
+    me = MemorialEngine("Roteiro Didático: Estacas (Capacidade de Carga)", "pile")
+    fmt = me._fmt
+    
+    cfg = res.get("config", {})
+    geo = res.get("geotechnical", {})
+    av = geo.get("aoki_velloso", {})
+    dq = geo.get("decourt_quaresma", {})
+    struct = res.get("structural", {})
+    
+    # 1. Geometria
+    me.add_step(
+        id="pile-geo",
+        title="Geometria da Estaca",
+        formula=rf"\phi = {fmt(cfg.get('diameter_m'))}\,m, \quad L = {fmt(cfg.get('length_m'))}\,m",
+        substitution=f"Tipo: {cfg.get('type')}",
+        result=rf"A_{{ponta}} = {fmt(av.get('area_ponta_m2'), 4)}\,m^2",
+        explanation="Definição das dimensões geométricas para cálculo de áreas de fuste e ponta.",
+        norm="NBR 6122"
+    )
+    
+    # 2. Aoki-Velloso
+    me.add_step(
+        id="pile-av",
+        title="Método Aoki-Velloso (1975)",
+        formula=r"Q_u = \frac{q_p \cdot A_p}{F_1} + \sum \frac{q_s \cdot A_s}{F_2}",
+        substitution=rf"F_1 = {fmt(av.get('f1'))}, \quad F_2 = {fmt(av.get('f2'))}",
+        result=rf"Q_{{adm}} = {fmt(av.get('q_adm_kN'))}\,kN",
+        explanation="O método utiliza coeficientes K e alpha dependentes do tipo de solo e fatores F1/F2 para o tipo de estaca.",
+        norm="NBR 6122 / Aoki-Velloso"
+    )
+    
+    # 3. Decourt-Quaresma
+    me.add_step(
+        id="pile-dq",
+        title="Método Decourt-Quaresma (1978)",
+        formula=r"Q_u = \alpha \cdot K \cdot N_p \cdot A_p + \beta \cdot 10 \cdot (\frac{N_s}{3} + 1) \cdot A_s",
+        substitution=rf"N_{{s, médio}} = {fmt(dq.get('avg_nspt_fuste'))}",
+        result=rf"Q_{{adm}} = {fmt(dq.get('q_adm_kN'))}\,kN",
+        explanation="Método direto baseado no N_spt médio ao longo do fuste e na ponta.",
+        norm="NBR 6122 / Decourt-Quaresma"
+    )
+    
+    # 4. Verificação Estrutural
+    me.add_validation_step(
+        id="pile-struct",
+        title="Verificação Estrutural (Compressão)",
+        value=float(struct.get("nd_kN")),
+        limit=float(struct.get("nr_concrete_kN")),
+        operator="<=",
+        unit="kN",
+        explanation="A carga aplicada deve ser inferior à resistência do concreto da estaca, considerando os coeficientes de majoração e redução de concretagem.",
+        norm="NBR 6118"
+    )
+    
+    # 5. Conclusão Geotécnica
+    me.add_validation_step(
+        id="pile-geotech-final",
+        title="Verificação Geotécnica Final",
+        value=float(struct.get("nd_kN")),
+        limit=float(geo.get("q_adm_final_kN")),
+        operator="<=",
+        unit="kN",
+        explanation="Adota-se a menor capacidade entre os métodos semi-empíricos para maior segurança.",
+        norm="NBR 6122"
     )
     
     return me.build()

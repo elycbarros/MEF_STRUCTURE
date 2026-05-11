@@ -776,9 +776,20 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
     }, analytical_baseline)
 
     # 4. Composição Multi-Mestre (Unifica Dimensionamento + Detalhamento + Auditoria)
-    # Por padrão, enviamos os steps de dimensionamento + audit + detalhamento
+    # Passamos os dados completos para que os builders tenham acesso aos diagramas e cargas
+    beam_result_context = {
+        "summary": {
+            "L_m": L, "b_m": b, "h_m": h, "fck_MPa": fck,
+            "max_moment_kNm": result.max_moment_kNm,
+            "max_shear_kN": result.max_shear_kN
+        },
+        "design": design,
+        "classical_diagrams": classical_res,
+        "reactions": result.reactions
+    }
+    
     full_pedagogy = build_composite_pedagogy([
-        {"type": "beam", "result": {"summary": {"L_m": L, "b_m": b, "h_m": h, "fck_MPa": fck}, "design": design}, "payload": {}},
+        {"type": "beam", "result": beam_result_context, "payload": {"distributed_loads": distributed_loads, "point_loads": point_loads, "L": L}},
         {"type": "detailing", "result": detailing_summary, "payload": {}},
         {"type": "audit", "result": {"summary": {"total_load_kN": total_load_n/1000, "total_reaction_kN": total_reaction_kn, "max_moment_kNm": result.max_moment_kNm}}, "payload": {"analytical": analytical_baseline}}
     ])

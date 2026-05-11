@@ -1,7 +1,7 @@
 from typing import Any
 from .base import MemorialEngine
 
-def build_column_detailing_blackboard(res: dict) -> dict:
+def build_column_detailing_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Detalhamento de Pilares", "detailing")
     fmt = me._fmt
     
@@ -18,7 +18,7 @@ def build_column_detailing_blackboard(res: dict) -> dict:
     
     return me.build()
 
-def build_detailing_blackboard(res: dict) -> dict:
+def build_detailing_blackboard(res: dict, payload: dict = None) -> dict:
     me = MemorialEngine("Roteiro Didático: Detalhamento de Vigas", "beam_detailing")
     fmt = me._fmt
     geometry = res.get("geometry", {})
@@ -26,23 +26,44 @@ def build_detailing_blackboard(res: dict) -> dict:
     sup = res.get("sup", {})
     skin = res.get("skin", {})
 
+    # Mapeamento de Geometria para Detalhamento Gráfico
+    b_m = geometry.get("b_cm", 20) / 100.0
+    h_m = geometry.get("h_cm", 50) / 100.0
+    cover_m = geometry.get("cover_mm", 30) / 1000.0
+
     me.add_step(
         id="beam-detailing-bottom-bars",
-        title="Armadura Inferior",
+        title="Armadura Inferior (Tração)",
         formula=r"A_{s,ef} \geq A_{s,calc}",
         substitution=rf"A_{{s,calc}} = {fmt(inf.get('area_calc'), 2)}\,cm^2",
         result=rf"{inf.get('spec', 'N/D')} \Rightarrow A_{{s,ef}} = {fmt(inf.get('area_efet'), 2)}\,cm^2",
         explanation="Seleciona barras comerciais para cobrir a armadura necessária no vão.",
-        norm="NBR 6118, 17.3"
+        norm="NBR 6118, 17.3",
+        detailingData={
+            "type": "beam_section",
+            "b": b_m, "h": h_m, "cover": cover_m,
+            "layers": [
+                {"position": "bottom", "bars": [{"count": inf.get('count', 2), "diameter": inf.get('phi_mm', 10)}]},
+                {"position": "top", "bars": [{"count": sup.get('count', 2), "diameter": sup.get('phi_mm', 10)}]}
+            ]
+        }
     )
     me.add_step(
         id="beam-detailing-top-bars",
-        title="Armadura Superior",
+        title="Armadura Superior (Porta-Estribo / Negativa)",
         formula=r"A_{s,ef} \geq A_{s,calc}",
         substitution=rf"A_{{s,calc}} = {fmt(sup.get('area_calc'), 2)}\,cm^2",
         result=rf"{sup.get('spec', 'N/D')} \Rightarrow A_{{s,ef}} = {fmt(sup.get('area_efet'), 2)}\,cm^2",
-        explanation="Seleciona armadura superior para regiões de momento negativo.",
-        norm="NBR 6118, 17.3"
+        explanation="Seleciona armadura superior para regiões de momento negativo ou para suporte dos estribos.",
+        norm="NBR 6118, 17.3",
+        detailingData={
+            "type": "beam_section",
+            "b": b_m, "h": h_m, "cover": cover_m,
+            "layers": [
+                {"position": "top", "bars": [{"count": sup.get('count', 2), "diameter": sup.get('phi_mm', 10)}]},
+                {"position": "bottom", "bars": [{"count": inf.get('count', 2), "diameter": inf.get('phi_mm', 10)}]}
+            ]
+        }
     )
     # Módulo 6: Ancoragem das Barras (NBR 6118, 9.4)
     me.add_step(
