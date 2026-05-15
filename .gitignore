@@ -17,3 +17,6 @@ temp_latex/
 *.pdf
 xchange/
 TALLS/
+test-results/
+playwright-report/
+blob-report/
