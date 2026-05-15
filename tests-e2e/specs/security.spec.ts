@@ -6,7 +6,7 @@ test.describe('Security & Resilience - MEF STRUCTURAL', () => {
     await page.goto('/mestre');
     
     // Attempting to inject a script into the beam length field
-    const spanInput = page.locator('#beam-length');
+    const spanInput = page.locator('#beam-l-input');
     // Although it's a number input, we try to force a string if possible via scripts
     // or test other text inputs if available. 
     // Let's assume there's a project name or something similar.

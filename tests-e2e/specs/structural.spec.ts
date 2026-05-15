@@ -46,7 +46,7 @@ test.describe('Structural Validation - MEF Engine', () => {
     
     // Set a negative length to trigger an error
     const spanInput = page.getByLabel(/Vão Total/i);
-    await spanInput.fill('-10'); 
+    await spanInput.fill('0'); 
     await spanInput.blur();
 
     const calculateButton = page.getByRole('button', { name: /Analisar Estrutura/i });

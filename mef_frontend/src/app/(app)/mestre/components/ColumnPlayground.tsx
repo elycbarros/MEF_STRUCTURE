@@ -74,12 +74,12 @@ export function ColumnPlayground() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Largura b (m)</Label>
-              <Input type="number" step="0.05" value={params.b} onChange={(e) => updateNumber('b', e.target.value)} className="h-9 bg-background/50" />
+              <Label htmlFor="col-b-input" className="text-[10px] text-muted-foreground uppercase">Largura b (m)</Label>
+              <Input id="col-b-input" type="number" step="0.05" value={params.b} onChange={(e) => updateNumber('b', e.target.value)} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Altura h (m)</Label>
-              <Input type="number" step="0.05" value={params.h} onChange={(e) => updateNumber('h', e.target.value)} className="h-9 bg-background/50" />
+              <Label htmlFor="col-h-input" className="text-[10px] text-muted-foreground uppercase">Altura h (m)</Label>
+              <Input id="col-h-input" type="number" step="0.05" value={params.h} onChange={(e) => updateNumber('h', e.target.value)} className="h-9 bg-background/50" />
             </div>
           </div>
 
@@ -102,18 +102,18 @@ export function ColumnPlayground() {
           </h4>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Carga axial Nd (kN)</Label>
-            <Input type="number" value={params.Nd} onChange={(e) => updateNumber('Nd', e.target.value)} className="h-9 bg-background/50 font-mono font-bold text-primary" />
+            <Label htmlFor="col-nd-input" className="text-xs text-muted-foreground">Carga axial Nd (kN)</Label>
+            <Input id="col-nd-input" type="number" value={params.Nd} onChange={(e) => updateNumber('Nd', e.target.value)} className="h-9 bg-background/50 font-mono font-bold text-primary" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Mxd (kNm)</Label>
-              <Input type="number" value={params.Mxd ?? 0} onChange={(e) => updateNumber('Mxd', e.target.value)} className="h-9 bg-background/50" />
+              <Label htmlFor="col-mxd-input" className="text-[10px] text-muted-foreground uppercase">Mxd (kNm)</Label>
+              <Input id="col-mxd-input" type="number" value={params.Mxd ?? 0} onChange={(e) => updateNumber('Mxd', e.target.value)} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Myd (kNm)</Label>
-              <Input type="number" value={params.Myd ?? 0} onChange={(e) => updateNumber('Myd', e.target.value)} className="h-9 bg-background/50" />
+              <Label htmlFor="col-myd-input" className="text-[10px] text-muted-foreground uppercase">Myd (kNm)</Label>
+              <Input id="col-myd-input" type="number" value={params.Myd ?? 0} onChange={(e) => updateNumber('Myd', e.target.value)} className="h-9 bg-background/50" />
             </div>
           </div>
 

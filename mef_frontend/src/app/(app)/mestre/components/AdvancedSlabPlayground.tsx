@@ -129,23 +129,23 @@ export function AdvancedSlabPlayground() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Lx (m)</Label>
-              <Input type="number" value={slabConfig.Lx} onChange={(e) => updateConfig('Lx', Number(e.target.value))} className="h-9 bg-background/50" />
+              <Label htmlFor="adv-lx-input" className="text-[10px] text-muted-foreground uppercase">Lx (m)</Label>
+              <Input id="adv-lx-input" type="number" value={slabConfig.Lx} onChange={(e) => updateConfig('Lx', Number(e.target.value))} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Ly (m)</Label>
-              <Input type="number" value={slabConfig.Ly} onChange={(e) => updateConfig('Ly', Number(e.target.value))} className="h-9 bg-background/50" />
+              <Label htmlFor="adv-ly-input" className="text-[10px] text-muted-foreground uppercase">Ly (m)</Label>
+              <Input id="adv-ly-input" type="number" value={slabConfig.Ly} onChange={(e) => updateConfig('Ly', Number(e.target.value))} className="h-9 bg-background/50" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Espessura h (m)</Label>
-              <Input type="number" step="0.05" value={slabConfig.h} onChange={(e) => updateConfig('h', Number(e.target.value))} className="h-9 bg-background/50" />
+              <Label htmlFor="adv-h-input" className="text-[10px] text-muted-foreground uppercase">Espessura h (m)</Label>
+              <Input id="adv-h-input" type="number" step="0.05" value={slabConfig.h} onChange={(e) => updateConfig('h', Number(e.target.value))} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase">Mod. Reação kv (MN/m³)</Label>
-              <Input type="number" value={slabConfig.kv} onChange={(e) => updateConfig('kv', Number(e.target.value))} className="h-9 bg-background/50 font-mono text-primary font-bold" />
+              <Label htmlFor="adv-kv-input" className="text-[10px] text-muted-foreground uppercase">Mod. Reação kv (MN/m³)</Label>
+              <Input id="adv-kv-input" type="number" value={slabConfig.kv} onChange={(e) => updateConfig('kv', Number(e.target.value))} className="h-9 bg-background/50 font-mono text-primary font-bold" />
             </div>
           </div>
         </div>
@@ -196,16 +196,16 @@ export function AdvancedSlabPlayground() {
             {columns.map((col) => (
               <div key={col.id} className="grid grid-cols-4 gap-2 items-end p-2 rounded-lg bg-background/40 border border-border/50">
                 <div className="space-y-1">
-                  <Label className="text-[8px] uppercase">X (m)</Label>
-                  <Input type="number" value={col.x} onChange={(e) => updateColumn(col.id, 'x', e.target.value)} className="h-8 text-xs bg-background/50" />
+                  <Label htmlFor={`col-x-${col.id}`} className="text-[8px] uppercase">X (m)</Label>
+                  <Input id={`col-x-${col.id}`} type="number" value={col.x} onChange={(e) => updateColumn(col.id, 'x', e.target.value)} className="h-8 text-xs bg-background/50" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[8px] uppercase">Y (m)</Label>
-                  <Input type="number" value={col.y} onChange={(e) => updateColumn(col.id, 'y', e.target.value)} className="h-8 text-xs bg-background/50" />
+                  <Label htmlFor={`col-y-${col.id}`} className="text-[8px] uppercase">Y (m)</Label>
+                  <Input id={`col-y-${col.id}`} type="number" value={col.y} onChange={(e) => updateColumn(col.id, 'y', e.target.value)} className="h-8 text-xs bg-background/50" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[8px] uppercase">Fz (kN)</Label>
-                  <Input type="number" value={col.fz} onChange={(e) => updateColumn(col.id, 'fz', e.target.value)} className="h-8 text-xs bg-background/50 text-primary font-bold" />
+                  <Label htmlFor={`col-fz-${col.id}`} className="text-[8px] uppercase">Fz (kN)</Label>
+                  <Input id={`col-fz-${col.id}`} type="number" value={col.fz} onChange={(e) => updateColumn(col.id, 'fz', e.target.value)} className="h-8 text-xs bg-background/50 text-primary font-bold" />
                 </div>
                 <Button onClick={() => removeColumn(col.id)} variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
                   <Trash2 className="w-4 h-4" />
@@ -222,7 +222,7 @@ export function AdvancedSlabPlayground() {
       </Button>
 
       {fullResults?.summary && (
-        <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3" id="advanced-slab-results">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
             <ShieldCheck className="w-3 h-3" />
             Resultados MEF (Placas)

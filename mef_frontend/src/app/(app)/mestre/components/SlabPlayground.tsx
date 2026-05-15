@@ -16,7 +16,20 @@ import {
 } from '@/components/ui/select';
 
 export function SlabPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, isLoading, error } = useMestreStore();
+  const { 
+    params, 
+    updateParams, 
+    setIsLoading, 
+    setPedagogicalSteps, 
+    setError, 
+    setCalculationTrace, 
+    setFullResults,
+    fullResults,
+    isLoading, 
+    error 
+  } = useMestreStore();
+  
+  const results = fullResults;
 
   const equivalentSpan = params.Lx ?? params.L;
   const equivalentWidth = params.Ly ?? 4;
@@ -40,6 +53,7 @@ export function SlabPlayground() {
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? null);
+        setFullResults(data);
       } else {
         setError('Falha na análise da laje.');
       }
@@ -73,22 +87,22 @@ export function SlabPlayground() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Vão Lx (m)</Label>
-            <Input type="number" step="0.1" value={equivalentSpan} onChange={(e) => updateNumber('Lx', e.target.value)} className="h-9 bg-background/50" />
+            <Label htmlFor="lx-input" className="text-[10px] text-muted-foreground uppercase">Vão Lx (m)</Label>
+            <Input id="lx-input" type="number" step="0.1" value={equivalentSpan} onChange={(e) => updateNumber('Lx', e.target.value)} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Vão Ly (m)</Label>
-            <Input type="number" step="0.1" value={equivalentWidth} onChange={(e) => updateNumber('Ly', e.target.value)} className="h-9 bg-background/50" />
+            <Label htmlFor="ly-input" className="text-[10px] text-muted-foreground uppercase">Vão Ly (m)</Label>
+            <Input id="ly-input" type="number" step="0.1" value={equivalentWidth} onChange={(e) => updateNumber('Ly', e.target.value)} className="h-9 bg-background/50" />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Espessura h (m)</Label>
-            <Input type="number" step="0.01" value={params.h} onChange={(e) => updateNumber('h', e.target.value)} className="h-9 bg-background/50" />
+            <Label htmlFor="h-input" className="text-[10px] text-muted-foreground uppercase">Espessura h (m)</Label>
+            <Input id="h-input" type="number" step="0.01" value={params.h} onChange={(e) => updateNumber('h', e.target.value)} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Tipo</Label>
+            <Label htmlFor="type-select" className="text-[10px] text-muted-foreground uppercase">Tipo</Label>
             <Select value="solid" onValueChange={(value) => updateParams({ slab_type: value as MestreParams['slab_type'] })}>
               <SelectTrigger className="h-9 bg-background/50">
                 <SelectValue />
@@ -111,12 +125,12 @@ export function SlabPlayground() {
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Carga q (kN/m²)</Label>
-            <Input type="number" step="0.5" value={params.q} onChange={(e) => updateNumber('q', e.target.value)} className="h-9 bg-background/50 font-mono font-bold text-primary" />
+            <Label htmlFor="q-input" className="text-[10px] text-muted-foreground uppercase">Carga q (kN/m²)</Label>
+            <Input id="q-input" type="number" step="0.5" value={params.q} onChange={(e) => updateNumber('q', e.target.value)} className="h-9 bg-background/50 font-mono font-bold text-primary" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">fck (MPa)</Label>
-            <Input type="number" value={params.fck} onChange={(e) => updateNumber('fck', e.target.value)} className="h-9 bg-background/50" />
+            <Label htmlFor="fck-input" className="text-[10px] text-muted-foreground uppercase">fck (MPa)</Label>
+            <Input id="fck-input" type="number" value={params.fck} onChange={(e) => updateNumber('fck', e.target.value)} className="h-9 bg-background/50" />
           </div>
         </div>
       </div>

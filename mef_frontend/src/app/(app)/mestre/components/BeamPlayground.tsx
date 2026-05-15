@@ -96,6 +96,13 @@ export function BeamPlayground() {
     }
   }, [selectedElementType, setPedagogicalSteps, setIsLoading, setError, setCalculationTrace]);
 
+  const updateNumber = (key: keyof MestreParams, value: string) => {
+    const parsed = parseFloat(value);
+    if (!Number.isNaN(parsed)) {
+      updateParams({ [key]: parsed });
+    }
+  };
+
   const updateNestedParam = (key: keyof MestreParams, value: MestreParams[keyof MestreParams]) => {
     updateParams({ [key]: value });
   };
@@ -178,12 +185,12 @@ export function BeamPlayground() {
           <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="beam-length" className="text-[10px] font-bold text-muted-foreground uppercase">Vão Total (L) [m]</Label>
+                <Label htmlFor="beam-l-input" className="text-[10px] font-bold text-muted-foreground uppercase">Vão Total (L) [m]</Label>
                 <Input 
-                  id="beam-length"
+                  id="beam-l-input"
                   type="number" step="0.1" 
                   value={params.L} 
-                  onChange={(e) => updateParams({ L: parseFloat(e.target.value) })}
+                  onChange={(e) => updateNumber('L', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
@@ -206,20 +213,22 @@ export function BeamPlayground() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [m]</Label>
+                <Label htmlFor="beam-b-input" className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [m]</Label>
                 <Input 
+                  id="beam-b-input"
                   type="number" step="0.01" 
                   value={params.b} 
-                  onChange={(e) => updateParams({ b: parseFloat(e.target.value) })}
+                  onChange={(e) => updateNumber('b', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Altura (h) [m]</Label>
+                <Label htmlFor="beam-h-input" className="text-[10px] font-bold text-muted-foreground uppercase">Altura (h) [m]</Label>
                 <Input 
+                  id="beam-h-input"
                   type="number" step="0.01" 
                   value={params.h} 
-                  onChange={(e) => updateParams({ h: parseFloat(e.target.value) })}
+                  onChange={(e) => updateNumber('h', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
@@ -483,10 +492,11 @@ export function BeamPlayground() {
           <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Concreto (fck) [MPa]</Label>
+                <Label htmlFor="beam-fck-input" className="text-[10px] font-bold text-muted-foreground uppercase">Concreto (fck) [MPa]</Label>
                 <Input 
+                  id="beam-fck-input"
                   type="number" value={params.fck} 
-                  onChange={(e) => updateParams({ fck: parseFloat(e.target.value) })}
+                  onChange={(e) => updateNumber('fck', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
