@@ -841,8 +841,9 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         'reactions': result.reactions,
         'overall_status': design.get('overall_status', 'ATENDE'),
         'diagrams': {
-            'x_m': result.x_elem.tolist(), 'V_kN': (result.V/1000.0).tolist(), 'M_kNm': (result.M/1000.0).tolist(),
-            'x_nodes_m': result.x.tolist(), 'w_mm': (result.w*1000.0).tolist()
+            'shear': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x_elem, result.V / 1000.0)],
+            'moment': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x_elem, result.M / 1000.0)],
+            'deflection': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x, result.w * 1000.0)]
         },
         'classical_diagrams': classical_res,
         'classical_reactions': classical_res.get('reactions', []),

@@ -37,10 +37,12 @@ export function BeamPlayground() {
     setCalculationTrace,
     error,
     isLoading, 
-    selectedElementType 
+    selectedElementType,
+    fullResults,
+    setFullResults
   } = useMestreStore();
 
-  const [results, setResults] = useState<MestreApiResponse | null>(null);
+  const results = fullResults;
   const totalLength = params.L || 6.0;
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
@@ -62,7 +64,16 @@ export function BeamPlayground() {
       const steps = extractMestreSteps(response);
       setPedagogicalSteps(steps);
       setCalculationTrace(response.calculation_trace ?? null);
-      setResults(response);
+      
+      // The actual solver output is nested in response.result
+      const analysisResults = response.result || response;
+      
+      // Debug: ensure we have diagrams
+      if (!analysisResults.diagrams && response.diagrams) {
+        analysisResults.diagrams = response.diagrams;
+      }
+      
+      setFullResults({ ...analysisResults });
       
       if (steps.length === 0) {
         setError('O motor de cálculo não gerou passos. Verifique se os apoios e cargas estão dentro do vão.');
@@ -71,7 +82,11 @@ export function BeamPlayground() {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setError('O motor MEF excedeu o tempo de resposta (12s). Tente reduzir a complexidade.');
       } else if (error instanceof Error) {
-        setError(`Erro técnico: ${error.message}`);
+        // Security: Mask tracebacks to avoid information exposure
+        const cleanMessage = error.message.includes('Traceback') || error.message.includes('stack trace')
+          ? 'Ocorreu um erro interno no servidor. Detalhes técnicos ocultados por segurança.'
+          : error.message;
+        setError(`Erro técnico: ${cleanMessage}`);
       } else {
         setError('Erro técnico inesperado no motor de cálculo.');
       }
@@ -163,8 +178,9 @@ export function BeamPlayground() {
           <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Vão Total (L) [m]</Label>
+                <Label htmlFor="beam-length" className="text-[10px] font-bold text-muted-foreground uppercase">Vão Total (L) [m]</Label>
                 <Input 
+                  id="beam-length"
                   type="number" step="0.1" 
                   value={params.L} 
                   onChange={(e) => updateParams({ L: parseFloat(e.target.value) })}
@@ -541,7 +557,7 @@ export function BeamPlayground() {
       )}
 
       {results?.diagrams && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500" id="mestre-diagrams">
           <MestreDiagram 
             points={results.diagrams.shear || []} 
             title="Esforço Cortante" 

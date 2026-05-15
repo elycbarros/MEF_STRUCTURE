@@ -234,8 +234,8 @@ function BeamModel() {
         </mesh>
       </group>
 
-      {/* Estribos (Anéis simplificados a cada 1m para demo) */}
-      {[...Array(Math.floor(L))].map((_, i) => (
+      {/* Estribos (Anéis simplificados a cada 1m para demo) - Capped to 100 to avoid RangeError */}
+      {[...Array(Math.min(Math.floor(L), 100))].map((_, i) => (
         <mesh key={i} position={[-(L/2) + i + 0.5, 0, 0]}>
           <boxGeometry args={[0.005, h - 0.04, b - 0.04]} />
           <meshStandardMaterial color="#FF9500" wireframe />
