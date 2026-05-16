@@ -17,6 +17,9 @@ import {
 } from '@/components/ui/select';
 
 import { MestreFiberMap, MestreInteractionDiagram } from './MestreDiagram';
+import { SectionSketch } from './SectionSketch';
+import { SteelTableView } from './SteelTableView';
+import { StructuralDuel } from './StructuralDuel';
 
 export function ColumnPlayground() {
   const { 
@@ -173,6 +176,34 @@ export function ColumnPlayground() {
         </div>
       )}
 
+      {fullResults?.detailing && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <SectionSketch 
+            b_m={params.b} 
+            h_m={params.h} 
+            rebars={fullResults.detailing.executive?.rebar_coords || []} 
+            phi_mm={fullResults.detailing.longitudinal?.phi_mm || 10.0} 
+            label="Pilar P1"
+          />
+          <SteelTableView 
+            data={[{
+              pos: "N1",
+              phi_mm: fullResults.detailing.longitudinal?.phi_mm || 10.0,
+              count: fullResults.detailing.longitudinal?.count || 4,
+              length_m: 3.0,
+              total_length_m: (fullResults.detailing.longitudinal?.count || 4) * 3.0,
+              weight_kg: fullResults.detailing.steel_ca50_kg || 0,
+              type: "CA-50"
+            }]}
+            totals={{
+              total_ca50_kg: fullResults.detailing.steel_ca50_kg || 0,
+              total_ca60_kg: 0,
+              grand_total_kg: fullResults.detailing.steel_ca50_kg || 0
+            }}
+          />
+        </div>
+      )}
+
       {fullResults?.fiber_results?.fibers && (
         <MestreFiberMap 
           fibers={fullResults.fiber_results.fibers}
@@ -181,6 +212,8 @@ export function ColumnPlayground() {
           title="Mapa de Tensões na Seção"
         />
       )}
+
+      <StructuralDuel />
 
       {error && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">

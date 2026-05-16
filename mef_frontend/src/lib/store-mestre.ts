@@ -22,6 +22,13 @@ interface MestreState {
   };
   loadCases: Array<{ id: string; name: string; type: 'pp' | 'perm' | 'acid' | 'wind'; factor: number }>;
   combinations: Array<{ name: string; cases: Array<{ id: string; gamma: number }> }>;
+  projectMeta: {
+    title: string;
+    client: string;
+    engineer: string;
+    crea: string;
+    location: string;
+  };
 
   // Actions
   setSelectedElementType: (type: MestreElementType) => void;
@@ -40,6 +47,7 @@ interface MestreState {
   updateUnitConfig: (config: Partial<MestreState['unitConfig']>) => void;
   setLoadCases: (cases: MestreState['loadCases']) => void;
   setCombinations: (combinations: MestreState['combinations']) => void;
+  setProjectMeta: (meta: Partial<MestreState['projectMeta']>) => void;
 }
 
 export const useMestreStore = create<MestreState>((set) => ({
@@ -99,6 +107,13 @@ export const useMestreStore = create<MestreState>((set) => ({
   combinations: [
     { name: 'ELU Fundamental', cases: [{ id: 'pp', gamma: 1.4 }, { id: 'perm', gamma: 1.4 }, { id: 'acid', gamma: 1.4 }] },
   ],
+  projectMeta: {
+    title: 'Edifício Residencial Atlas',
+    client: 'Engenharia & Co',
+    engineer: 'Eng. Estrutural',
+    crea: '123456789-0',
+    location: 'São Paulo - SP',
+  },
 
   setSelectedElementType: (type) => set({ selectedElementType: type, pedagogicalSteps: [], prediction: null, error: null, calculationTrace: null }),
   updateParams: (newParams) => set((state) => ({ params: { ...state.params, ...newParams } })),
@@ -113,4 +128,5 @@ export const useMestreStore = create<MestreState>((set) => ({
   updateUnitConfig: (config) => set((state) => ({ unitConfig: { ...state.unitConfig, ...config } })),
   setLoadCases: (cases) => set({ loadCases: cases }),
   setCombinations: (combinations) => set({ combinations: combinations }),
+  setProjectMeta: (meta) => set((state) => ({ projectMeta: { ...state.projectMeta, ...meta } })),
 }));

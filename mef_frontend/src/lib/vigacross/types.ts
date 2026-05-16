@@ -1,4 +1,4 @@
-export type SupportType = 'fixed' | 'pin' | 'free';
+export type SupportType = 'fixed' | 'pin' | 'free' | 'roller';
 
 export interface PointLoad {
   type: 'point';

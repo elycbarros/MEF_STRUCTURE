@@ -20,13 +20,7 @@ export function StabilityPlayground() {
     setIsLoading(true);
     setError(null);
     try {
-      const stabilityParams = {
-        v0: Number(p.v0 || 30.0),
-        height: Number(p.height || 30.0),
-        width_x: Number(p.width_x || 12.0)
-      };
-
-      const data = await calculateStability(stabilityParams);
+      const data = await calculateStability(p);
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? {
@@ -62,53 +56,53 @@ export function StabilityPlayground() {
         <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
           <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
             <Building2 className="w-3 h-3" />
-            Geometria do Edifício
+            Geometria e Massa
           </h4>
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                <Ruler className="w-3 h-3" />
-                Altura Total (m)
-              </Label>
-              <Input 
-                type="number" 
-                value={params.height || 30.0} 
-                onChange={(e) => updateParam('height', e.target.value)}
-                className="h-9 bg-background/50"
-              />
+              <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">Altura Total (m)</Label>
+              <Input type="number" value={params.height || 30.0} onChange={(e) => updateParam('height', e.target.value)} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                <Ruler className="w-3 h-3" />
-                Largura X (m)
-              </Label>
-              <Input 
-                type="number" 
-                value={params.width_x || 12.0} 
-                onChange={(e) => updateParam('width_x', e.target.value)}
-                className="h-9 bg-background/50"
-              />
+              <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">Frequência f1 (Hz)</Label>
+              <Input type="number" step="0.1" value={params.f1_hz || 0.5} onChange={(e) => updateParam('f1_hz', e.target.value)} className="h-9 bg-background/50 font-bold" />
             </div>
           </div>
         </div>
 
-        {/* Parâmetros de Vento */}
-        <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+        {/* Parâmetros de Vento Dinâmico */}
+        <div className="space-y-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-2">
             <Wind className="w-3 h-3" />
-            Vento (NBR 6123)
+            Vento Dinâmico (NBR 6123)
           </h4>
           
-          <div className="space-y-1.5">
-            <Label className="text-[10px] text-muted-foreground uppercase">Velocidade Básica V0 (m/s)</Label>
-            <Input 
-              type="number" 
-              value={params.v0 || 30.0} 
-              onChange={(e) => updateParam('v0', e.target.value)}
-              className="h-9 bg-background/50 font-mono font-bold text-primary"
-            />
-            <p className="text-[9px] text-muted-foreground italic">Ex: 30 a 50 m/s conforme região do Brasil</p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-muted-foreground uppercase font-bold">V0 (m/s)</Label>
+              <Input type="number" value={params.v0 || 30.0} onChange={(e) => updateParam('v0', e.target.value)} className="h-9 bg-background/50" />
+            </div>
+            
+            <div className="flex items-center justify-between p-2 rounded-lg bg-background/40 border border-emerald-500/10">
+              <span className="text-[10px] font-bold uppercase text-emerald-700">Modo Dinâmico (Davenport)</span>
+              <input 
+                type="checkbox" 
+                checked={params.is_dynamic || false} 
+                onChange={(e) => updateParam('is_dynamic', e.target.checked ? 1 : 0)}
+                className="w-4 h-4 accent-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-2 rounded-lg bg-background/40 border border-blue-500/10">
+              <span className="text-[10px] font-bold uppercase text-blue-700">Análise Sísmica (NBR 15421)</span>
+              <input 
+                type="checkbox" 
+                checked={params.check_seismic || false} 
+                onChange={(e) => updateParam('check_seismic', e.target.checked ? 1 : 0)}
+                className="w-4 h-4 accent-blue-500"
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -65,6 +65,25 @@ class FootingSolver:
         as_min_a = 0.0015 * b_m * h_m * 10000.0
         as_min_b = 0.0015 * a_m * h_m * 10000.0
         
+        # 5. Auditoria Forensic (Structural Duel)
+        # Comparação: Método das Bielas vs Método da Flexão (NBR 6118, 22.6.4.2)
+        md_a = (self.cfg.Nd_kN * 1.4 * (a_m - self.cfg.ap_m)) / 8.0
+        as_flex_a = (md_a * 100.0) / (0.9 * d_m * (self.fyd * 10.0)) * 100.0 # cm2 (aprox)
+        
+        as_bielas = max(as_a, as_min_a)
+        as_flexao = max(as_flex_a, as_min_a)
+        diff = abs(as_bielas - as_flexao) / max(as_bielas, 1e-9) * 100.0
+
+        duel = [
+            {
+                "parameter": "As_x (Flexão)",
+                "classical_value": f"{as_bielas:.2f} cm²",
+                "mef_value": f"{as_flexao:.2f} cm²",
+                "difference_percent": round(diff, 1),
+                "insight": "O Método das Bielas (Analytical) é geralmente mais conservador para sapatas muito rígidas, enquanto o Método da Flexão (Classical) aproxima a sapata a uma viga engastada no pilar."
+            }
+        ]
+
         return {
             "A_m": a_m,
             "B_m": b_m,
@@ -80,7 +99,10 @@ class FootingSolver:
             "as_a_cm2": max(as_a, as_min_a),
             "as_b_cm2": max(as_b, as_min_b),
             "is_rigid": h_m >= max(h_min_a, h_min_b),
-            "status": "OK" if sigma_real <= self.cfg.sigma_adm_kPa else "SOBRECARGA"
+            "status": "OK" if sigma_real <= self.cfg.sigma_adm_kPa else "SOBRECARGA",
+            "calculation_trace": {
+                "duel": duel
+            }
         }
 
 def solve_isolated_footing(params: Dict[str, Any]) -> Dict[str, Any]:

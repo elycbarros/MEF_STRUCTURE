@@ -90,7 +90,7 @@ export async function calculateSpt(
 }
 
 export async function calculateStability(
-  params: { v0: number; height: number; width_x: number },
+  params: Partial<MestreParams>,
   signal?: AbortSignal
 ): Promise<MestreApiResponse> {
   const response = await fetch(`${BASE_URL}/api/mestre/calculate/stability-mestre`, {
@@ -141,6 +141,26 @@ export async function calculateWind(
     const errorData = await response.json().catch(() => ({}));
     const message = errorData.detail || errorData.error?.message || response.statusText || 'Erro na análise de vento';
     throw new Error(`Erro na análise de vento: ${message}`);
+  }
+
+  return response.json();
+}
+
+export async function generateProfessionalMemorial(
+  results: any,
+  project_meta: any,
+  signal?: AbortSignal
+): Promise<{ pdf_url: string; filename: string }> {
+  const response = await fetch(`${BASE_URL}/api/mestre/generate/professional-memorial`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ results, project_meta }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Erro ao gerar memorial profissional');
   }
 
   return response.json();

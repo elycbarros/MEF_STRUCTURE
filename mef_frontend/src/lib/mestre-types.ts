@@ -24,7 +24,7 @@ export type MestreElementType =
   | "tension_pro"
   | "tech_library";
 
-export type SupportType = "pinned" | "fixed" | "spring";
+export type SupportType = "pinned" | "fixed" | "roller" | "spring";
 
 export interface BeamSupport {
   x: number;
@@ -126,6 +126,7 @@ export type MestreParams = {
   step?: number;
   total_p_kN?: number;
   m1_kNm?: number;
+  spans?: SpanInput[];
 } & Record<string, unknown>;
 
 export interface MestreStep {

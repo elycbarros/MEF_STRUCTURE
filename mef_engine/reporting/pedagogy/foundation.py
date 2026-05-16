@@ -31,8 +31,6 @@ def build_footing_blackboard(res: dict[str, Any], payload: dict = None) -> dict[
     )
     
     fck = float(res.get("fck", 25.0))
-    # Note: add_material_step is not in base.py yet, but MemorialEngine can be extended
-    # For now we use add_step manually for consistency if needed, or I'll update base.py
     
     me.add_step(
         id="footing-materials",
@@ -97,6 +95,18 @@ def build_footing_blackboard(res: dict[str, Any], payload: dict = None) -> dict[
         }
     )
     
+    # 5. Auditoria Forensic (Structural Duel)
+    if res.get("calculation_trace", {}).get("duel"):
+        me.add_step(
+            id="footing-forensic-duel",
+            title="Duelo Estrutural: Comparação de Modelos",
+            formula=r"\text{Bielas vs. Flexão}",
+            substitution=r"\text{Auditoria Interna de Paridade}",
+            result=res["calculation_trace"]["duel"][0]["verdict"] if isinstance(res["calculation_trace"]["duel"], list) else "Análise Concluída",
+            explanation="Comparamos o método clássico de bielas e tirantes com o modelo de viga equivalente para garantir a redundância do cálculo.",
+            norm="NBR 6118, 22.6.4"
+        )
+
     return me.build()
 
 def build_spt_blackboard(res: dict[str, Any]) -> dict[str, Any]:
@@ -266,5 +276,81 @@ def build_pile_blackboard(res: dict, payload: dict = None) -> dict:
         explanation="Adota-se a menor capacidade entre os métodos semi-empíricos para maior segurança.",
         norm="NBR 6122"
     )
+    
+    # 6. Auditoria Forensic (Structural Duel)
+    if res.get("calculation_trace", {}).get("duel"):
+        me.add_step(
+            id="pile-forensic-duel",
+            title="Duelo Estrutural: Métodos Geotécnicos",
+            formula=r"\text{Aoki-Velloso vs. Decourt-Quaresma}",
+            substitution=rf"\Delta = {res['calculation_trace']['duel'][0].get('difference_percent', 0)}\%",
+            result="Convergência" if res["calculation_trace"]["duel"][0].get("difference_percent", 0) < 25 else "Divergência",
+            explanation="Verificação de paridade entre os dois métodos semi-empíricos mais difundidos na prática brasileira.",
+            norm="NBR 6122"
+        )
+
+    return me.build()
+
+def build_pile_cap_blackboard(res: dict, payload: dict = None) -> dict:
+    me = MemorialEngine("Roteiro Didático: Blocos sobre Estacas", "pile_cap")
+    fmt = me._fmt
+    
+    # 1. Geometria e Esforços
+    me.add_step(
+        id="pile-cap-efforts",
+        title="Distribuição de Cargas",
+        formula=r"R_{estaca} = N_d / n",
+        substitution=rf"R_{{estaca}} = {fmt(res.get('nd_kN'))} / 2",
+        result=rf"R_{{estaca}} = {fmt(res.get('r_estaca_kN'))}\,kN",
+        explanation="A carga do pilar é distribuída igualmente entre as estacas do bloco.",
+        norm="NBR 6118"
+    )
+    
+    # 2. Modelo de Biela (Blevot)
+    me.add_step(
+        id="pile-cap-blevot",
+        title="Modelo de Biela e Tirante (Blevot)",
+        formula=r"T = R \cdot \frac{a}{d}",
+        substitution=rf"T = {fmt(res.get('r_estaca_kN'))} \cdot \frac{{a}}{{d}}",
+        result=rf"T = {fmt(res.get('f_tirante_kN'))}\,kN",
+        explanation="O método de Blevot calcula a tração no tirante (armadura principal) baseando-se no equilíbrio de forças na biela de concreto.",
+        norm="Blevot & Frémy"
+    )
+    
+    # 3. Verificação de Inclinação
+    theta = res.get('theta_deg', 0)
+    me.add_validation_step(
+        id="pile-cap-theta",
+        title="Ângulo da Biela",
+        value=float(theta),
+        limit=30.0,
+        operator=">=",
+        unit="°",
+        explanation="O ângulo de inclinação da biela deve estar entre 30° e 60° para garantir a validade do modelo de bielas.",
+        norm="NBR 6118"
+    )
+    
+    # 4. Detalhamento
+    me.add_step(
+        id="pile-cap-detailing",
+        title="Armadura Principal (Tirante)",
+        formula=r"A_s = \frac{T}{f_{yd}}",
+        substitution=rf"A_s = \frac{{{fmt(res.get('f_tirante_kN'))}}}{{f_{{yd}}}}",
+        result=rf"A_s = {fmt(res.get('as_principal_cm2'), 2)}\,cm^2",
+        explanation="Armadura calculada para resistir aos esforços de tração na base do bloco.",
+        norm="NBR 6118"
+    )
+
+    # 5. Auditoria Forensic (Structural Duel)
+    if res.get("calculation_trace", {}).get("duel"):
+        me.add_step(
+            id="pile-cap-forensic-duel",
+            title="Duelo Estrutural: Biela vs. Viga",
+            formula=r"\text{Blevot vs. Bernoulli}",
+            substitution=r"\text{Auditoria de Modelagem}",
+            result="Convergência" if res["calculation_trace"]["duel"][0]["difference_percent"] < 15 else "Divergência",
+            explanation="Comparamos o modelo de bielas e tirantes com a teoria de vigas convencional para validar a rigidez do bloco.",
+            norm="NBR 6118"
+        )
     
     return me.build()

@@ -174,6 +174,18 @@ class PilesEngine:
         
         struct = self.verify_structural_capacity(config, applied_load_kN)
         
+        # Auditoria Forensic: Aoki-Velloso vs Decourt-Quaresma
+        diff = abs(av['q_adm_kN'] - dq['q_adm_kN']) / max(av['q_adm_kN'], 1e-9) * 100.0
+        duel = [
+            {
+                "parameter": "Q_adm (Geotec)",
+                "classical_value": f"{av['q_adm_kN']:.1f} kN",
+                "mef_value": f"{dq['q_adm_kN']:.1f} kN",
+                "difference_percent": round(diff, 1),
+                "insight": "Diferenças entre AV e DQ são comuns; AV costuma ser mais conservador em solos arenosos, enquanto DQ foca no N_spt médio. Adotamos o menor valor."
+            }
+        ]
+
         return {
             "config": {
                 "type": config.type,
@@ -188,5 +200,8 @@ class PilesEngine:
             },
             "structural": struct,
             "geotech_status": "OK" if applied_load_kN <= q_adm_geotech else "OVERLOAD_GEOTECH",
-            "overall_status": "OK" if (applied_load_kN <= q_adm_geotech and struct['status'] == 'OK') else "FAIL"
+            "overall_status": "OK" if (applied_load_kN <= q_adm_geotech and struct['status'] == 'OK') else "FAIL",
+            "calculation_trace": {
+                "duel": duel
+            }
         }

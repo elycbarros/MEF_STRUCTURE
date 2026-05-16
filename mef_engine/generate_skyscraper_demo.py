@@ -31,18 +31,20 @@ def simulate_skyscraper():
 
     # 2. Análise de Vento (NBR 6123)
     wind_cfg = WindConfig(v0=35.0, s1=1.0, s3=1.0)
-    engine = WindEngine()
-    cf = engine.get_rectangular_drag_coefficient(total_height, width_b, depth_d)
+    engine = WindEngine(wind_cfg)
     
-    # Cálculo do momento de tombamento (M1)
-    total_m1_kNm = 0
-    wind_profile = []
-    for i in range(1, n_floors + 1):
-        z = i * floor_height
-        area_floor_exp = width_b * floor_height
-        f_drag = engine.get_drag_force(z, area_floor_exp, cf, wind_cfg)
-        total_m1_kNm += (f_drag / 1000.0) * z # kNm
-        wind_profile.append({'z': z, 'q_Pa': f_drag/area_floor_exp/cf, 'f_drag_N': f_drag})
+    # Gera o perfil de forças discretizado por pavimento
+    wind_analysis = engine.generate_force_profile(
+        height=total_height, 
+        width=width_b, 
+        depth=depth_d, 
+        step=floor_height
+    )
+    
+    summary = wind_analysis["summary"]
+    total_m1_kNm = summary["base_moment_kNm"]
+    wind_profile = wind_analysis["profile"]
+    cf = summary["cf_used"]
 
     # 3. Análise de Estabilidade Global e Conforto
     # Frequência estimada para prédio de 120m: f1 = 46/H = 46/120 = 0.38 Hz

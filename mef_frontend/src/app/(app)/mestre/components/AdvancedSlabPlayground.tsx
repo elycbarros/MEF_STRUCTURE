@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 interface ColumnLoad {
   id: number;
@@ -32,6 +33,7 @@ interface AdvancedSlabConfig {
   fck: number;
   q_dist: number;
   is_raft: boolean;
+  is_nonlinear_isi: boolean;
 }
 
 export function AdvancedSlabPlayground() {
@@ -55,7 +57,8 @@ export function AdvancedSlabPlayground() {
     kv: Number(params.kv) || 30.0, // MN/m³ (Winkler)
     fck: Number(params.fck) || 30.0,
     q_dist: Number(params.q) || 5.0,
-    is_raft: true
+    is_raft: true,
+    is_nonlinear_isi: false
   });
 
   const [columns, setColumns] = useState<ColumnLoad[]>([]);
@@ -174,6 +177,18 @@ export function AdvancedSlabPlayground() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5 pt-2 border-t border-primary/5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] font-bold text-orange-600 uppercase">Análise Solo Não-Linear (ISE)</Label>
+                <p className="text-[9px] text-muted-foreground leading-tight">Plastificação do solo via Winkler Não-Linear</p>
+              </div>
+              <Switch 
+                checked={slabConfig.is_nonlinear_isi} 
+                onCheckedChange={(val) => updateConfig('is_nonlinear_isi', val)} 
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -232,7 +247,14 @@ export function AdvancedSlabPlayground() {
             <MetricCard label="Momento Mx+ (kNm/m)" value={fullResults.summary.mx_pos?.toFixed(1)} />
             <MetricCard label="Momento My+ (kNm/m)" value={fullResults.summary.my_pos?.toFixed(1)} />
             <MetricCard label="Pressão Solo (kPa)" value={fullResults.summary.soil_pressure_kPa?.toFixed(1)} />
-            <MetricCard label="Status Geotécnico" value={fullResults.summary.status_geotech} color={fullResults.summary.status_geotech === 'OK' ? 'text-emerald-500' : 'text-destructive'} />
+            <MetricCard label="Status Geotécnico" value={fullResults.summary.status_geotech} color={fullResults.summary.status_geotech === 'OK' || fullResults.summary.status_geotech === 'ELÁSTICO' ? 'text-emerald-500' : 'text-orange-500'} />
+            {fullResults.summary.is_nonlinear_isi && (
+              <MetricCard 
+                label="Plastificação" 
+                value={`${((fullResults.summary.plastification_ratio || 0) * 100).toFixed(1)}%`} 
+                color={fullResults.summary.plastification_ratio > 0 ? 'text-orange-500' : 'text-emerald-500'}
+              />
+            )}
           </div>
         </div>
       )}

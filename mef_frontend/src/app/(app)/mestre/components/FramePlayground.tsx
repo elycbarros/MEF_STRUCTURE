@@ -215,6 +215,7 @@ export function FramePlayground() {
           members={fullResults.members} 
           title="Configuração do Pórtico e Deformada"
           deformedScale={200}
+          reactions={fullResults.equilibrium_audit?.reactions || {}}
         />
       )}
 

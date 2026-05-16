@@ -1,13 +1,44 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Printer, Share2 } from 'lucide-react';
+import { Download, FileText, Printer, Share2, Settings } from 'lucide-react';
 import { useMestreStore } from '@/lib/store-mestre';
+import { generateProfessionalMemorial } from '@/lib/api-mestre';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 export function MemorialHeader() {
-  const { selectedElementType, calculationTrace } = useMestreStore();
+  const { selectedElementType, calculationTrace, fullResults, projectMeta, setProjectMeta } = useMestreStore();
 
   const handlePrint = () => window.print();
+
+  const handleExportPDF = async () => {
+    if (!fullResults) return;
+    try {
+      const apiMeta = {
+        obra: projectMeta.title,
+        local: projectMeta.location,
+        responsavel: projectMeta.engineer,
+        registro: projectMeta.crea
+      };
+      const response = await generateProfessionalMemorial(fullResults, apiMeta);
+      if (response.pdf_url) {
+        window.open(`http://localhost:8000${response.pdf_url}`, '_blank');
+      }
+    } catch (error) {
+      console.error("Erro ao gerar memorial executivo:", error);
+      alert("Erro ao gerar PDF. Verifique o servidor.");
+    }
+  };
 
   const handleExportHTML = () => {
     const { pedagogicalSteps, selectedElementType } = useMestreStore.getState();
@@ -158,6 +189,16 @@ export function MemorialHeader() {
         </Button>
         
         <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-9 gap-2 border-orange-500/20 hover:bg-orange-50 text-orange-600"
+          onClick={handleExportPDF}
+        >
+          <FileText className="w-4 h-4" />
+          <span className="hidden sm:inline">Memorial Executivo (PDF)</span>
+        </Button>
+
+        <Button 
           variant="default" 
           size="sm" 
           className="h-9 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
@@ -166,6 +207,49 @@ export function MemorialHeader() {
           <Download className="w-4 h-4" />
           <span className="hidden sm:inline">Memorial Completo</span>
         </Button>
+
+        <Dialog>
+          <DialogTrigger render={
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full border border-border/50 hover:bg-muted" />
+          }>
+            <Settings className="w-4 h-4 text-primary" />
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Configurações do Projeto</DialogTitle>
+              <DialogDescription>
+                Estes dados serão utilizados no cabeçalho dos Memoriais Executivos.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="title" className="text-right text-[10px] uppercase font-bold text-muted-foreground">Obra</Label>
+                <Input id="title" value={projectMeta.title} onChange={(e) => setProjectMeta({ title: e.target.value })} className="col-span-3 h-9" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="client" className="text-right text-[10px] uppercase font-bold text-muted-foreground">Cliente</Label>
+                <Input id="client" value={projectMeta.client} onChange={(e) => setProjectMeta({ client: e.target.value })} className="col-span-3 h-9" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="engineer" className="text-right text-[10px] uppercase font-bold text-muted-foreground">Engenheiro</Label>
+                <Input id="engineer" value={projectMeta.engineer} onChange={(e) => setProjectMeta({ engineer: e.target.value })} className="col-span-3 h-9" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="crea" className="text-right text-[10px] uppercase font-bold text-muted-foreground">CREA</Label>
+                <Input id="crea" value={projectMeta.crea} onChange={(e) => setProjectMeta({ crea: e.target.value })} className="col-span-3 h-9 font-mono" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="location" className="text-right text-[10px] uppercase font-bold text-muted-foreground">Cidade/UF</Label>
+                <Input id="location" value={projectMeta.location} onChange={(e) => setProjectMeta({ location: e.target.value })} className="col-span-3 h-9" />
+              </div>
+            </div>
+            <DialogFooter>
+              <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-black italic">
+                Atlas Professional Grade
+              </p>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
           <Share2 className="w-4 h-4 text-muted-foreground" />

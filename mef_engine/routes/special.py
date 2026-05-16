@@ -226,12 +226,23 @@ async def calculate_special(req: SpecialElementRequest):
             Myd_kNm=params.get('Myd', 0.0),
             caa=params.get('caa', 2)
         )
+        # Injetar detalhamento executivo
+        from column_detailing import ColumnDetailer
+        detailing = ColumnDetailer.generate_detailing_summary(res)
+        res['detailing'] = detailing
+        
         blackboard = build_column_blackboard(res)
 
     elif type == "footing":
-        trace.update(solver_module="footing_solver.solve_isolated_footing", blackboard_builder="build_footing_blackboard", classical_check=True, mef_check=False)
-        from footing_solver import solve_isolated_footing
-        res = solve_isolated_footing(params)
+        trace.update(solver_module="SpecialElementsSolver.solve_footing", blackboard_builder="build_footing_blackboard", classical_check=True, mef_check=False)
+        res = solver.solve_footing(
+            Nd_kN=params.get('Nd', 500.0),
+            sigma_adm_kPa=params.get('sigma_adm', 300.0),
+            ap=params.get('ap', 0.20),
+            bp=params.get('bp', 0.20),
+            fck=params.get('fck', 25.0),
+            is_nonlinear_isi=params.get('is_nonlinear_isi', False)
+        )
         blackboard = build_footing_blackboard(res, params)
 
     elif type == "pile_cap":
@@ -370,7 +381,8 @@ async def calculate_special(req: SpecialElementRequest):
             q_dist=params.get('q_dist', 5.0),
             kv=params.get('kv', 30.0),
             is_raft=params.get('is_raft', True),
-            columns=params.get('columns', [])
+            columns=params.get('columns', []),
+            is_nonlinear_isi=params.get('is_nonlinear_isi', False)
         )
         # Use full report if available
         return {
@@ -439,41 +451,95 @@ async def calculate_spt(req: Dict):
 
 @router.post("/calculate/stability-mestre")
 async def calculate_stability_mestre(req: Dict):
+    from stability_engine import StabilityEngine
     from wind_engine import WindEngine, WindConfig
     from reporting.pedagogy.stability import build_stability_blackboard
     
     v0 = float(req.get('v0', 30.0))
     height = float(req.get('height', 30.0))
     width_x = float(req.get('width_x', 12.0))
+    f1_hz = float(req.get('f1_hz', 0.5))
+    total_p_kN = float(req.get('total_p_kN', 10000.0))
+    m1_kNm = float(req.get('m1_kNm', 5000.0))
+    is_dynamic = bool(req.get('is_dynamic', False))
     
-    cfg = WindConfig(
-        v0=v0,
-        height=height,
-        width_x=width_x
-    )
-    
+    # 1. Analise de Vento
+    cfg = WindConfig(v0=v0, height=height, width_x=width_x)
     engine = WindEngine()
     wind_data = engine.calculate_dynamic_pressure(cfg)
-    gamma_z = engine.estimate_gamma_z(cfg.height, 10000, 50)
+    total_wind_force_kN = sum(p['q_Pa'] * width_x * 1.0 for p in wind_data['profile']) / 1000.0
     
-    # Extrair pressão característica para o memorial
-    q0_kN_m2 = (wind_data['profile'][-1]['q_Pa'] if wind_data['profile'] else 0) / 1000.0
+    # 2. Analise de Estabilidade e Conforto
+    res_stability = StabilityEngine.calculate_advanced_stability(
+        total_p_kN=total_p_kN,
+        height=height,
+        m1_kNm=m1_kNm,
+        wind_v0=v0,
+        f1_hz=f1_hz,
+        total_h_force_kN=total_wind_force_kN,
+        width_x=width_x,
+        total_mass_kg=total_p_kN * 100 # Simplificado: 100kg por kN
+    )
     
+    # 3. Analise Sismica (Opcional)
+    seismic = {}
+    if req.get('check_seismic'):
+        seismic = StabilityEngine.calculate_seismic_forces(height, total_p_kN)
+
+    # Unificar resultados
     res = {
-        **wind_data, 
-        "gamma_z": gamma_z, 
-        "v0": v0, 
-        "height": height, 
+        **wind_data,
+        "gamma_z": res_stability.gamma_z,
+        "comfort_status": res_stability.comfort_status,
+        "peak_acceleration": res_stability.peak_acceleration_ms2,
+        "is_stable": res_stability.is_stable,
+        "v0": v0,
+        "height": height,
         "width_x": width_x,
-        "q0_kN_m2": q0_kN_m2
+        "seismic": seismic
     }
+    
     blackboard = build_stability_blackboard(res)
     
     return {
         "success": True,
-        "result": res,
+        "result": sanitize_for_json(res),
         "pedagogical_steps": blackboard
     }
+
+@router.post("/generate/professional-memorial")
+async def generate_memorial_endpoint(req: Dict):
+    """
+    Gera o Memorial Descritivo Profissional (Executive Grade).
+    """
+    from professional_pdf import generate_professional_memorial
+    import uuid
+    import os
+
+    results = req.get('results', {})
+    project_meta = req.get('project_meta', {
+        'obra': 'Edifício Residencial Atlas',
+        'local': 'São Paulo, SP',
+        'responsavel': 'Eng. Civil Atlas',
+        'registro': 'CREA-SP 123456'
+    })
+
+    # Criar diretório temporário para os PDFs se não existir
+    output_dir = "static/reports"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    filename = f"memorial_{uuid.uuid4().hex[:8]}.pdf"
+    file_path = os.path.join(output_dir, filename)
+    
+    try:
+        generate_professional_memorial(file_path, results, project_meta)
+        return {
+            "success": True, 
+            "pdf_url": f"/static/reports/{filename}",
+            "filename": filename
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
 
 @router.post("/calculate/integrated-foundation")
 async def calculate_integrated_foundation(req: Dict):

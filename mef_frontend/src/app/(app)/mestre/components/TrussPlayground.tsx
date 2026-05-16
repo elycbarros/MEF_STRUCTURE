@@ -269,6 +269,7 @@ export function TrussPlayground() {
           members={fullResults.members} 
           title="Esquema da Treliça e Deformada"
           deformedScale={500}
+          reactions={fullResults.equilibrium_audit?.reactions || {}}
         />
       )}
 

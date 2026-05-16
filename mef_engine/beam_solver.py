@@ -12,6 +12,12 @@ import numpy as np
 import math
 from errors import InvalidInputError, UnstableModelError, NumericalFailureError, OutOfScopeError
 
+try:
+    import structural_core_rs
+    RUST_AVAILABLE = True
+except ImportError:
+    RUST_AVAILABLE = False
+
 
 # ──────────────────────── Data Models ────────────────────────
 
@@ -32,7 +38,16 @@ class BeamSection:
         if self.bf <= 0:
             self.bf = self.b
         if self.E <= 0:
-            self.E = 5600.0 * (self.fck ** 0.5) * 1e6  # NBR 6118: Eci
+            # NBR 6118:2023 - Módulo de Elasticidade Tangencial (Eci)
+            alpha_e = 1.0 # Granito por padrão
+            if self.fck <= 50:
+                self.E_ci = alpha_e * 5600.0 * (self.fck ** 0.5) * 1e6
+            else:
+                self.E_ci = 21500.0 * alpha_e * ((self.fck + 8) / 10.0)**(1/3.0) * 1e6
+            
+            # Módulo de Elasticidade Secante (Ecs) para análise de deformações
+            alpha_i = min(0.8 + 0.2 * (self.fck / 80.0), 1.0)
+            self.E = self.E_ci * alpha_i
             
         # Momento de inércia e torção
         if self.bf > self.b and self.hf > 0:
@@ -118,6 +133,7 @@ class BeamResult:
     max_moment_kNm: float
     max_shear_kN: float
     max_torsion_kNm: float
+    pedagogical_proofs: dict = field(default_factory=dict)
 
 
 # ──────────────────────── FEM Solver ────────────────────────
@@ -268,47 +284,84 @@ class BeamFEMSolver:
         return spsolve(K_reg, F)
 
     def solve(self, inertias: np.ndarray | None = None) -> BeamResult:
-        K, F_load = self._assemble(inertias=inertias)
-        try:
-            U = self._solve_linear_system(K, F_load)
-        except Exception as e:
-            raise UnstableModelError(f"Erro na resolução da viga: {str(e)}. Verifique os apoios.", module="beam_solver")
-        
-        w, theta, phi = U[0::3], U[1::3], U[2::3]
+        pedagogical_proofs = {}
+        if RUST_AVAILABLE and inertias is None:
+            try:
+                from structural_core_rs import (
+                    Beam1DModel, Beam1DSupportPy, Beam1DPointLoadPy, 
+                    Beam1DDistLoadPy, solve_beams_from_model
+                )
+                
+                rust_supports = []
+                for sup in self.model.supports:
+                    kw = 1.0 if sup.type in ('pinned', 'roller', 'fixed', 'spring') else 0.0
+                    kt = 1.0 if sup.type == 'fixed' or (sup.type == 'spring' and sup.k_rotational > 0) else 0.0
+                    kp = 1.0 if sup.type in ('pinned', 'fixed') else 0.0 
+                    rust_supports.append(Beam1DSupportPy(sup.x, kw, kt, kp))
+                
+                rust_points = [
+                    Beam1DPointLoadPy(pl.x, pl.P, pl.M, pl.eccentricity)
+                    for pl in self.model.point_loads
+                ]
+                
+                rust_dists = [
+                    Beam1DDistLoadPy(dl.x_start, dl.x_end, dl.q_start, dl.q_end, dl.eccentricity)
+                    for dl in self.model.distributed_loads
+                ]
+                if self.model.include_self_weight:
+                    pp = self.model.section.area * 25000.0
+                    rust_dists.append(Beam1DDistLoadPy(0.0, self.model.L, pp, pp, 0.0))
+                
+                model_rust = Beam1DModel(
+                    self.model.L, self.n_elem, self.model.section.E, self.model.section.G,
+                    self.model.section.I, self.model.section.J,
+                    rust_supports, rust_points, rust_dists,
+                    self.model.section.asymmetric_offset
+                )
+                
+                rust_res = solve_beams_from_model(model_rust)
+                U = rust_res['u']
+                pedagogical_proofs = rust_res.get('pedagogical_proofs', {})
+                
+            except Exception as e:
+                import traceback
+                print(f"Rust Beam Solver Error: {e}. Falling back to Python.")
+                traceback.print_exc()
+                K, F = self._assemble(inertias=inertias)
+                U = self._solve_linear_system(K, F)
+        else:
+            K, F = self._assemble(inertias=inertias)
+            U = self._solve_linear_system(K, F)
+            pedagogical_proofs = {}
+
+        # Cálculo de esforços e reações em Python (Garante paridade total)
         V_res, M_res, T_res = np.zeros(self.n_elem), np.zeros(self.n_elem), np.zeros(self.n_elem)
         
+        # Garantir que element_q esteja calculado (se não foi pelo _assemble)
+        if not hasattr(self, "element_q"):
+            self._assemble(inertias=inertias) # Apenas para popular element_q
+            
         for e in range(self.n_elem):
             Ie = inertias[e] if inertias is not None else None
             Ke = self._element_stiffness(inertia=Ie)
             ue = U[3*e:3*e+6]
-            # Encontrar excentricidade média do elemento se houver carga distribuída
             ecc = 0.0
             for dl in self.model.distributed_loads:
                 if dl.x_start <= self.x_elem[e] <= dl.x_end:
                     ecc = dl.eccentricity
                     break
-            
             fe = self._element_load_uniform(self.element_q[e], eccentricity=ecc)
-            
-            # Esforços na face esquerda (Início do elemento)
             f_int = Ke @ ue - fe
-            
-            # Convenção estrutural: V positivo = para cima na face esquerda
-            # M positivo = tração nas fibras inferiores
-            # T positivo = momento torsor
             V_res[e] = f_int[0]
             M_res[e] = -f_int[1]
-            T_res[e] = -f_int[2] # Momento Torsor no início do elemento
+            T_res[e] = -f_int[2]
 
-        # Reações de apoio
         reactions = {}
         for sup in self.model.supports:
             node = int(np.clip(np.round(sup.x / self.Le), 0, self.n_nodes - 1))
             dof_w, dof_t, dof_p = 3*node, 3*node+1, 3*node+2
-            
             Rv, Rm, Rt = 0.0, 0.0, 0.0
             penalty = 1e18
-            
             if sup.type in ('pinned', 'roller', 'fixed'):
                 Rv = penalty * (0 - U[dof_w])
             if sup.type == 'fixed':
@@ -316,12 +369,22 @@ class BeamFEMSolver:
                 Rt = penalty * (0 - U[dof_p])
             if sup.type == 'spring':
                 Rv = sup.k_vertical * (0 - U[dof_w])
+            reactions[str(float(sup.x))] = {
+                'x': float(sup.x),
+                'type': sup.type,
+                'R': float(Rv)/1000.0, 
+                'M': float(Rm)/1000.0, 
+                'T': float(Rt)/1000.0
+            }
             
-            reactions[str(float(sup.x))] = {'R': float(Rv)/1000.0, 'M': float(Rm)/1000.0, 'T': float(Rt)/1000.0}
+        return self._build_result(U, V_res, M_res, T_res, reactions, pedagogical_proofs)
         
         # DEBUG
         # print(f"DEBUG SOLVER REACTIONS: {reactions}")
 
+    def _build_result(self, U, V_res, M_res, T_res, reactions, pedagogical_proofs=None):
+        """Helper para construir o objeto BeamResult padronizado."""
+        w, theta = U[0::3], U[1::3]
         max_deflection = np.max(np.abs(w)) * 1000.0
         max_moment = np.max(np.abs(M_res))
         max_shear = np.max(np.abs(V_res))
@@ -333,7 +396,8 @@ class BeamFEMSolver:
             max_deflection_mm=max_deflection,
             max_moment_kNm=max_moment/1000.0,
             max_shear_kN=max_shear/1000.0,
-            max_torsion_kNm=max_torsion/1000.0
+            max_torsion_kNm=max_torsion/1000.0,
+            pedagogical_proofs=pedagogical_proofs
         )
 
 
@@ -382,8 +446,13 @@ class BeamDesigner:
         
         md_d = abs(md_kNm) * 1000.0 # N.m
         
+        # Seleção da largura de compressão (bf para momento positivo em viga T)
+        # Assumimos que md_kNm > 0 significa tração na face inferior (vão)
+        is_t_compression = md_kNm > 0 and section.bf > section.b and section.hf > 0
+        b_calc = section.bf if is_t_compression else section.b
+        
         # Coeficiente adimensional k = Md / (bw * d^2 * fcd)
-        k = md_d / (bw * d**2 * fcd * 1e6) if (bw * d) > 0 else 0
+        k = md_d / (b_calc * d**2 * fcd * 1e6) if (b_calc * d) > 0 else 0
         
         # k_limite para dutilidade
         k_lim = eta * lamb * x_d_lim * (1 - 0.5 * lamb * x_d_lim)
@@ -403,9 +472,22 @@ class BeamDesigner:
             # Armadura Simples
             discriminant = 1.0 - (2.0 * k / eta)
             xi = (1.0 - math.sqrt(max(0, discriminant))) / lamb if k > 0 else 0
-            z = d * (1.0 - 0.5 * lamb * xi)
-            as_tension = md_d / (fyd * 1e6 * z) if z > 0 else 0
-            status = "OK"
+            
+            # Verificação de Seção T Verdadeira (x > hf)
+            if is_t_compression and (xi * d) > section.hf:
+                # Seção T Verdadeira - Cálculo mais complexo (Aproximação: soma de alma e abas)
+                m_mesa = eta * fcd * 1e6 * (section.bf - section.b) * section.hf * (d - 0.5 * section.hf)
+                m_alma = md_d - m_mesa
+                k_alma = m_alma / (section.b * d**2 * fcd * 1e6)
+                disc_alma = 1.0 - (2.0 * k_alma / eta)
+                xi_alma = (1.0 - math.sqrt(max(0, disc_alma))) / lamb if k_alma > 0 else 0
+                as_tension = (m_mesa / (fyd * 1e6 * (d - 0.5 * section.hf))) + (m_alma / (fyd * 1e6 * d * (1 - 0.5 * lamb * xi_alma)))
+                xi = xi_alma # Aproximação para status
+                status = "T_VERDADEIRA"
+            else:
+                z = d * (1.0 - 0.5 * lamb * xi)
+                as_tension = md_d / (fyd * 1e6 * z) if z > 0 else 0
+                status = "OK"
             
         # Armadura Mínima (0.15% para C25/C30)
         as_min = 0.0015 * bw * section.h * 1e4 # cm2
@@ -495,7 +577,6 @@ class BeamDesigner:
         support_nodes = [int(np.round(s.x / (model.L / result.n_elements))) for s in model.supports]
         M_design = cls.apply_moment_redistribution(result.M, support_nodes, delta=redistribution_delta)
         
-        # Valores majorados para dimensionamento ELU
         gamma_f = model.gamma_f
         M_max_pos = np.max(M_design) / 1000.0 * gamma_f
         M_max_neg = np.min(M_design) / 1000.0 * gamma_f
@@ -503,14 +584,23 @@ class BeamDesigner:
         T_max = np.max(np.abs(result.T)) / 1000.0 * gamma_f
         
         flex_bottom = cls.design_flexure(M_max_pos, model.section, gamma_f)
-        flex_top = cls.design_flexure(abs(M_max_neg), model.section, gamma_f)
+        flex_top = cls.design_flexure(-abs(M_max_neg), model.section, gamma_f) # Negativo força uso da alma (bw)
         shear = cls.design_shear_torsion(V_max, T_max, model.section)
         
-        # ELS - Abertura de fissuras (Momento de Serviço)
+        # ELS - Abertura de fissuras
         mk_serv = np.max(np.abs(result.M)) / 1000.0
         wk = cls.design_crack_width(mk_serv, max(flex_bottom['As_cm2'], flex_top['As_cm2']), model.section)
         deflection_limit_mm = round(model.L * 1000 / 250, 2)
         deflection_status = 'OK' if result.max_deflection_mm <= deflection_limit_mm else 'REVISAR'
+        
+        # Inteligência de Custo
+        from cost_engine import CostEngine
+        c_engine = CostEngine()
+        total_as = flex_bottom['As_cm2'] + flex_top['As_cm2']
+        cost_data = c_engine.calculate_beam_cost(
+            model.section.b, model.section.h, model.L, total_as, model.section.fck
+        )
+
         crack_status = 'OK' if wk <= model.wk_limit_mm else 'REVISAR'
         flexure_status = (
             flex_bottom['x_d'] <= flex_bottom['x_d_lim']
@@ -533,8 +623,49 @@ class BeamDesigner:
             'flexure_top': flex_top,
             'shear': shear,
             'crack_width': {'wk_mm': wk, 'limit_mm': model.wk_limit_mm, 'status': crack_status},
-            'deflection': {'max_mm': result.max_deflection_mm, 'limit_mm': deflection_limit_mm, 'status': deflection_status},
+            'deflection': {
+                'max_mm': result.max_deflection_mm, 
+                'limit_mm': deflection_limit_mm, 
+                'status': deflection_status
+            },
+            'cost_analysis': cost_data,
             'overall_status': overall_status
+        }
+
+    @staticmethod
+    def optimize_section(model: BeamModel, md_pos: float, md_neg: float, vd: float) -> dict:
+        """
+        Busca a seção transversal mais econômica (b x h) que satisfaz as normas.
+        """
+        from cost_engine import CostEngine
+        c_engine = CostEngine()
+        
+        best_cost = float('inf')
+        best_section = None
+        
+        # Espaço de busca: b de 15 a 40cm, h de 30 a 90cm
+        for b in [0.15, 0.20, 0.25]:
+            for h in np.linspace(0.30, 0.90, 13):
+                test_sec = BeamSection(b=b, h=h, fck=model.section.fck)
+                
+                # Verifica ELU
+                flex_p = BeamDesigner.design_flexure(md_pos, test_sec)
+                flex_n = BeamDesigner.design_flexure(md_neg, test_sec)
+                shear = BeamDesigner.design_shear_torsion(vd, 0.0, test_sec)
+                
+                if (flex_p['status'] == 'OK' and flex_n['status'] == 'OK' and 
+                    shear['biela_status'] == 'OK' and flex_p['x_d'] < 0.45):
+                    
+                    as_total = flex_p['As_cm2'] + flex_n['As_cm2']
+                    cost = c_engine.calculate_beam_cost(b, h, model.L, as_total, test_sec.fck)['total_cost']
+                    
+                    if cost < best_cost:
+                        best_cost = cost
+                        best_section = {'b': b, 'h': h, 'as_total': as_total}
+        
+        return {
+            'best_section': best_section,
+            'savings_potential': 'ALTO' if best_section else 'BAIXO'
         }
 
 
@@ -838,7 +969,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         'design': design, 
         'detailing': detailing_summary,
         'forensic_audit': audit_trail,
-        'reactions': result.reactions,
+        'reactions': reactions_dict,
         'overall_status': design.get('overall_status', 'ATENDE'),
         'diagrams': {
             'shear': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x_elem, result.V / 1000.0)],

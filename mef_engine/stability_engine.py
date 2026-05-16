@@ -70,31 +70,58 @@ class StabilityEngine:
         }
 
     @staticmethod
+    def calculate_seismic_forces(height: float, total_p_kN: float, ag_m_s2: float = 0.5, importance: float = 1.0) -> Dict:
+        """
+        Análise Sísmica Simplificada (NBR 15421 - Método das Forças Equivalentes).
+        ag: Aceleração característica do solo (m/s2)
+        """
+        # Coeficiente sísmico de resposta (Cs)
+        # Cs = (ag/g * I) / R
+        # Assumindo R=3.0 (Estrutura de concreto usual)
+        g = 9.81
+        r_factor = 3.0
+        cs = (ag_m_s2 / g * importance) / r_factor
+        
+        v_base_kN = cs * total_p_kN
+        
+        # Distribuição triangular de forças nos pavimentos
+        return {
+            "v_base_kN": round(v_base_kN, 2),
+            "cs": round(cs, 4),
+            "status": "CALCULO_EQUIVALENTE_CONCLUIDO",
+            "norm": "NBR 15421:2006"
+        }
+
+    @staticmethod
     def calculate_advanced_stability(total_p_kN: float, height: float, 
                                    m1_kNm: float, wind_v0: float, 
-                                   f1_hz: float, total_h_force_kN: float = 0.0) -> StabilityResult:
+                                   f1_hz: float, total_h_force_kN: float = 0.0,
+                                   width_x: float = 20.0, total_mass_kg: float = 0.0) -> StabilityResult:
         """
-        Análise de EXCELÊNCIA com P-Delta Iterativo para até 40 pavimentos.
+        Análise de EXCELÊNCIA com P-Delta Iterativo e Dinâmica Davenport.
         """
-        # Inércia equivalente estimada do edifício (EI) baseada no M1 e H
-        # Se m1 = F * H, e delta = F * H^3 / 3EI -> EI = F * H^3 / (3 * delta)
-        # Usando delta_lim = H/400 como base de rigidez de 1a ordem
         delta_lim = height / 400.0
         stiffness_EI = (total_h_force_kN * (height**3)) / (3 * delta_lim) if total_h_force_kN > 0 else 1e9
         
-        # Executar Solver Iterativo
         p_delta_res = StabilityEngine.run_iterative_p_delta(
             total_p_kN, height, total_h_force_kN, stiffness_EI
         )
         
-        # Gama-Z Clássico para referência
         m1 = m1_kNm if m1_kNm > 0 else 1.0
         delta_m = total_p_kN * delta_lim
         gamma_z = 1.0 / (1.0 - (delta_m / m1))
         
-        # Conforto
-        v_serv = 0.7 * wind_v0
-        acc = (0.001 * (v_serv**2) * height) / (f1_hz * 100)
+        # Conforto Dinâmico (NBR 6123 Anexo I / Davenport)
+        from wind_engine import WindEngine
+        w_engine = WindEngine()
+        
+        if total_mass_kg > 0:
+            acc = w_engine.calculate_top_acceleration(height, width_x, total_mass_kg, f1_hz, wind_v0)
+        else:
+            # Fallback simplificado
+            v_serv = 0.7 * wind_v0
+            acc = (0.001 * (v_serv**2) * height) / (max(0.1, f1_hz) * 100)
+            
         comfort = "OK"
         if acc > 0.1: comfort = "DESCONFORTO_LEVE"
         if acc > 0.15: comfort = "CRITICO"

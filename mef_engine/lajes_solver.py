@@ -21,6 +21,12 @@ import numpy as np
 import pandas as pd
 from enum import Enum
 
+try:
+    import structural_core_rs
+    HAS_RUST_CORE = True
+except ImportError:
+    HAS_RUST_CORE = False
+
 
 class SupportType(Enum):
     PINNED = "pinned"   # Apenas w restrito
@@ -376,6 +382,8 @@ class LajesMindlinSolver:
         combo_multiplier_perm=1.0,
         combo_multiplier_acid=1.0
     ) -> LajesSolverResult:
+        if HAS_RUST_CORE:
+            return self._solve_with_rust(combo_multiplier_pp, combo_multiplier_perm, combo_multiplier_acid)
         
         K, F, K_unpenalized = self._assemble_global(combo_multiplier_pp, combo_multiplier_perm, combo_multiplier_acid)
         U = self._solve_linear_system(K, F)
@@ -441,8 +449,6 @@ class LajesMindlinSolver:
             vx_el[ie] = Ds * (thx_c + dwdx)
             vy_el[ie] = Ds * (thy_c + dwdy)
 
-        residual = float(reactions_total - self._last_distributed_load_total)
-
         return LajesSolverResult(
             nodes=self.nodes,
             elements=self.elements,
@@ -456,9 +462,86 @@ class LajesMindlinSolver:
             reactions=reactions,
             distributed_load_total=float(self._last_distributed_load_total),
             reactions_total=float(reactions_total),
-            residual=residual
+            residual=float(reactions_total - self._last_distributed_load_total)
         )
 
+    def _solve_with_rust(self, combo_pp=1.0, combo_perm=1.0, combo_acid=1.0) -> LajesSolverResult:
+        m = self.model
+        
+        # Preparar material para o Rust
+        rust_material = structural_core_rs.SlabMaterial(
+            e=float(m.material.E),
+            nu=float(m.material.nu),
+            h=float(m.material.h)
+        )
+        
+        # Preparar furos
+        rust_holes = [
+            structural_core_rs.RustHole(float(h.x_min), float(h.y_min), float(h.x_max), float(h.y_max))
+            for h in m.holes
+        ]
+        
+        # Preparar pilares
+        rust_pillars = [
+            structural_core_rs.RustPillar(str(p.id), float(p.x), float(p.y), float(p.p_kN), float(p.bx), float(p.by))
+            for p in m.pillars
+        ]
+        
+        q_total = float(m.q_pp * combo_pp + m.q_perm * combo_perm + m.q_acid * combo_acid)
+        
+        # Criar modelo de laje de alto nível
+        rust_model = structural_core_rs.SlabModel(
+            lx=float(m.Lx),
+            ly=float(m.Ly),
+            nx=int(m.nx),
+            ny=int(m.ny),
+            holes=rust_holes,
+            pillars=rust_pillars,
+            q_total=q_total
+        )
+        
+        # Resolver em Rust (Geração de malha + Assemblagem + Solver + Esforços)
+        res = structural_core_rs.solve_slabs_from_model(rust_model, rust_material)
+        
+        # Sincronizar malha gerada pelo Rust
+        self.nodes = np.array(res["nodes"])
+        self.elements = np.array(res["elements"], dtype=int)
+        self._tributary_areas = self._compute_tributary_areas()
+        
+        # Extrair resultados
+        u = np.array(res["u"])
+        disp = u.reshape(-1, 3)
+        mx = np.array(res["mx"])
+        my = np.array(res["my"])
+        mxy = np.array(res["mxy"])
+        vx = np.array(res["vx"])
+        vy = np.array(res["vy"])
+        
+        # Reações de apoio
+        reactions_raw = np.array(res["reactions"])
+        reactions = np.zeros(len(self.nodes))
+        for i in range(len(self.nodes)):
+            reactions[i] = -reactions_raw[i * 3]
+            
+        distributed_load_total = q_total * np.sum(self._tributary_areas)
+        reactions_total = np.sum(reactions)
+        residual = abs(distributed_load_total - reactions_total)
+        
+        return LajesSolverResult(
+            nodes=self.nodes,
+            elements=self.elements,
+            disp=disp,
+            mx=mx,
+            my=my,
+            mxy=mxy,
+            vx=vx,
+            vy=vy,
+            tributary_areas=self._tributary_areas,
+            reactions=reactions,
+            distributed_load_total=distributed_load_total,
+            reactions_total=reactions_total,
+            residual=residual
+        )
     def export_element_results_csv(self, result: LajesSolverResult, path: str) -> str:
         rows = []
         for ie, el in enumerate(self.elements):

@@ -3,11 +3,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Square, Microscope, Info, Calculator, Brain } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { StructuralDuel } from './StructuralDuel';
 import { useCallback } from 'react';
 import { calculateSpecialElement } from '@/lib/api-mestre';
 import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
 
 import { MestreDiagram } from './MestreDiagram';
+import { SoilProfileVisualizer } from './SoilProfileVisualizer';
 
 export function FootingPlayground() {
   const { 
@@ -19,7 +22,8 @@ export function FootingPlayground() {
     setCalculationTrace, 
     setFullResults,
     fullResults,
-    isLoading 
+    isLoading,
+    error 
   } = useMestreStore();
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
@@ -64,12 +68,14 @@ export function FootingPlayground() {
       <div className="space-y-4">
         {/* Seção 1: Geotecnia */}
         <div className="space-y-4 p-4 rounded-xl bg-muted/30 border border-border/50">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-            <Microscope className="w-3 h-3" />
-            Solo e Carregamento
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Microscope className="w-3 h-3" />
+              Solo e Carregamento
+            </h4>
+          </div>
           
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="Nd" className="text-xs text-muted-foreground">Carga Axial Nd (kN)</Label>
               <Input 
@@ -82,13 +88,28 @@ export function FootingPlayground() {
             </div>
             
             <div className="space-y-1.5">
-              <Label htmlFor="sigma_adm" className="text-xs text-muted-foreground">Tensão Admissível Solo (kPa)</Label>
+              <Label htmlFor="sigma_adm" className="text-xs text-muted-foreground">Tensão Adm. (kPa)</Label>
               <Input 
                 id="sigma_adm" 
                 type="number" 
                 value={params.sigma_adm} 
                 onChange={(e) => updateParam('sigma_adm', e.target.value)}
                 className="h-9 bg-background/50"
+              />
+            </div>
+          </div>
+
+          <SoilProfileVisualizer />
+
+          <div className="space-y-1.5 pt-2 border-t border-primary/5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] font-bold text-orange-600 uppercase">Análise Não-Linear (ISE)</Label>
+                <p className="text-[8px] text-muted-foreground leading-tight">Plastificação do solo via Winkler Não-Linear</p>
+              </div>
+              <Switch 
+                checked={params.is_nonlinear_isi || false} 
+                onCheckedChange={(val) => updateParams({ is_nonlinear_isi: val })} 
               />
             </div>
           </div>
@@ -154,6 +175,26 @@ export function FootingPlayground() {
       </div>
 
       {fullResults?.sigma_max_kPa && (
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Microscope className="w-3 h-3" />
+            Resumo Geotécnico
+          </h4>
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard label="Pressão Máx (kPa)" value={fullResults.sigma_max_kPa.toFixed(1)} />
+            <MetricCard label="Status Solo" value={fullResults.status_geotech || fullResults.status} color={fullResults.status_geotech === 'ELÁSTICO' || fullResults.status === 'OK' ? 'text-emerald-500' : 'text-orange-500'} />
+            {fullResults.is_nonlinear_isi && (
+              <MetricCard 
+                label="Plastificação" 
+                value={`${((fullResults.isi_details?.plastification_ratio || 0) * 100).toFixed(1)}%`} 
+                color={fullResults.isi_details?.plastification_ratio > 0 ? 'text-orange-500' : 'text-emerald-500'}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {fullResults?.sigma_max_kPa && (
         <MestreDiagram
           title="Distribuição de Pressões no Solo"
           unit="kPa"
@@ -167,11 +208,22 @@ export function FootingPlayground() {
           ]}
         />
       )}
+      
+      <StructuralDuel />
 
       <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed px-4">
         Cálculo normativo baseado na NBR 6118:2023 e NBR 6122.
         Resultados em tempo real via Atlas Core.
       </p>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, color }: { label: string; value: any; color?: string }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return (
+    <div className="p-3 rounded-xl bg-background/50 border border-border/50">
+      <p className="text-[8px] uppercase font-black text-muted-foreground tracking-tighter">{label}</p>
+      <p className={`mt-1 text-sm font-black ${color || 'text-foreground'}`}>{value}</p>
     </div>
   );
 }

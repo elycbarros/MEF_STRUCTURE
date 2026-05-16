@@ -87,27 +87,66 @@ class ColumnDetailer:
         }
 
     @staticmethod
+    def calculate_executive_geometry(b_m: float, h_m: float, longit: dict) -> dict:
+        """
+        Gera coordenadas (x, y) reais para as barras do pilar em planta.
+        """
+        cover = 0.03 # 3cm
+        phi_m = longit['phi_mm'] / 1000.0
+        count = longit['count']
+        
+        # Posicionamento simplificado (cantos + distribuição)
+        coords = []
+        
+        # Cantos
+        corners = [
+            (cover + phi_m/2, cover + phi_m/2),
+            (b_m - cover - phi_m/2, cover + phi_m/2),
+            (b_m - cover - phi_m/2, h_m - cover - phi_m/2),
+            (cover + phi_m/2, h_m - cover - phi_m/2)
+        ]
+        coords.extend(corners)
+        
+        # Se houver mais de 4, distribuir nos lados (simplificado para o sketch)
+        if count > 4:
+            remaining = count - 4
+            # Distribuir nas faces maiores
+            for i in range(remaining):
+                side_x = cover + phi_m/2 + (i+1)*(b_m - 2*cover - phi_m)/(remaining+1)
+                coords.append((side_x, cover + phi_m/2))
+                
+        return {
+            'rebar_coords': [{'x': round(c[0], 3), 'y': round(c[1], 3)} for c in coords],
+            'cover_m': cover
+        }
+
+    @staticmethod
     def generate_detailing_summary(solve_result: dict) -> dict:
         """
         Gera o resumo completo de detalhamento para um pilar.
         """
-        As_req = solve_result['As_final_cm2']
+        As_req = solve_result.get('As_final_cm2', 12.0)
         # Parse dimensões: "60x60" -> 0.6, 0.6
-        parts = solve_result['section'].split('x')
+        section = solve_result.get('section', '40x40')
+        parts = section.split('x')
         b = float(parts[0]) / 100.0
         h = float(parts[1]) / 100.0
         
         longit = ColumnDetailer.select_longitudinal_rebar(As_req)
-        stirrup = ColumnDetailer.calculate_stirrups(b, h, longit['phi_mm'], solve_result['Nd_kN'])
+        stirrup = ColumnDetailer.calculate_stirrups(b, h, longit['phi_mm'], solve_result.get('Nd_kN', 1000))
+        
+        # Nova Geometria Executiva
+        exec_geo = ColumnDetailer.calculate_executive_geometry(b, h, longit)
         
         return {
-            'pilar_label': "P1", # Placeholder
-            'section': solve_result['section'],
+            'pilar_label': "P1",
+            'section': section,
             'longitudinal': longit,
             'transverse': stirrup,
-            'steel_ca50_kg': round(longit['count'] * 3.0 * 0.00617 * (longit['phi_mm']**2), 2), # Aprox 3m altura
+            'executive': exec_geo,
+            'steel_ca50_kg': round(longit['count'] * 3.0 * 0.00617 * (longit['phi_mm']**2), 2),
             'notes': [
-                "Concreto C" + str(solve_result['fck_MPa']),
+                "Concreto C" + str(solve_result.get('fck_MPa', 30)),
                 "Aço CA-50",
                 "Cobrimento 3.0 cm"
             ]

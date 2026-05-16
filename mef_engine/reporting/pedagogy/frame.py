@@ -9,6 +9,9 @@ def build_frame_blackboard(result: dict, payload: dict):
     """
     engine = MemorialEngine("Análise de Pórtico Espacial - Método da Rigidez Direta", "frame")
     
+    nodes = payload.get("nodes", [])
+    members = payload.get("members", [])
+    
     # 1. Introdução Teórica
     engine.add_step(
         id="frame-intro",
@@ -20,9 +23,22 @@ def build_frame_blackboard(result: dict, payload: dict):
         norm="NBR 6118 / Mecânica das Estruturas"
     )
     
-    # 2. Geometria e Conectividade
-    nodes = payload.get("nodes", [])
-    members = payload.get("members", [])
+    # 2. Materiais e Propriedades (Nova Seção Elite)
+    if members:
+        m = members[0]
+        # Tenta extrair E da seção do primeiro membro
+        E = m.get("section", {}).get("E", 2.1e11) / 1e9 # GPa
+        engine.add_step(
+            id="frame-materials",
+            title="Materiais e Parâmetros Elásticos",
+            formula=r"E = \text{Módulo de Elasticidade}, \quad G = \text{Módulo de Cisalhamento}",
+            substitution=rf"E = {E:.0f}\,GPa, \quad \nu = 0,20",
+            result=rf"G = \frac{{E}}{{2(1+\nu)}} = {E/2.4:.1f}\,GPa",
+            explanation="Os parâmetros elásticos definem a rigidez axial e de flexão do modelo linear.",
+            norm="NBR 6118, Item 8.2"
+        )
+
+    # 3. Geometria e Conectividade
     engine.add_step(
         id="frame-geometry",
         title="Discretização do Modelo",
@@ -33,22 +49,36 @@ def build_frame_blackboard(result: dict, payload: dict):
         norm="Geometria do Modelo"
     )
     
-    # 3. Matriz de Rigidez Local (Amostra)
+    # 4. Matriz de Transformação (Novo - Mestre)
     pedagogical_data = result.get("pedagogical_proofs", {})
+    if "sample_t_matrix" in pedagogical_data:
+        m_id = pedagogical_data.get("sample_member_id", "?")
+        engine.add_step(
+            id="frame-transformation",
+            title=f"Transformação de Coordenadas - Barra {m_id}",
+            formula=r"\mathbf{k}_{glob} = \mathbf{T}^T \mathbf{k}_{loc} \mathbf{T}",
+            substitution=r"\mathbf{T} = \text{Matriz de Rotação 3D (Cossenos Diretores)}",
+            result=r"\text{Matriz de Transformação 12x12 calculada.}",
+            explanation="A matriz de transformação T rotaciona os esforços e deslocamentos do sistema local da barra para o sistema global da estrutura.",
+            norm="Matriz de Rotação 3D"
+        )
+
+    # 5. Matriz de Rigidez Local (Amostra)
     if "sample_k_local" in pedagogical_data:
         m_id = pedagogical_data.get("sample_member_id", "?")
+        l_val = pedagogical_data.get("sample_l", 1.0)
         engine.add_step(
             id="frame-k-local",
             title=f"Matriz de Rigidez Local - Barra {m_id}",
             formula=r"\mathbf{k}_{loc} = \begin{bmatrix} EA/L & \dots \\ \dots & 12EI/L^3 \end{bmatrix}",
-            substitution=r"\text{Matriz de Rigidez Local 12x12}",
-            result=r"\text{Montagem concluída com sucesso.}",
+            substitution=rf"L = {l_val:.2f}\,m",
+            result=r"\text{Montagem da matriz 12x12 concluída.}",
             explanation="Cada elemento contribui para a rigidez global através de sua matriz local, que considera efeitos axiais, de flexão (biaxial) e torção.",
             norm="Método dos Elementos Finitos",
-            diagramData={"kind": "frame", "title": f"Modelo de Barra {m_id}", "values": {"L": 1.0}}
+            diagramData={"kind": "frame", "title": f"Modelo de Barra {m_id}", "values": {"L": l_val}}
         )
 
-    # 4. Equilíbrio de Nós (Auditoria)
+    # 6. Equilíbrio de Nós (Auditoria)
     equilibrium = result.get("equilibrium_audit", {})
     if equilibrium:
         err_vec = equilibrium.get("equilibrium_error_kN_m", [0,0,0,0,0,0])

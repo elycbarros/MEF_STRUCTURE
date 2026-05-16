@@ -129,7 +129,7 @@ class Frame3DEngine:
         n1, n2 = self.nodes[m.node_i], self.nodes[m.node_j]
         dz = abs(n2.z - n1.z)
         L = m.L if m.L > 0 else 1.0
-        return 'column' if dz/L > 0.8 else 'beam'
+        return 0 if dz/L > 0.8 else 1
 
     def _get_m_local(self, m: FrameMember, L: float, density: float = 2500.0):
         """Matriz de Massa Lumped (M5-Master)."""
@@ -142,50 +142,64 @@ class Frame3DEngine:
         for i in [3,4,5, 9,10,11]: me[i,i] = m_node * (L**2 / 100.0) 
         return me
 
-    def _format_results(self, U: np.ndarray) -> dict:
-        """Formata o vetor de deslocamentos para o dicionário padrão do Atlas."""
+    def _format_results(self, U: np.ndarray, efforts: dict = None, reactions: np.ndarray = None, pedagogical_proofs: dict = None) -> dict:
+        """Formata os resultados para o dicionário padrão do Atlas."""
         disps = {nid: U[self.node_map[nid]*6 : self.node_map[nid]*6+6].tolist() for nid in self.nodes}
-        return {
+        res = {
             'displacements': disps,
             'U_raw': U,
             'success': True
         }
+        if efforts:
+            res['efforts'] = efforts
+        if reactions is not None:
+            res['reactions'] = reactions
+        if pedagogical_proofs:
+            res['pedagogical_proofs'] = pedagogical_proofs
+        return res
 
-    def _get_rust_data(self):
-        """Converte dados para objetos compatíveis com FromPyObject do Rust."""
-        # Nodes já são compatíveis (têm .id, .x, .y, .z)
-        rust_nodes = list(self.nodes.values())
+    def _get_rust_model(self, loads: List[FrameLoad], supports: Dict[int, List[int]], reduce_stiffness: bool = False):
+        """Converte dados para o modelo de alto nível Frame3DModel do Rust."""
+        from structural_core_rs import Node3D, Frame3DMemberPy, Frame3DLoadPy, Frame3DModel
         
-        # Wrappers para Beam/Section/Material (Atributos vs Dicionários)
-        class SectionWrap:
-            def __init__(self, S):
-                self.area = S.b * S.h
-                self.iy = S.h * S.b**3 / 12
-                self.iz = S.b * S.h**3 / 12
-                self.j = 0.141 * S.b * S.h**3
-                self.ey = S.b / 2.0
-                self.ez = S.h / 2.0
+        rust_nodes = [Node3D(n.id, n.x, n.y, n.z) for n in self.nodes.values()]
         
-        class MaterialWrap:
-            def __init__(self, S):
-                self.e = S.E
-                self.g = S.G
-                self.nu = 0.2
-                self.rho = 2500.0
+        rust_members = []
+        for m in self.members:
+            m_type = self._get_member_type(m)
+            # Atlas convention: Iy is minor, Iz is major axis (for vertical columns)
+            # Rust Frame3DMemberPy expects: area, iy, iz, j
+            rust_members.append(Frame3DMemberPy(
+                m.id, m.node_i, m.node_j, 
+                m.section.E, m.section.G,
+                m.section.b * m.section.h,
+                m.section.h * m.section.b**3 / 12.0, # iy
+                m.section.b * m.section.h**3 / 12.0, # iz
+                0.141 * m.section.b * m.section.h**3, # j (approx)
+                m_type
+            ))
+            
+        rust_loads = []
+        for l in loads:
+            if isinstance(l, dict):
+                rust_loads.append(Frame3DLoadPy(
+                    l.get('node_id'), 
+                    l.get('fx', 0), l.get('fy', 0), l.get('fz', 0),
+                    l.get('mx', 0), l.get('my', 0), l.get('mz', 0)
+                ))
+            else:
+                rust_loads.append(Frame3DLoadPy(l.node_id, l.Fx, l.Fy, l.Fz, l.Mx, l.My, l.Mz))
                 
-        class BeamWrap:
-            def __init__(self, m, m_type):
-                self.id = m.id
-                self.node_i = m.node_i
-                self.node_j = m.node_j
-                self.section = SectionWrap(m.section)
-                self.material = MaterialWrap(m.section)
-                self.member_type = m_type
-
-        rust_members = [BeamWrap(m, self._get_member_type(m)) for m in self.members]
-        return rust_nodes, rust_members
+        fixed_dofs = []
+        for nid, blocked in supports.items():
+            base_idx = self.node_map[nid]*6
+            for d in blocked:
+                fixed_dofs.append(base_idx + d)
+                
+        return Frame3DModel(rust_nodes, rust_members, rust_loads, fixed_dofs, reduce_stiffness)
 
     def solve(self, loads: List[FrameLoad], supports: Dict[int, List[int]], axial_loads: Optional[Dict[int, float]] = None, reduce_stiffness: bool = False, elastic_supports: Optional[Dict[int, List[float]]] = None, use_rust: Optional[bool] = None) -> dict:
+        pedagogical_proofs = {}
         from scipy.sparse import csr_matrix
         from scipy.sparse.linalg import spsolve
         try:
@@ -217,20 +231,30 @@ class Frame3DEngine:
 
         if should_use_rust and not elastic_supports:
             try:
-                from structural_core_rs import solve_frame_3d
-                nodes_rs, beams_rs = self._get_rust_data()
-                fixed_dofs = []
-                for nid, blocked in supports.items():
-                    base_idx = self.node_map[nid]*6
-                    for d in blocked:
-                        fixed_dofs.append(base_idx + d)
+                from structural_core_rs import solve_frame_3d_from_model
+                model_rs = self._get_rust_model(loads, supports, reduce_stiffness)
                 
                 # Rust agora faz TUDO: Assemble + Solve esparso nativo
-                u_vec = solve_frame_3d(nodes_rs, beams_rs, F.tolist(), fixed_dofs, reduce_stiffness, axial_loads)
-                U = np.array(u_vec)
-                return self._format_results(U)
+                res_rs = solve_frame_3d_from_model(model_rs)
+                U = np.array(res_rs['u'])
+                
+                # Calcular esforços usando o método existente
+                disps = {nid: U[self.node_map[nid]*6 : self.node_map[nid]*6+6] for nid in self.nodes}
+                efforts = self.get_member_efforts(disps)
+                
+                # Calcular reações: R = K*U - F (aproximado pela penalidade ou reconstrução)
+                # No fluxo Rust, não temos a matriz K global aqui facilmente.
+                # Mas _format_results pode receber None para reactions e o frontend lida, 
+                # ou podemos extrair do solver se atualizarmos o Rust.
+                # Para o Modo Mestre, focamos nos esforços e deslocamentos.
+                
+                pedagogical_proofs = res_rs.get('pedagogical_proofs', {})
+                return self._format_results(U, efforts=efforts, pedagogical_proofs=pedagogical_proofs)
             except Exception as e:
+                import traceback
                 print(f"⚠️ FALLBACK: Erro no motor Rust, usando motor Python legado. Erro: {e}")
+                # traceback.print_exc()
+                traceback.print_exc()
                 should_use_rust = False 
 
         if not should_use_rust or elastic_supports:

@@ -62,13 +62,13 @@ function fixedEndMoments(span: SpanInput): EndMoments {
 
 function endIsReleased(support: SupportType, nodeIndex: number, lastNodeIndex: number): boolean {
   if (support === 'free') return true;
-  if (support === 'pin') return nodeIndex === 0 || nodeIndex === lastNodeIndex;
+  if (support === 'pin' || support === 'roller') return nodeIndex === 0 || nodeIndex === lastNodeIndex;
   return false;
 }
 
 function nodeCanRotate(support: SupportType, nodeIndex: number, lastNodeIndex: number): boolean {
   if (nodeIndex === 0 || nodeIndex === lastNodeIndex) return false;
-  return support === 'pin';
+  return support === 'pin' || support === 'roller';
 }
 
 function endMoment(bar: BarState, end: 'A' | 'B'): number {

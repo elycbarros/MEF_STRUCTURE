@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { StructuralDuel } from './StructuralDuel';
 
 export function SlabPlayground() {
   const { 
@@ -146,6 +147,8 @@ export function SlabPlayground() {
         <Calculator className="w-4 h-4" />
         {isLoading ? 'Processando...' : 'Analisar Laje'}
       </Button>
+
+      <StructuralDuel />
 
       {error && <p className="text-xs text-destructive font-medium">{error}</p>}
     </div>

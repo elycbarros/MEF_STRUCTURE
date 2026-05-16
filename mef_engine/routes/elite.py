@@ -71,6 +71,14 @@ async def calculate_beam(req: BeamAnalysisRequest):
         **result,
         "memorial_markdown": memorial,
         "pedagogical_steps": pedagogical_steps,
+        "calculation_trace": {
+            "requested_type": "beam",
+            "solver_module": "beam_solver",
+            "blackboard_builder": "beam_pedagogy",
+            "classical_check": True,
+            "mef_check": True,
+            "duel": result.get("forensic_audit", {}).get("duel", [])
+        }
     }
     # Forçar summary para compatibilidade
     if "summary" not in res:

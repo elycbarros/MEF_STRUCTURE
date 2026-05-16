@@ -145,9 +145,61 @@ class BeamDetailer:
             
         return round(max(lb_nec, lb_min), 1)
 
+    @staticmethod
+    def calculate_executive_geometry(L_beam_m: float, b_m: float, h_m: float, 
+                                   det_inf: dict, det_sup: dict, al_cm: float) -> dict:
+        """
+        Gera as coordenadas (x, y) reais das barras para o desenho executivo.
+        Unidades de saída: metros.
+        """
+        L = L_beam_m
+        h = h_m
+        cobrimento = 0.03 # 3cm default
+        
+        # 1. Armadura Inferior (N1)
+        # Comprimento total = L + 2 * lb_nec (simplificado como engaste/apoio)
+        lb_nec_inf_m = det_inf['lb_nec'] / 100.0
+        
+        # Coordenadas da barra inferior (incluindo gancho de 15cm se necessário)
+        # Segmentos: (x1, y1) -> (x2, y2)
+        n1_y = cobrimento + (det_inf['phi_mm']/2000.0)
+        n1_coords = [
+            {"x": 0.0, "y": n1_y + 0.15}, # Gancho inicial
+            {"x": 0.0, "y": n1_y},
+            {"x": L,   "y": n1_y},
+            {"x": L,   "y": n1_y + 0.15}  # Gancho final
+        ]
+        
+        # 2. Armadura Superior (N2)
+        n2_y = h - cobrimento - (det_sup['phi_mm']/2000.0)
+        n2_coords = [
+            {"x": 0.0, "y": n2_y - 0.15},
+            {"x": 0.0, "y": n2_y},
+            {"x": L,   "y": n2_y},
+            {"x": L,   "y": n2_y - 0.15}
+        ]
+        
+        return {
+            "n1": {
+                "label": "N1",
+                "phi": det_inf['phi_mm'],
+                "count": det_inf['count'],
+                "coords": n1_coords,
+                "total_length_m": round(L + 0.30, 2) # L + 2*gancho
+            },
+            "n2": {
+                "label": "N2",
+                "phi": det_sup['phi_mm'],
+                "count": det_sup['count'],
+                "coords": n2_coords,
+                "total_length_m": round(L + 0.30, 2)
+            }
+        }
+
     @classmethod
     def generate_detailing_summary(cls, design_res: dict, b_m: float, h_m: float, fck: float, 
-                                 hook_inf: bool = False, hook_sup: bool = False) -> dict:
+                                 L_beam_m: float = 5.0,
+                                 hook_inf: bool = True, hook_sup: bool = True) -> dict:
         """Compila o resumo de detalhamento para a viga."""
         b_cm = b_m * 100
         h_cm = h_m * 100
@@ -166,9 +218,14 @@ class BeamDetailer:
         # Ancoragens (Módulo 6)
         lb_basic_inf = cls.calculate_anchorage(det_inf['phi_mm'], fck, hook=hook_inf)
         lb_nec_inf = cls.calculate_lb_nec(lb_basic_inf, As_inf_calc, det_inf['area_cm2'], phi_mm=det_inf['phi_mm'])
+        det_inf['lb_nec'] = lb_nec_inf
         
         lb_basic_sup = cls.calculate_anchorage(det_sup['phi_mm'], fck, hook=hook_sup)
         lb_nec_sup = cls.calculate_lb_nec(lb_basic_sup, As_sup_calc, det_sup['area_cm2'], phi_mm=det_sup['phi_mm'])
+        det_sup['lb_nec'] = lb_nec_sup
+
+        # Geometria Executiva
+        exec_geo = cls.calculate_executive_geometry(L_beam_m, b_m, h_m, det_inf, det_sup, al)
 
         Asl_torsion = design_res.get('shear', {}).get('Asl_torsion_cm2', 0.0)
         
@@ -179,7 +236,7 @@ class BeamDetailer:
         )
 
         return {
-            "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": d_cm, "al_cm": al},
+            "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": d_cm, "al_cm": al, "L_m": L_beam_m},
             "inf": {
                 "spec": f"{det_inf['count']} Φ {det_inf['phi_mm']}",
                 "phi_mm": det_inf['phi_mm'],
@@ -199,6 +256,7 @@ class BeamDetailer:
                 "lb_basic": lb_basic_sup,
                 "lb_nec": lb_nec_sup
             },
+            "executive": exec_geo,
             "skin": cls.calculate_skin_reinforcement(h_cm, b_cm),
             "torsion": {
                 "Asl_cm2": Asl_torsion,

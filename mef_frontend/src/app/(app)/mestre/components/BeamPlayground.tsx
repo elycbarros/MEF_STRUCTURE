@@ -3,6 +3,7 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { calculateSpecialElement } from '@/lib/api-mestre';
 import { extractMestreSteps, type BeamSupport, type DistributedLoad, type MestreParams, type PointLoad, type SupportType, type MestreApiResponse } from '@/lib/mestre-types';
 import { MestreDiagram } from './MestreDiagram';
+import { StructuralDuel } from './StructuralDuel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,17 @@ export function BeamPlayground() {
   const results = fullResults;
   const totalLength = params.L || 6.0;
 
+  const formattedReactions = results?.reactions 
+    ? Object.values(results.reactions)
+        .sort((a: any, b: any) => (a.x ?? 0) - (b.x ?? 0))
+        .map((r: any, idx: number) => ({
+          x: r.x ?? 0,
+          type: r.type,
+          value: (r.R ?? 0),
+          label: `V${String.fromCharCode(97 + idx)}` // Va, Vb, Vc...
+        }))
+    : [];
+
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
     setIsLoading(true);
     const controller = new AbortController();
@@ -68,12 +80,12 @@ export function BeamPlayground() {
       // The actual solver output is nested in response.result
       const analysisResults = response.result || response;
       
-      // Debug: ensure we have diagrams
-      if (!analysisResults.diagrams && response.diagrams) {
-        analysisResults.diagrams = response.diagrams;
+      // Ensure geometry is present for detailing views
+      if (!analysisResults.geometry) {
+        analysisResults.geometry = { b_cm: payload.b * 100, h_cm: payload.h * 100, L_m: payload.L };
       }
-      
-      setFullResults({ ...analysisResults });
+
+      setFullResults({ ...response, ...analysisResults });
       
       if (steps.length === 0) {
         setError('O motor de cálculo não gerou passos. Verifique se os apoios e cargas estão dentro do vão.');
@@ -99,7 +111,20 @@ export function BeamPlayground() {
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = parseFloat(value);
     if (!Number.isNaN(parsed)) {
-      updateParams({ [key]: parsed });
+      if (key === 'fck') {
+        const alphaE = 1.0;
+        let eCi;
+        if (parsed <= 50) {
+          eCi = alphaE * 5600 * Math.sqrt(Math.max(parsed, 1));
+        } else {
+          eCi = 21500 * alphaE * Math.pow((parsed + 8) / 10, 1/3);
+        }
+        const alphaI = Math.min(0.8 + 0.2 * (parsed / 80), 1.0);
+        const eGPa = Math.round(eCi * alphaI / 1000);
+        updateParams({ fck: parsed, E: eGPa });
+      } else {
+        updateParams({ [key]: parsed });
+      }
     }
   };
 
@@ -147,6 +172,7 @@ export function BeamPlayground() {
     };
 
     updateParams({
+      beamType: preset,
       supports: presets[preset],
       distributed_loads: [{ x_start: 0, x_end: L, q_start: q, q_end: q }],
     });
@@ -157,7 +183,7 @@ export function BeamPlayground() {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold flex items-center gap-2">
           <Box className="w-5 h-5 text-primary" />
-          Laboratório de Vigas (MEF 3D)
+          Laboratório de Vigas (Analítico 2D)
         </h3>
       </div>
 
@@ -284,9 +310,6 @@ export function BeamPlayground() {
 
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Apoios e Vínculos</span>
-              <Button onClick={addSupport} variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/20 text-primary">
-                <Plus className="w-3 h-3" /> Adicionar
-              </Button>
             </div>
             
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
@@ -318,9 +341,9 @@ export function BeamPlayground() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="pinned">Simples</SelectItem>
+                        <SelectItem value="roller">Apoio Móvel</SelectItem>
+                        <SelectItem value="pinned">Apoio Fixo</SelectItem>
                         <SelectItem value="fixed">Engaste</SelectItem>
-                        <SelectItem value="spring">Elástico</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -575,6 +598,7 @@ export function BeamPlayground() {
             color="hsl(217 91% 55%)" 
             fillColor="hsl(217 91% 55% / 0.1)" 
             totalLength={totalLength}
+            reactions={formattedReactions}
           />
           <MestreDiagram 
             points={results.diagrams.moment || []} 
@@ -583,6 +607,7 @@ export function BeamPlayground() {
             color="hsl(262 83% 58%)" 
             fillColor="hsl(262 83% 58% / 0.1)" 
             totalLength={totalLength}
+            reactions={formattedReactions}
           />
           <MestreDiagram 
             points={results.diagrams.deflection || []} 
@@ -591,9 +616,12 @@ export function BeamPlayground() {
             color="hsl(20 90% 48%)" 
             fillColor="hsl(20 90% 48% / 0.1)" 
             totalLength={totalLength}
+            reactions={formattedReactions}
           />
         </div>
       )}
+
+      <StructuralDuel />
 
       <div className="flex flex-col items-center gap-2 pt-4 border-t border-border/50">
         <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed italic px-8">

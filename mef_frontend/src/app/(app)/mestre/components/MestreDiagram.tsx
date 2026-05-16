@@ -7,6 +7,13 @@ interface Point {
   label?: string;
 }
 
+interface Reaction {
+  x: number;
+  value: number;
+  label?: string;
+  type?: 'pinned' | 'fixed' | 'roller' | 'spring';
+}
+
 interface MestreDiagramProps {
   points: Point[];
   title: string;
@@ -15,6 +22,7 @@ interface MestreDiagramProps {
   fillColor: string;
   totalLength: number;
   height?: number;
+  reactions?: Reaction[];
 }
 
 export function MestreDiagram({
@@ -25,6 +33,7 @@ export function MestreDiagram({
   fillColor,
   totalLength,
   height = 180,
+  reactions = [],
 }: MestreDiagramProps) {
   if (!points || points.length === 0) return null;
 
@@ -44,7 +53,13 @@ export function MestreDiagram({
   const zeroY = height / 2;
 
   const xFor = (x: number) => padX + (x / safeTotalLength) * (width - padX * 2);
-  const yFor = (y: number) => zeroY - y * scaleY;
+  
+  // Engineering Convention: Positive Moment is drawn DOWNWARDS
+  const isMomentDiagram = title.toUpperCase().includes('MOMENTO');
+  const yFor = (y: number) => {
+    const val = isMomentDiagram ? -y : y;
+    return zeroY - val * scaleY;
+  };
 
   const polyline = points
     .map(p => `${xFor(p.x).toFixed(1)},${yFor(p.y).toFixed(1)}`)
@@ -79,8 +94,20 @@ export function MestreDiagram({
           <text x={padX - 8} y={zeroY + 4} textAnchor="end" fontSize="10" fill="currentColor" className="text-muted-foreground/50">0</text>
           
           {/* Max/Min labels */}
-          <text x={padX - 8} y={padY + 4} textAnchor="end" fontSize="10" fill="currentColor" className="text-primary font-bold">{fmt(maxValue)}</text>
-          <text x={padX - 8} y={height - padY + 4} textAnchor="end" fontSize="10" fill="currentColor" className="text-destructive font-bold">{fmt(minValue)}</text>
+          <text 
+            x={padX - 8} 
+            y={(isMomentDiagram ? height - padY : padY) + 4} 
+            textAnchor="end" fontSize="10" fill="currentColor" className="text-primary font-bold"
+          >
+            {fmt(maxValue)}
+          </text>
+          <text 
+            x={padX - 8} 
+            y={(isMomentDiagram ? padY : height - padY) + 4} 
+            textAnchor="end" fontSize="10" fill="currentColor" className="text-destructive font-bold"
+          >
+            {fmt(minValue)}
+          </text>
 
           {/* Area Fill */}
           <polygon points={areaPoints} fill={fillColor} className="transition-all duration-500" />
@@ -99,6 +126,66 @@ export function MestreDiagram({
               fill={color} className="opacity-0 group-hover:opacity-100 transition-opacity" 
             />
           ))}
+
+          {/* Reactions Arrows and Labels */}
+          {reactions.map((r, i) => {
+            const rx = xFor(r.x);
+            const isUp = r.value >= 0;
+            const arrowY1 = zeroY;
+            const arrowY2 = isUp ? zeroY - 30 : zeroY + 30;
+            
+            return (
+              <g key={`reaction-${i}`} className="animate-in fade-in zoom-in duration-700 delay-300">
+                <line 
+                  x1={rx} y1={arrowY1} x2={rx} y2={arrowY2} 
+                  stroke="currentColor" className="text-primary" strokeWidth="2" 
+                  markerEnd="url(#arrowhead-beam)"
+                />
+                <text 
+                  x={rx} y={isUp ? arrowY2 - 8 : arrowY2 + 15} 
+                  textAnchor="middle" fontSize="10" fontWeight="bold" 
+                  fill="currentColor" className="text-primary bg-background/80"
+                >
+                  {fmt(Math.abs(r.value))}
+                </text>
+                <text 
+                  x={rx} y={isUp ? arrowY2 - 20 : arrowY2 + 27} 
+                  textAnchor="middle" fontSize="8" fontWeight="black" 
+                  fill="currentColor" className="text-muted-foreground uppercase tracking-tighter"
+                >
+                  {r.label || `R${i+1}`}
+                </text>
+
+                {/* Support Graphic Symbol */}
+                <g transform={`translate(${rx}, ${zeroY})`} className="text-muted-foreground/40">
+                  {r.type === 'fixed' && (
+                    <g>
+                      <line x1="-8" y1="-10" x2="-8" y2="10" stroke="currentColor" strokeWidth="2" />
+                      <line x1="-12" y1="-8" x2="-8" y2="-4" stroke="currentColor" strokeWidth="1" />
+                      <line x1="-12" y1="-4" x2="-8" y2="0" stroke="currentColor" strokeWidth="1" />
+                      <line x1="-12" y1="0" x2="-8" y2="4" stroke="currentColor" strokeWidth="1" />
+                      <line x1="-12" y1="4" x2="-8" y2="8" stroke="currentColor" strokeWidth="1" />
+                    </g>
+                  )}
+                  {r.type === 'pinned' && (
+                    <path d="M-8,12 L8,12 L0,0 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  )}
+                  {r.type === 'roller' && (
+                    <g>
+                      <path d="M-8,8 L8,8 L0,0 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="-8" y1="12" x2="8" y2="12" stroke="currentColor" strokeWidth="1.5" />
+                    </g>
+                  )}
+                </g>
+              </g>
+            );
+          })}
+
+          <defs>
+            <marker id="arrowhead-beam" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" className="text-primary" />
+            </marker>
+          </defs>
         </svg>
       </div>
     </div>
@@ -276,6 +363,7 @@ interface MestreSystemDiagramProps {
   members: SystemMember[];
   title: string;
   deformedScale?: number;
+  reactions?: Record<string, number[]>;
 }
 
 export function MestreSystemDiagram({
@@ -283,6 +371,7 @@ export function MestreSystemDiagram({
   members,
   title,
   deformedScale = 50,
+  reactions = {},
 }: MestreSystemDiagramProps) {
   if (!nodes || nodes.length === 0) return null;
 
@@ -371,6 +460,55 @@ export function MestreSystemDiagram({
               strokeWidth="2"
             />
           ))}
+
+          {/* Reaction Arrows */}
+          {Object.entries(reactions).map(([nid, rVec]) => {
+            const n = nodes.find(node => String(node.id) === nid);
+            if (!n) return null;
+            
+            const nx = xFor(n.x);
+            const nz = zFor(n.z);
+            
+            // Fz is vertical in our mapping (zFor)
+            // Rx is horizontal (xFor)
+            const rx_val = rVec[0];
+            const rz_val = rVec[2]; // Fz is usually index 2 in 3D frame [Rx, Ry, Rz, Mx, My, Mz]
+            
+            return (
+              <g key={`sys-reaction-${nid}`} className="text-primary animate-in fade-in zoom-in duration-700">
+                {/* Vertical Reaction */}
+                {Math.abs(rz_val) > 0.01 && (
+                  <g>
+                    <line 
+                      x1={nx} y1={nz} x2={nx} y2={nz - (rz_val > 0 ? 40 : -40)} 
+                      stroke="currentColor" strokeWidth="2" markerEnd="url(#arrowhead-system)"
+                    />
+                    <text x={nx + 5} y={nz - (rz_val > 0 ? 25 : -25)} fontSize="9" fontWeight="bold" fill="currentColor">
+                      {fmt(Math.abs(rz_val))} kN
+                    </text>
+                  </g>
+                )}
+                {/* Horizontal Reaction */}
+                {Math.abs(rx_val) > 0.01 && (
+                  <g>
+                    <line 
+                      x1={nx} y1={nz} x2={nx + (rx_val > 0 ? 40 : -40)} y2={nz} 
+                      stroke="currentColor" strokeWidth="2" markerEnd="url(#arrowhead-system)"
+                    />
+                    <text x={nx + (rx_val > 0 ? 20 : -20)} y={nz - 5} textAnchor="middle" fontSize="9" fontWeight="bold" fill="currentColor">
+                      {fmt(Math.abs(rx_val))} kN
+                    </text>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+
+          <defs>
+            <marker id="arrowhead-system" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
+            </marker>
+          </defs>
         </svg>
       </div>
     </div>

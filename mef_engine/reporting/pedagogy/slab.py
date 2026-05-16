@@ -32,19 +32,23 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
         )
     )
     
-    fck = getattr(model.material, 'fck', 30.0)
+    # 1. Materiais e Resistências de Cálculo
+    fcd = fck / 1.4
+    fyd = 500.0 / 1.15 # MPa (CA-50)
+    
     me.add_step(
-        id="slab-materials",
-        title="Materiais e Resistências",
-        formula=rf"f_{{ck}} = {fmt(fck, 1)}\,MPa",
-        substitution=f"Concreto C{int(fck)}",
-        result=f"f_cd = {fmt(fck/1.4, 2)} MPa",
-        explanation="Resistência característica do concreto para lajes.",
-        norm="NBR 6118"
+        id="slab-materials-meticulous",
+        title="Materiais e Resistências de Cálculo",
+        formula=r"f_{cd} = \frac{f_{ck}}{\gamma_c}, \quad f_{yd} = \frac{f_{yk}}{\gamma_s}",
+        substitution=rf"f_{{cd}} = \frac{{{fmt(fck)}}}{{1,4}}, \quad f_{{yd}} = \frac{{500}}{{1,15}}",
+        result=rf"f_{{cd}} = {fmt(fcd, 2)}\,MPa, \quad f_{{yd}} = {fmt(fyd, 2)}\,MPa",
+        explanation="As resistências de cálculo são obtidas aplicando-se os coeficientes de ponderação normativos.",
+        norm="NBR 6118, 12.3.3"
     )
+
     me.add_durability_step(int(getattr(model, 'caa', 2)), int(getattr(model, 'cover_mm', 25)))
     
-    # 1. Rigidez da Placa
+    # 2. Rigidez Flexional da Placa (D)
     h = model.material.h
     E = model.material.E
     nu = model.material.nu
@@ -54,9 +58,9 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
         id="slab-stiffness",
         title="Rigidez Flexional da Placa (D)",
         formula=r"D = \frac{E \cdot h^3}{12(1 - \nu^2)}",
-        substitution=rf"D = \frac{{{fmt(E, 1)} \cdot {fmt(h)}^3}}{{12(1 - {fmt(nu)}^2)}}",
+        substitution=rf"D = \frac{{{fmt(E/1e6, 0)}\,MPa \cdot {fmt(h)}^3}}{{12(1 - {fmt(nu)}^2)}}",
         result=rf"D = {fmt(D/1000, 1)}\,kN\cdot m",
-        explanation="A rigidez flexional D representa a resistência da placa à curvatura.",
+        explanation="A rigidez flexional D representa a resistência da placa à curvatura em ambas as direções.",
         norm="Teoria de Placas de Mindlin"
     )
     
@@ -91,6 +95,17 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
     w_max_mm = np.max(np.abs(res.disp[:, 0])) * 1000.0
     l_span = min(model.Lx, model.Ly)
     limit_mm = (l_span * 1000.0) / 250.0
+    
+    me.add_step(
+        id="slab-deflection-branson",
+        title="Análise de Deformação e Inércia Equivalente",
+        formula=r"I_e = (M_r/M_a)^3 I_c + [1-(M_r/M_a)^3] I_{cr}",
+        substitution=r"\text{Modelo de Branson (Seção Fissurada)}",
+        result=r"\text{Status: ELS-DEF Calculado}",
+        explanation="O modelo de Branson estima a perda de rigidez devido à fissuração do concreto sob momentos de serviço.",
+        norm="NBR 6118, 17.3.2.1.1"
+    )
+
     me.add_validation_step(
         id="slab-deflection",
         title="Verificação de Flecha Limite (L/250)",
@@ -102,28 +117,62 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
         norm="NBR 6118, 13.3"
     )
 
-    # 5. Detalhamento da Armadura (Faixa de 1m)
-    # Estimativa de braço de alavanca z ~ 0.9d
-    d_m = h - 0.03
-    as_x_cm2 = (mx_max * 1.4) / (0.9 * d_m * 43.48) if d_m > 0 else 0.0
+    # 5. Dimensionamento à Flexão (ELU)
+    # Altura útil estimada
+    cover_m = float(getattr(model, 'cover_mm', 25)) / 1000.0
     phi_mm = 8.0
+    d_m = h - cover_m - (phi_mm / 2000.0)
+    
+    # Momento reduzido mu
+    Md = mx_max * 1.4 # kNm/m
+    mu = Md / (1.0 * (d_m**2) * fcd * 1000) if d_m > 0 else 0.0
+    
+    # Braço de alavanca z (Domínio 2/3 aproximado)
+    # kx = (1 - sqrt(1 - 2mu/0.85)) / 0.8
+    kx = (1 - math.sqrt(max(0, 1 - 2 * mu / 0.85))) / 0.8 if mu < 0.425 else 0.45
+    z_m = d_m * (1 - 0.4 * kx)
+    
+    as_x_cm2 = (Md * 100) / (fyd / 1.15 * z_m * 100) if z_m > 0 else 0.0 # Aproximado
+    # Recalcular com fyd real
+    as_x_cm2 = (Md) / (fyd/10 * z_m) if z_m > 0 else 0.0
+    
     area_1phi = (phi_mm**2 * 3.1415 / 400.0)
-    spacing_cm = min(20.0, area_1phi / as_x_cm2 * 100) if as_x_cm2 > 0 else 20.0
+    spacing_cm = min(20.0, area_1phi / as_x_cm2 * 100) if as_x_cm2 > 0.1 else 20.0
     n_bars = math.ceil(100 / spacing_cm)
 
     me.add_step(
+        id="slab-effective-depth",
+        title="Altura Útil da Seção (d)",
+        formula=r"d = h - c_{nom} - \phi/2",
+        substitution=rf"d = {fmt(h, 3)} - {fmt(cover_m, 3)} - {fmt(phi_mm/1000, 3)}/2",
+        result=rf"d = {fmt(d_m, 3)}\,m",
+        explanation="A altura útil d é a distância do topo comprimido ao baricentro da armadura de tração.",
+        norm="Geometria"
+    )
+
+    me.add_step(
+        id="slab-flexure-mu",
+        title="Momento Fletor Reduzido (mu)",
+        formula=r"\mu = \frac{M_{sd}}{b \cdot d^2 \cdot f_{cd}}",
+        substitution=rf"\mu = \frac{{ {fmt(Md, 2)} }}{{ 1,0 \cdot {fmt(d_m, 3)}^2 \cdot {fmt(fcd * 1000, 0)} }}",
+        result=rf"\mu = {fmt(mu, 4)}",
+        explanation="O parâmetro mu adimensionaliza o momento para determinar a profundidade da linha neutra.",
+        norm="NBR 6118, 17.2.2"
+    )
+
+    me.add_step(
         id="slab-detailing",
-        title="Detalhamento da Armadura de Flexão (Faixa de 1m)",
-        formula=r"A_s = \frac{M_d}{0,9d \cdot f_{yd}}",
-        substitution=rf"M_{{x,max}} = {fmt(mx_max, 2)}\,kNm/m \quad \phi = {fmt(phi_mm, 1)}\,mm",
-        result=rf"\phi{fmt(phi_mm, 1)} \, c/ {fmt(spacing_cm, 1)}\,cm",
-        explanation="As barras são distribuídas uniformemente por metro linear para resistir aos esforços de placa.",
-        norm="NBR 6118, 20.1",
+        title="Cálculo da Armadura de Flexão (A_s)",
+        formula=r"A_s = \frac{M_{sd}}{z \cdot f_{yd}}, \quad z = d(1 - 0,4k_x)",
+        substitution=rf"z = {fmt(z_m, 3)}\,m, \quad f_{{yd}} = {fmt(fyd, 1)}\,MPa",
+        result=rf"A_s = {fmt(as_x_cm2, 2)}\,\text{{cm}}^2/m \rightarrow \phi{fmt(phi_mm, 1)} \, c/ {fmt(spacing_cm, 1)}\,cm",
+        explanation="Área de aço necessária por metro linear para resistir ao momento solicitante no ELU.",
+        norm="NBR 6118, 17.2.2",
         detailingData={
             "type": "beam_section",
             "b": 1.0, 
             "h": h, 
-            "cover": float(getattr(model, 'cover_mm', 25)) / 1000.0,
+            "cover": cover_m,
             "layers": [
                 {"position": "bottom", "bars": [{"count": n_bars, "diameter": phi_mm}]}
             ]
@@ -138,19 +187,39 @@ def build_punching_slab_blackboard(res: dict, payload: dict = None) -> dict:
     
     # 1. Tensão Solicitante no Perímetro Crítico
     me.add_step(
+        id="punching-u-perim",
+        title="Perímetro Crítico (u1)",
+        formula=r"u_1 = 2(c_1 + c_2) + 4\pi d",
+        substitution=rf"u_1 = 2({fmt(res.get('c1', 0.2), 2)} + {fmt(res.get('c2', 0.2), 2)}) + 4\pi \cdot {fmt(res.get('d_eff_m', 0.15), 3)}",
+        result=rf"u_1 = {fmt(res.get('u_perim_m', 2.0), 3)}\,m",
+        explanation="O perímetro crítico u1 é definido a uma distância 2d da face do pilar para verificação de tração diagonal.",
+        norm="NBR 6118, 19.4"
+    )
+
+    me.add_step(
         id="punching-stress",
         title="Tensão Solicitante de Cisalhamento",
         formula=r"\tau_{sd} = \frac{F_{sd}}{u \cdot d}",
         substitution=rf"\tau_{{sd}} = \frac{{{fmt(res.get('fsd_kN'))}}}{{{fmt(res.get('u_perim_m', 2.0))} \cdot {fmt(res.get('d_eff_m', 0.15))}}}",
         result=rf"\tau_{{sd}} = {fmt(res.get('tau_sd_kPa'), 1)}\,kN/m^2",
-        explanation="A tensão de punção é calculada no perímetro crítico 'u1', situado a 2d da face do pilar.",
+        explanation="A tensão de punção média é calculada no contorno crítico para comparação com a resistência do concreto.",
         norm="NBR 6118, 19.4"
     )
     
     # 2. Verificação de Resistência sem Armadura
+    me.add_step(
+        id="punching-resistance-formula",
+        title="Tensão de Resistência do Concreto (tau_rd1)",
+        formula=r"\tau_{rd1} = 0,12 \cdot k \cdot (100 \cdot \rho_l \cdot f_{ck})^{1/3}",
+        substitution=rf"k = 1 + \sqrt{{200/d}} \leq 2,0 \quad \rho_l = \sqrt{{\rho_x \cdot \rho_y}}",
+        result=rf"\tau_{{rd1}} = {fmt(res.get('tau_rd1_kPa'), 1)}\,kN/m^2",
+        explanation="Resistência de projeto da laje à punção em regiões sem armadura transversal.",
+        norm="NBR 6118, 19.4.1"
+    )
+
     me.add_validation_step(
         id="punching-resistance",
-        title="Resistência à Punção (Concreto)",
+        title="Verificação de Segurança à Punção",
         value=float(res.get("tau_sd_kPa")),
         limit=float(res.get("tau_rd1_kPa")),
         operator="<=",

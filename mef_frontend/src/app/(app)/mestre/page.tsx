@@ -5,7 +5,12 @@ import { getMestreModule } from '@/lib/mestre-modules';
 import { MemorialAccordion } from './components/MemorialAccordion';
 import { MemorialHeader } from './components/MemorialHeader';
 import { StructuralDuel } from './components/StructuralDuel';
+import { FiberMeshView } from './components/FiberMeshView';
+import { EconomyInsight } from './components/EconomyInsight';
 import { Beam3DView } from './components/Beam3DView';
+import { Beam2DView } from './components/Beam2DView';
+import { SteelTableView } from './components/SteelTableView';
+import { ExecutiveSketch } from './components/ExecutiveSketch';
 import { SpecialPlayground } from './components/SpecialPlayground';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Separator } from '@/components/ui/separator';
@@ -19,7 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export default function MestrePage() {
-  const { selectedElementType } = useMestreStore();
+  const { selectedElementType, fullResults } = useMestreStore();
   const activeModule = getMestreModule(selectedElementType);
   const PlaygroundComponent = activeModule?.component || SpecialPlayground;
 
@@ -61,9 +66,9 @@ export default function MestrePage() {
           {/* Esquerda: Playground + Visualização (Col 1-5) */}
           <div className="col-span-12 lg:col-span-5 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
             
-            {/* HUD Visualizador 3D */}
+            {/* HUD Visualizador */}
             <div className="h-[350px] shrink-0">
-              <Beam3DView />
+              {(selectedElementType === 'beam' || selectedElementType === 'beam_cross') ? <Beam2DView /> : <Beam3DView />}
             </div>
 
             {/* Painel de Controle */}
@@ -90,7 +95,30 @@ export default function MestrePage() {
           <div className="col-span-12 lg:col-span-7 flex flex-col overflow-hidden bg-card/40 rounded-2xl border border-border/50 shadow-inner print:border-none print:shadow-none print:bg-white print:overflow-visible print:col-span-12">
             <div className="p-6 h-full overflow-y-auto custom-scrollbar print:overflow-visible print:p-0">
               <MemorialHeader />
+              {selectedElementType === 'column' && <div className="mt-8"><FiberMeshView /></div>}
+              {(selectedElementType === 'beam' || selectedElementType === 'column') && <div className="mt-8"><EconomyInsight /></div>}
               <StructuralDuel />
+              
+              {/* Executive Detailing View */}
+              {fullResults?.executive_detailing && (
+                <div className="mt-8">
+                  <ExecutiveSketch 
+                    geometry={fullResults.geometry} 
+                    rebar={fullResults.executive_detailing.rebar} 
+                  />
+                </div>
+              )}
+
+              {/* Steel Table View */}
+              {fullResults?.steel_table && (
+                <div className="mt-8">
+                  <SteelTableView 
+                    data={fullResults.steel_table.rows} 
+                    totals={fullResults.steel_table.totals} 
+                  />
+                </div>
+              )}
+
               <div className="mt-8">
                 <MemorialAccordion />
               </div>

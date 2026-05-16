@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Activity, Calculator, Plus, Share2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,9 +16,10 @@ import type { BeamInput, CrossSolveResult, SpanLoad, SupportType } from '@/lib/v
 import type { MestreStep } from '@/lib/mestre-types';
 import { MestreDiagram } from './MestreDiagram';
 
-const SUPPORT_LABELS: Record<SupportType, string> = {
+const SUPPORT_LABELS: Record<string, string> = {
   fixed: 'Engaste',
-  pin: 'Apoio',
+  pin: 'Apoio Fixo',
+  roller: 'Apoio Móvel',
   free: 'Livre',
 };
 
@@ -114,9 +115,21 @@ function buildCrossSteps(input: BeamInput, results: CrossSolveResult): MestreSte
 }
 
 export function BeamCrossPlayground() {
-  const { setPedagogicalSteps, setCalculationTrace, setError, setIsLoading, isLoading, error } = useMestreStore();
+  const { setPedagogicalSteps, setCalculationTrace, setError, setIsLoading, isLoading, error, updateParams } = useMestreStore();
   const [beamInput, setBeamInput] = useState<BeamInput>(defaultBeamInput);
   const [results, setResults] = useState<CrossSolveResult | null>(null);
+
+  // Sincronizar com o estado global para o visualizador 2D
+  useEffect(() => {
+    updateParams({
+      spans: beamInput.spans,
+      supports: beamInput.supports,
+      h: (beamInput.sectionH || 50) / 100,
+      b: (beamInput.sectionB || 20) / 100,
+      fck: beamInput.fck || 25,
+      L: beamInput.spans.reduce((sum, s) => sum + (s.length || 0), 0)
+    });
+  }, [beamInput, updateParams]);
 
   const totalLength = useMemo(() => Math.max(beamInput.spans.reduce((sum, span) => sum + asFiniteNumber(span.length), 0), 0), [beamInput.spans]);
   const maxAbsShear = results ? Math.max(0, ...results.diagrams.map((point) => Math.abs(asFiniteNumber(point.shear)))) : 0;
@@ -129,7 +142,18 @@ export function BeamCrossPlayground() {
       const sectionH = field === 'sectionH' ? asFiniteNumber(value) : asFiniteNumber(current.sectionH, 50);
       const fck = field === 'fck' ? asFiniteNumber(value) : asFiniteNumber(current.fck, 25);
       const nextInertia = inertiaCm4(sectionB, sectionH);
-      const eGPa = field === 'fck' ? Math.round((0.85 * 5600 * Math.sqrt(Math.max(fck, 1))) / 1000) : current.eGPa;
+      const calculateE = (f: number) => {
+        const alphaE = 1.0;
+        let eCi;
+        if (f <= 50) {
+          eCi = alphaE * 5600 * Math.sqrt(Math.max(f, 1));
+        } else {
+          eCi = 21500 * alphaE * Math.pow((f + 8) / 10, 1/3);
+        }
+        const alphaI = Math.min(0.8 + 0.2 * (f / 80), 1.0);
+        return Math.round(eCi * alphaI / 1000); // GPa
+      };
+      const eGPa = field === 'fck' ? calculateE(fck) : current.eGPa;
 
       return {
         ...current,
@@ -372,7 +396,7 @@ export function BeamCrossPlayground() {
               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reações</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {results.nodeReactions.map((reaction) => (
+              {results.nodeReactions.map((reaction, i) => (
                 <div key={reaction.nodeId} className="flex justify-between rounded-lg bg-background/50 px-3 py-2 text-xs">
                   <span className="font-bold">{reaction.nodeId}</span>
                   <span className="font-mono">{fmt(reaction.verticalReaction)} kN</span>
@@ -414,6 +438,14 @@ export function BeamCrossPlayground() {
               unit="kN"
               color="hsl(217 91% 55%)"
               fillColor="rgba(37, 99, 235, 0.1)"
+              reactions={results.nodeReactions.map((r, i) => ({
+                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
+                value: r.verticalReaction,
+                label: r.nodeId,
+                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
+                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
+                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
+              }))}
             />
             <MestreDiagram
               points={results.diagrams.map(p => ({ x: p.xGlobal, y: p.moment ?? 0 }))}
@@ -422,6 +454,14 @@ export function BeamCrossPlayground() {
               unit="kNm"
               color="hsl(262 83% 58%)"
               fillColor="rgba(147, 51, 234, 0.1)"
+              reactions={results.nodeReactions.map((r, i) => ({
+                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
+                value: r.verticalReaction,
+                label: r.nodeId,
+                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
+                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
+                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
+              }))}
             />
             <MestreDiagram
               points={results.diagrams.map(p => ({ x: p.xGlobal, y: p.deflection ?? 0 }))}
@@ -430,6 +470,14 @@ export function BeamCrossPlayground() {
               unit="mm"
               color="hsl(20 90% 48%)"
               fillColor="rgba(234, 88, 12, 0.1)"
+              reactions={results.nodeReactions.map((r, i) => ({
+                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
+                value: r.verticalReaction,
+                label: r.nodeId,
+                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
+                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
+                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
+              }))}
             />
           </div>
         </div>
@@ -467,5 +515,3 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-

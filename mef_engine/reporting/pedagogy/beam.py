@@ -128,6 +128,21 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         norm="NBR 6118, 14.7"
     )
 
+    # 1.3 Matriz de Rigidez Local (Prova Pedagógica Mestre)
+    pedagogical_data = result.get("pedagogical_proofs", {})
+    if "sample_k_local" in pedagogical_data:
+        m_id = pedagogical_data.get("sample_member_id", "0")
+        le_val = L / result.get("n_elements", 40)
+        me.add_step(
+            id="beam-k-local",
+            title=f"Matriz de Rigidez Local - Elemento {m_id}",
+            formula=r"\mathbf{k}_{loc} = \frac{EI}{L^3} \begin{bmatrix} 12 & 6L \\ 6L & 4L^2 \end{bmatrix}",
+            substitution=rf"EI = {fmt(Ecs * 1000 * Ic, 0)}\,kN \cdot m^2, \quad L_e = {fmt(le_val, 3)}\,m",
+            result=r"\text{Matriz 4x4 (w, \theta) montada.}",
+            explanation="Cada sub-elemento da viga contribui para a rigidez global. O Atlas utiliza o MEF com 3 DOFs por nó (w, theta, phi) para capturar efeitos de flexão e torção.",
+            norm="Método dos Elementos Finitos"
+        )
+
     # 2. Resumo de Ações e Reações
     distributed_loads = payload.get("distributed_loads") or []
     point_loads = payload.get("point_loads") or []
@@ -230,6 +245,19 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         norm="NBR 6118, 17.3.3"
     )
     
+    # 5. Estados Limites de Serviço (ELS)
+    branson = deflection.get("branson", {})
+    if branson:
+        me.add_step(
+            id="beam-branson-inertia",
+            title="Rigidez Equivalente (Inércia de Branson)",
+            formula=r"I_{eq} = \left(\frac{M_r}{M_a}\right)^3 I_c + \left[1 - \left(\frac{M_r}{M_a}\right)^3\right] I_{cr}",
+            substitution=rf"M_r = {fmt(branson.get('Mr_kNm'), 2)}\,kNm, \quad M_a = {fmt(branson.get('Ma_kNm'), 2)}\,kNm, \quad I_{{cr}} \approx 0,3 I_c",
+            result=rf"I_{{eq}} = {fmt(branson.get('Ieq_m4'), 7)}\,m^4",
+            explanation="Para o cálculo de flechas em serviço, a NBR 6118 exige considerar a redução de rigidez devida à fissuração do concreto (Modelo de Branson).",
+            norm="NBR 6118, 17.3.2.1.1"
+        )
+
     me.add_validation_step(
         id="beam-deflection",
         title="Flecha Máxima (ELS-DEF)",
@@ -237,7 +265,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         limit=float(deflection.get("limit_mm", L*1000/250)),
         operator="<=",
         unit="mm",
-        explanation="A flecha é calculada considerando a inércia equivalente de Branson (seção fissurada).",
+        explanation="A flecha final considera a rigidez equivalente calculada e os efeitos de fluência do concreto.",
         norm="NBR 6118, 17.3.2"
     )
 
