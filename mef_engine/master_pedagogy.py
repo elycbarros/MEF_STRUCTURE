@@ -6,7 +6,7 @@ from typing import Any, Dict
 from reporting.pedagogy.registry import PedagogyRegistry
 
 # Importação dos builders (descentralizados em /reporting/pedagogy/)
-from reporting.pedagogy.beam import build_beam_blackboard
+from reporting.pedagogy.beam import build_beam_blackboard, build_vigacross_blackboard
 from reporting.pedagogy.column import build_column_blackboard
 from reporting.pedagogy.slab import build_lajes_blackboard
 from reporting.pedagogy.foundation import build_footing_blackboard, build_pile_blackboard
@@ -25,7 +25,10 @@ from reporting.pedagogy.special import (
     build_beam_opening_blackboard,
     build_tension_pro_blackboard
 )
+from reporting.pedagogy.slab import build_lajes_blackboard
 from reporting.pedagogy.frame import build_frame_blackboard
+from reporting.pedagogy.stability import build_stability_blackboard
+from reporting.pedagogy.foundation import build_spt_blackboard
 
 # Registro manual para manter o dispatcher leve e explícito
 PedagogyRegistry._builders["beam"] = build_beam_blackboard
@@ -48,6 +51,7 @@ PedagogyRegistry._builders["pile_cap"] = build_pile_cap_blackboard
 PedagogyRegistry._builders["beam_opening"] = build_beam_opening_blackboard
 PedagogyRegistry._builders["tension_pro"] = build_tension_pro_blackboard
 PedagogyRegistry._builders["frame"] = build_frame_blackboard
+PedagogyRegistry._builders["vigacross"] = build_vigacross_blackboard
 
 def build_structural_blackboard(element_type: str, result: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -75,6 +79,9 @@ def build_footing_blackboard(result: Dict[str, Any], payload: Dict[str, Any] = N
 
 def build_pile_blackboard(result: Dict[str, Any], payload: Dict[str, Any] = None):
     return build_structural_blackboard("pile", result, payload or {})
+
+def build_vigacross_blackboard(result: Dict[str, Any], payload: Dict[str, Any] = None):
+    return build_structural_blackboard("vigacross", result, payload or {})
 
 def build_forensic_audit(element_type: str, mef_res: dict, analytical_res: dict):
     return build_structural_blackboard("audit", mef_res, {"element_type": element_type, "analytical": analytical_res})

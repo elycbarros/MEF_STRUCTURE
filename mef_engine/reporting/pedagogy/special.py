@@ -74,12 +74,12 @@ def build_stairs_blackboard(res: dict, payload: dict = None) -> dict:
     
     me.add_step(
         id="stairs-moment",
-        title="Momento Fletor de Projeto",
-        formula=r"M_d = \gamma_f \frac{q \cdot L^2}{8}",
-        substitution=rf"q = {fmt(res.get('q_total_kN_m', 10.0), 2)}\,kN/m, \quad L = {fmt(res.get('L_horizontal', 4.0), 2)}\,m",
-        result=rf"M_d = {fmt(res.get('m_max_kNm'), 2)}\,kNm",
-        explanation="Cálculo do esforço fletor máximo para dimensionamento da armadura longitudinal.",
-        norm="NBR 6118"
+        title="Momento Fletor de Projeto (Método das Seções)",
+        formula=r"M_d(x) = R_a x - \frac{q x^2}{2}",
+        substitution=rf"R_a = {fmt(res.get('q_total_kN_m', 10.0) * res.get('L_horizontal', 4.0) / 2.0, 2)}\,kN",
+        result=rf"M_{{d,max}} = {fmt(res.get('m_max_kNm'), 2)}\,kNm",
+        explanation="Considerando a projeção horizontal da escada, o Método das Seções permite isolar o corpo livre inclinado e determinar o momento fletor máximo, que ocorre no meio do vão para condições biapoiadas.",
+        norm="Resistência dos Materiais"
     )
 
     # 4. Detalhamento da Armadura

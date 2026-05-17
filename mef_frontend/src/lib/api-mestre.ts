@@ -4,7 +4,7 @@ import type { MestreApiResponse, MestreElementType, MestreParams } from './mestr
  * API Client para o Modo Mestre do Atlas Structural Engine.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function calculateSpecialElement(
   type: MestreElementType,

@@ -114,6 +114,26 @@ class MemorialEngine:
             norm="Auditoria Forense"
         )
 
+    def add_bibliography_step(self):
+        """Adiciona referências bibliográficas clássicas ao memorial (Elite Pedagogical)."""
+        references = [
+            "1. HIBBELER, Russell C. Resistencia dos Materiais. 7.ed. Prentice Hall, 2010.",
+            "2. FERDINAND, P. B.; JOHNSTON JR, E. R. Resistencia dos Materiais. Mc Graw-Hill.",
+            "3. PEREIRA, J. C., Notas de Aula CURSO DE MECANICA DOS SOLIDOS, DEMEC-UFSC, 2003.",
+            "4. BOTELHO, Manoel H.C. Resistencia dos Materiais. 2.ed. Edgard Blucher. 2013.",
+            "5. ASSAN, Aloisio Ernesto. Resistencia dos Materiais, V.1. 1.ed. Ed. Unicamp. 2010."
+        ]
+        formula_latex = r"\\" .join([rf"\text{{{ref}}}" for ref in references])
+        self.add_step(
+            id="bibliography",
+            title="Bibliografia Recomendada (Resistencia dos Materiais)",
+            formula=r"\text{Base Cientifica e Pedagogica}",
+            substitution=r"\text{Referencias classicas para consulta e aprofundamento}",
+            result=rf"\left\{{ \begin{{array}}{{l}} {formula_latex} \end{{array}} \right.",
+            explanation="As equacoes e metodos apresentados fundamentam-se na bibliografia classica de resistencia dos materiais e mecanica dos solidos.",
+            norm="Literatura Tecnica"
+        )
+
     def build(self, summary: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         return {
             "metadata": {

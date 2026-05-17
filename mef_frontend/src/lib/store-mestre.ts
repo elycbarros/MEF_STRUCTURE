@@ -13,7 +13,7 @@ interface MestreState {
   viewMode: 'interactive' | 'memorial';
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fullResults: any | null;
-  
+
   // Global Engineering Settings
   unitConfig: {
     length: 'm' | 'cm' | 'mm';
@@ -42,7 +42,7 @@ interface MestreState {
   setViewMode: (mode: 'interactive' | 'memorial') => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setFullResults: (results: any) => void;
-  
+
   // Engineering Actions
   updateUnitConfig: (config: Partial<MestreState['unitConfig']>) => void;
   setLoadCases: (cases: MestreState['loadCases']) => void;
@@ -110,12 +110,12 @@ export const useMestreStore = create<MestreState>((set) => ({
   projectMeta: {
     title: 'Edifício Residencial Atlas',
     client: 'Engenharia & Co',
-    engineer: 'Eng. Estrutural',
+    engineer: 'Eng. Estrutural: Ely Barros',
     crea: '123456789-0',
-    location: 'São Paulo - SP',
+    location: 'Palhoça - SC',
   },
 
-  setSelectedElementType: (type) => set({ selectedElementType: type, pedagogicalSteps: [], prediction: null, error: null, calculationTrace: null }),
+  setSelectedElementType: (type) => set({ selectedElementType: type, pedagogicalSteps: [], prediction: null, error: null, calculationTrace: null, isLoading: false }),
   updateParams: (newParams) => set((state) => ({ params: { ...state.params, ...newParams } })),
   setPedagogicalSteps: (steps) => set({ pedagogicalSteps: steps }),
   setIsLoading: (loading) => set({ isLoading: loading }),

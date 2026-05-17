@@ -787,8 +787,84 @@ class ClassicalBeamSolver:
             'max_shear_kN': float(np.max(np.abs(V)) / 1000.0),
             'max_moment_kNm': float(np.max(np.abs(M)) / 1000.0),
             'reactions': [{'x': r['x'], 'R': r['R']/1000.0} for r in internal_reactions],
-            'supports_debug': str([f"x={s.x}" for s in sups])
+            'supports_debug': str([f"x={s.x}" for s in sups]),
+            'formulas': ClassicalBeamSolver.generate_formulas(model, internal_reactions)
         }
+
+    @staticmethod
+    def generate_formulas(model: 'BeamModel', internal_reactions: list):
+        """Gera as equações simbólicas de V(x) e M(x) por trecho (Método de Macaulay)."""
+        pts = {0.0, model.L}
+        for s in model.supports: pts.add(s.x)
+        for p in model.point_loads: pts.add(p.x)
+        for dl in model.distributed_loads:
+            pts.add(dl.x_start)
+            pts.add(dl.x_end)
+        
+        sorted_pts = sorted(list(pts))
+        trechos = []
+        
+        for i in range(len(sorted_pts) - 1):
+            x1, x2 = sorted_pts[i], sorted_pts[i+1]
+            if x2 - x1 < 1e-4: continue
+            
+            v_parts = []
+            m_parts = []
+            
+            # Macaulay-style: somar termos que iniciam em a <= x1
+            # 1. Reações
+            for r in internal_reactions:
+                if r['x'] <= x1 + 1e-4:
+                    rv = r['R'] / 1000.0
+                    if abs(rv) > 1e-3:
+                        v_parts.append(f"{rv:+.2f}")
+                        m_parts.append(f"{rv:+.2f}(x - {r['x']:.2f})")
+                    if 'M' in r and abs(r['M']) > 1e-3:
+                        rm = r['M'] / 1000.0
+                        m_parts.append(f"{rm:+.2f}")
+
+            # 2. Cargas Pontuais
+            for p in model.point_loads:
+                if p.x <= x1 + 1e-4:
+                    pv = p.P / 1000.0
+                    if abs(pv) > 1e-3:
+                        v_parts.append(f"{-pv:+.2f}")
+                        m_parts.append(f"{-pv:+.2f}(x - {p.x:.2f})")
+                    if abs(p.M) > 1e-3:
+                        pm = p.M / 1000.0
+                        m_parts.append(f"{pm:+.2f}")
+            
+            # 3. Cargas Distribuídas
+            pp = (model.section.area * 25000.0 / 1000.0) if getattr(model, "include_self_weight", True) else 0.0
+            if pp > 0:
+                v_parts.append(f"{-pp:+.2f}(x - 0.00)")
+                m_parts.append(f"{-pp/2.0:+.2f}(x - 0.00)^2")
+                if model.L <= x1 + 1e-4:
+                    v_parts.append(f"{pp:+.2f}(x - {model.L:.2f})")
+                    m_parts.append(f"{pp/2.0:+.2f}(x - {model.L:.2f})^2")
+
+            for dl in model.distributed_loads:
+                if dl.x_start <= x1 + 1e-4:
+                    q = dl.q_start / 1000.0
+                    v_parts.append(f"{-q:+.2f}(x - {dl.x_start:.2f})")
+                    m_parts.append(f"{-q/2.0:+.2f}(x - {dl.x_start:.2f})^2")
+                    if dl.x_end <= x1 + 1e-4:
+                        v_parts.append(f"{q:+.2f}(x - {dl.x_end:.2f})")
+                        m_parts.append(f"{q/2.0:+.2f}(x - {dl.x_end:.2f})^2")
+            
+            # Limpeza e formatação final
+            def clean_expr(parts):
+                if not parts: return "0.00"
+                s = " ".join(parts).replace("+", " + ").replace("-", " - ").strip()
+                if s.startswith("+ "): s = s[2:]
+                return s
+
+            trechos.append({
+                "range": f"{x1:.2f} \le x < {x2:.2f}",
+                "shear": f"V(x) = {clean_expr(v_parts)}",
+                "moment": f"M(x) = {clean_expr(m_parts)}"
+            })
+        return trechos
 
 
 def _durability_params(caa: int, member_type: str) -> dict:

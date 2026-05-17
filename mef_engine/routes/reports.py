@@ -137,7 +137,7 @@ async def export_vigacross_pdf(request: VigaCrossPDFRequest):
                 "disciplina": "Teoria das Estruturas",
                 "professor": "Engine VIGA CROSS",
             }, 
-            diagrams=mef_diagrams
+            classical_diagrams=mef_diagrams
         )
         
         return FileResponse(

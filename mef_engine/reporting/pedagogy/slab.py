@@ -83,11 +83,11 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
     mx_max = np.max(np.abs(res.mx)) / 1000.0 # kNm/m
     me.add_step(
         id="slab-moments",
-        title="Solicitações Máximas (MEF)",
-        formula=r"M_{x,max} = \max|M_x(x,y)|",
-        substitution=r"\text{Análise via Elementos Finitos (Placa de Mindlin)}",
-        result=rf"M_{{x,max}} = {fmt(mx_max, 2)}\,kNm/m",
-        explanation="Momentos fletores obtidos através da integração das tensões nos elementos finitos.",
+        title="Esforços por Metro Linear (Método das Seções)",
+        formula=r"m_x = \int_{-0,5}^{0,5} M_x(y) dy \approx M_{x,max}",
+        substitution=r"\text{Seccionamento de uma faixa unitária (1m)}",
+        result=rf"m_{{x,max}} = {fmt(mx_max, 2)}\,kNm/m",
+        explanation="Para dimensionar lajes, utilizamos o Método das Seções para isolar uma faixa unitária de 1 metro. Calculamos então o momento fletor médio que atua nessa seção para determinar a armadura correspondente.",
         norm="NBR 6118, 14.7"
     )
     

@@ -347,6 +347,56 @@ function StairModel() {
   );
 }
 
+function HelicalStairsModel() {
+  const { params } = useMestreStore();
+  const radius = params.radius || 2.5; 
+  const angleDeg = params.angle_total_deg || 180;
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const h_step = params.h_step || 0.18;
+  const steps = Math.max(8, Math.floor((angleDeg / 180) * 16));
+  const anglePerStep = angleRad / steps;
+
+  const rCenter = radius / 2 + 0.1; 
+
+  return (
+    <group position={[0, -((steps * h_step) / 2), 0]}>
+      <mesh position={[0, (steps * h_step) / 2, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.2, 0.2, steps * h_step + 0.5, 32]} />
+        <meshStandardMaterial color="#cfcfcf" roughness={0.5} />
+      </mesh>
+
+      {Array.from({ length: steps }).map((_, i) => {
+        const currentAngle = i * anglePerStep;
+        const currentY = i * h_step;
+        
+        const x = Math.cos(currentAngle) * rCenter;
+        const z = -Math.sin(currentAngle) * rCenter;
+
+        const stepDepth = (radius + 0.2) * anglePerStep; 
+
+        return (
+          <group key={i} position={[x, currentY + h_step / 2, z]} rotation={[0, currentAngle, 0]}>
+            <mesh castShadow receiveShadow>
+              <boxGeometry args={[radius - 0.2, h_step, stepDepth]} />
+              <meshStandardMaterial color="#dedede" transparent opacity={0.72} roughness={0.34} />
+              <lineSegments>
+                <edgesGeometry args={[new THREE.BoxGeometry(radius - 0.2, h_step, stepDepth)]} />
+                <lineBasicMaterial color="#007AFF" linewidth={1} opacity={0.24} transparent />
+              </lineSegments>
+            </mesh>
+          </group>
+        );
+      })}
+      
+      <Html position={[0, steps * h_step + 0.8, 0]} center>
+        <div className="bg-primary/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
+          Helicoidal · R={radius.toFixed(1)}m · {angleDeg}°
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 function RetainingWallModel() {
   const { params } = useMestreStore();
   const height = params.h_wall || params.h || 4;
@@ -767,8 +817,10 @@ export function Beam3DView() {
     <ColumnModel />
   ) : selectedElementType === 'slab' ? (
     <SlabModel />
-  ) : selectedElementType === 'stair' || selectedElementType === 'helical_stairs' ? (
+  ) : selectedElementType === 'stair' ? (
     <StairModel />
+  ) : selectedElementType === 'helical_stairs' ? (
+    <HelicalStairsModel />
   ) : selectedElementType === 'concrete_wall' ? (
     <RetainingWallModel />
   ) : selectedElementType === 'retaining_wall' ? (

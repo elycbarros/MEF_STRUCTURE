@@ -33,8 +33,12 @@ async def analyze_mestre_frame(req: MestreFrameRequest):
         loads = [
             FrameLoad(
                 node_id=l['node_id'], 
-                Fx=l.get('Fx', 0.0), Fy=l.get('Fy', 0.0), Fz=l.get('Fz', 0.0),
-                Mx=l.get('Mx', 0.0), My=l.get('My', 0.0), Mz=l.get('Mz', 0.0)
+                Fx=l.get('fx', l.get('Fx', 0.0)), 
+                Fy=l.get('fy', l.get('Fy', 0.0)), 
+                Fz=l.get('fz', l.get('Fz', 0.0)),
+                Mx=l.get('mx', l.get('Mx', 0.0)), 
+                My=l.get('my', l.get('My', 0.0)), 
+                Mz=l.get('mz', l.get('Mz', 0.0))
             ) for l in req.loads
         ]
         supports = {int(k): v for k, v in req.supports.items()}

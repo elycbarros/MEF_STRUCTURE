@@ -375,6 +375,8 @@ export function MestreSystemDiagram({
 }: MestreSystemDiagramProps) {
   if (!nodes || nodes.length === 0) return null;
 
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
   const width = 720;
   const height = 400;
   const pad = 60;

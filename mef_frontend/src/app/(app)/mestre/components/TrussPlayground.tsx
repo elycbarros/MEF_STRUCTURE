@@ -118,12 +118,13 @@ export function TrussPlayground() {
 
         // Loads on top chord (Gravity loads)
         const loadFactor = (i === 0 || i === panels) ? 0.5 : 1.0;
-        loads.push({ node_id: tId, Fz: -q * loadFactor });
+        loads.push({ node_id: tId, fz: -q * loadFactor });
       }
 
       // 2. Generate Supports
-      supports[0] = [0, 1, 2, 3, 4, 5]; // Fixed/Pinned
-      supports[panels] = [1, 2, 5]; // Roller
+      // Block Rx, Ry, Rz, Mx, My, Mz for stability (X and Z are our 2D plane)
+      supports[0] = [0, 1, 2, 3, 4, 5]; // Node 0: Fixed in all directions
+      supports[panels] = [1, 2, 4, 5]; // Node N: Roller (blocks Ry, Rz, My, Mz) - allowing Rx and Ry rotation
 
       // 3. Generate Members
       let mId = 0;
@@ -154,10 +155,8 @@ export function TrussPlayground() {
           if (i < panels / 2) members.push({ id: mId++, node_i: t1, node_j: b2, section });
           else members.push({ id: mId++, node_i: b1, node_j: t2, section });
         } else if (typology === 'shed' || typology === 'double_shed') {
-          // Always same direction for shed
           members.push({ id: mId++, node_i: b1, node_j: t2, section });
         } else if (typology === 'fink') {
-          // Fink pattern (W-shape diagonals in half-spans)
           if (i < panels / 2) {
              if (i % 2 === 0) members.push({ id: mId++, node_i: b1, node_j: t2, section });
              else members.push({ id: mId++, node_i: b2, node_j: t1, section });
@@ -166,7 +165,6 @@ export function TrussPlayground() {
              else members.push({ id: mId++, node_i: b1, node_j: t2, section });
           }
         } else if (typology === 'fan') {
-          // Fan pattern - radiating from bottom nodes
           const midPanel = Math.floor(panels / 2);
           if (i < midPanel) members.push({ id: mId++, node_i: 0, node_j: t2, section });
           else members.push({ id: mId++, node_i: panels, node_j: t1, section });
@@ -178,7 +176,24 @@ export function TrussPlayground() {
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        
+        // Map results to nodes for visualization (Crucial for deformed diagram)
+        const resultNodes = nodes.map(n => {
+          // Displacements are keyed by stringified node ID in the API response
+          const disp = data.displacements[String(n.id)] || [0, 0, 0, 0, 0, 0];
+          return {
+            ...n,
+            dx: disp[0],
+            dy: disp[1],
+            dz: disp[2]
+          };
+        });
+        
+        setFullResults({
+          ...data,
+          nodes: resultNodes,
+          members: members
+        });
       } else {
         setError("Falha na análise da treliça.");
       }

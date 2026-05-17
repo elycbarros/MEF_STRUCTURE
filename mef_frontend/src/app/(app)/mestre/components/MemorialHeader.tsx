@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Download, FileText, Printer, Share2, Settings } from 'lucide-react';
 import { useMestreStore } from '@/lib/store-mestre';
-import { generateProfessionalMemorial } from '@/lib/api-mestre';
+import { generateProfessionalMemorial, BASE_URL } from '@/lib/api-mestre';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,7 @@ export function MemorialHeader() {
       };
       const response = await generateProfessionalMemorial(fullResults, apiMeta);
       if (response.pdf_url) {
-        window.open(`http://localhost:8000${response.pdf_url}`, '_blank');
+        window.open(`${BASE_URL}${response.pdf_url}`, '_blank');
       }
     } catch (error) {
       console.error("Erro ao gerar memorial executivo:", error);

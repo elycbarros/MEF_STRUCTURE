@@ -125,13 +125,28 @@ def build_column_blackboard(res: dict, payload: dict = None) -> dict[str, Any]:
     if fiber:
         me.add_step(
             id="col-fiber-equilibrium",
-            title="Equilíbrio Da Seção Por Fibras",
-            formula=r"\sum F_i = N_d,\quad \sum F_i y_i = M_x,\quad \sum F_i x_i = M_y",
-            substitution=rf"\varepsilon_0 = {fmt(fiber.get('eps0', 0.0), 6)},\quad k_x = {fmt(fiber.get('kx', 0.0), 6)},\quad k_y = {fmt(fiber.get('ky', 0.0), 6)}",
+            title="Equilíbrio da Seção (Método das Seções)",
+            formula=r"N_d = \int \sigma dA, \quad M_d = \int \sigma y dA",
+            substitution=rf"N_d = {fmt(nd_kn, 1)}\,kN, \quad M_d = {fmt(mdx, 1)}\,kNm",
             result=rf"Convergência: {'OK' if design.get('equilibrium_converged') else 'REVISAR'}",
-            explanation="O solver de pilar usa integração por fibras para equilibrar compressão normal e flexão composta oblíqua.",
-            norm="Método numérico de seções"
+            explanation="O dimensionamento de pilares aplica o Método das Seções em nível microscópico (fibras). Seccionamos o pilar no ponto crítico e integramos as tensões no concreto e no aço para equilibrar os esforços externos.",
+            norm="NBR 6118, 17.2"
         )
+        
+        # --- Bloco de Whitney (Tensões na Seção) ---
+        kx = float(fiber.get("kx", 0.0))
+        ky = float(fiber.get("ky", 0.0))
+        x_depth = math.sqrt(kx**2 + ky**2) * h if h > 0 else 0.0
+        me.add_step(
+            id="col-whitney-block",
+            title="Diagrama de Tensões: Bloco de Whitney",
+            formula=r"R_c = 0,85 f_{cd} \cdot A_{cc}, \quad y = 0,8 x",
+            substitution=rf"x \approx {fmt(x_depth, 3)}\,m, \quad y = 0,8 \cdot {fmt(x_depth, 3)}",
+            result=rf"y \approx {fmt(0.8 * x_depth, 3)}\,m",
+            explanation="Na flexão composta, a área de concreto comprimido ($A_{cc}$) é simplificada pelo bloco retangular equivalente de Whitney (altura $y = 0,8x$). As tensões no aço variam linearmente conforme o domínio de deformação.",
+            norm="NBR 6118, 17.2.2"
+        )
+
         
     # 1.5 Detalhamento Gráfico
     if design:

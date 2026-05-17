@@ -7,7 +7,7 @@ Substitui o strucpy_adapter.py pelo frame_engine.py customizado com:
 - γz calculado via deslocamentos nodais reais do pórtico (C2)
 - Vento NBR 6123 distribuído automaticamente por pavimento
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from typing import Dict, List, Optional
 import numpy as np
 

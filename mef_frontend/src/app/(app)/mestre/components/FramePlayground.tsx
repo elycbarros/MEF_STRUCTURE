@@ -124,7 +124,24 @@ export function FramePlayground() {
       if (data.success) {
         setPedagogicalSteps(extractMestreSteps(data));
         setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        
+        // Map results to nodes for visualization
+        const nodes = data.model_3d?.nodes || [];
+        const resultNodes = nodes.map((n: any) => {
+          const disp = data.displacements[String(n.id)] || [0, 0, 0, 0, 0, 0];
+          return {
+            ...n,
+            dx: disp[0],
+            dy: disp[1],
+            dz: disp[2]
+          };
+        });
+
+        setFullResults({
+          ...data,
+          nodes: resultNodes,
+          members: data.model_3d?.members || []
+        });
       } else {
         setError("Falha na análise do pórtico.");
       }

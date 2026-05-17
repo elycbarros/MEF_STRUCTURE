@@ -5,6 +5,7 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { SoilLayer } from '@/lib/mestre-types';
 import { cn } from '@/lib/utils';
 import { ArrowDown, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const SOIL_TYPES = [
   { id: 'areia', label: 'Areia', color: 'bg-amber-100 border-amber-300 text-amber-800' },

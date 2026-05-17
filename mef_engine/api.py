@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 from typing import List, Dict, Any, Optional
 from fastapi.responses import JSONResponse
@@ -64,6 +65,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static Files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.exception_handler(StructuralError)
 async def structural_exception_handler(request, exc: StructuralError):

@@ -13,7 +13,15 @@ export function Beam2DView() {
       id: 'V1', 
       length: params.L || 6.0, 
       loads: [
-        ...(params.q > 0 ? [{ type: 'udl' as const, value: params.q }] : []),
+        ...(params.distributed_loads && params.distributed_loads.length > 0 
+          ? params.distributed_loads.map((dl: any) => ({ 
+              type: 'udl' as const, 
+              value: dl.q_start, 
+              q_end: dl.q_end,
+              x_start: dl.x_start, 
+              x_end: dl.x_end 
+            }))
+          : params.q > 0 ? [{ type: 'udl' as const, value: params.q, x_start: 0, x_end: params.L || 6.0 }] : []),
         ...(params.point_loads || []).map((pl: any) => ({ type: 'point' as const, value: pl.P, position: pl.x }))
       ]
     }
@@ -134,17 +142,47 @@ export function Beam2DView() {
                 {/* Cargas do Vão */}
                 {span.loads?.map((load: any, li: number) => {
                   if (load.type === 'udl') {
+                    const startX = x + safeNum(load.x_start, 0);
+                    const endX = x + safeNum(load.x_end, spanLen);
+                    const qStart = safeNum(load.value, 0);
+                    const qEnd = safeNum(load.q_end, qStart); // Fallback to q_start if q_end is missing
+                    
+                    const currentUDLLen = endX - startX;
+                    const numArrows = Math.max(Math.floor(currentUDLLen * 4), 2);
+                    
+                    // Height of the load diagram (proportional to value)
+                    const hStart = 0.4 * (qStart / 20); // 20 kN/m as reference
+                    const hEnd = 0.4 * (qEnd / 20);
+
                     return (
                       <g key={`load-${i}-${li}`} className="text-destructive/30">
-                        {[...Array(6)].map((_, arrowIdx) => (
-                          <line 
-                            key={arrowIdx} 
-                            x1={x + (spanLen / 5) * arrowIdx} y1={-h/2 - 0.4} 
-                            x2={x + (spanLen / 5) * arrowIdx} y2={-h/2 - 0.05} 
-                            stroke="currentColor" strokeWidth="0.015" markerEnd="url(#arrowhead-2d)" 
-                          />
-                        ))}
-                        <line x1={x} y1={-h/2 - 0.4} x2={x + spanLen} y2={-h/2 - 0.4} stroke="currentColor" strokeWidth="0.015" />
+                        {[...Array(numArrows)].map((_, arrowIdx) => {
+                          const t = arrowIdx / (numArrows - 1);
+                          const arrowX = startX + currentUDLLen * t;
+                          const arrowH = hStart + (hEnd - hStart) * t;
+                          return (
+                            <line 
+                              key={arrowIdx} 
+                              x1={arrowX} y1={-h/2 - Math.max(arrowH, 0.1)} 
+                              x2={arrowX} y2={-h/2 - 0.05} 
+                              stroke="currentColor" strokeWidth="0.015" markerEnd="url(#arrowhead-2d)" 
+                            />
+                          );
+                        })}
+                        <line x1={startX} y1={-h/2 - Math.max(hStart, 0.1)} x2={endX} y2={-h/2 - Math.max(hEnd, 0.1)} stroke="currentColor" strokeWidth="0.015" />
+                        
+                        {/* Labels for UDL */}
+                        <text x={startX} y={-h/2 - Math.max(hStart, 0.1) - 0.1} textAnchor="start" fontSize="0.12" fontWeight="bold" fill="currentColor">
+                          {qStart.toFixed(0)}
+                        </text>
+                        {qStart !== qEnd && (
+                          <text x={endX} y={-h/2 - Math.max(hEnd, 0.1) - 0.1} textAnchor="end" fontSize="0.12" fontWeight="bold" fill="currentColor">
+                            {qEnd.toFixed(0)}
+                          </text>
+                        )}
+                        <text x={(startX + endX) / 2} y={-h/2 - Math.max(hStart, hEnd, 0.1) - 0.25} textAnchor="middle" fontSize="0.1" fill="currentColor" className="opacity-60">
+                          kN/m
+                        </text>
                       </g>
                     );
                   }

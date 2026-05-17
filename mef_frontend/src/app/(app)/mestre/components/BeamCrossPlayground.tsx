@@ -15,6 +15,7 @@ import { solveCross } from '@/lib/vigacross/engine';
 import type { BeamInput, CrossSolveResult, SpanLoad, SupportType } from '@/lib/vigacross/types';
 import type { MestreStep } from '@/lib/mestre-types';
 import { MestreDiagram } from './MestreDiagram';
+import { StructuralDiagram } from './StructuralDiagram';
 
 const SUPPORT_LABELS: Record<string, string> = {
   fixed: 'Engaste',
@@ -103,14 +104,39 @@ function buildCrossSteps(input: BeamInput, results: CrossSolveResult): MestreSte
       norm: 'Estática das Estruturas',
     },
     {
-      id: 'cross-envelope',
-      title: 'Envoltória Didática de Esforços',
-      formula: String.raw`V_{max} = \max |V(x)|, \quad M_{max} = \max |M(x)|, \quad f_{max} = \max |y(x)|`,
-      substitution: String.raw`\text{Pontos gerados por vão após momentos finais}`,
-      result: String.raw`V_{max} = ${fmt(maxShear)}\,kN, \quad M_{max} = ${fmt(maxMoment)}\,kNm, \quad f_{max} = ${fmt(maxDeflection)}\,mm`,
-      explanation: 'A envoltória permite comparar o comportamento hiperestático com os diagramas da viga MEF isolada.',
-      norm: 'Mecânica Estrutural',
+      id: 'cross-analytical-formulas',
+      title: 'Equações Analíticas por Trecho (Mestre)',
+      formula: String.raw`V(x) = V_{iso} + \frac{M_B + M_A}{L}, \quad M(x) = M_A + (V_0)x - \frac{qx^2}{2}`,
+      substitution: 'Superposição de efeitos isostáticos e momentos de apoio',
+      result: String.raw`\left\{ \begin{array}{l} ${results.barResults.map(bar => {
+        const q = input.spans.find(s => s.id === bar.barId)?.loads.find(l => l.type === 'udl')?.value || 0;
+        const L = bar.length;
+        const ma = bar.finalA;
+        const mb = bar.finalB;
+        const v0 = (q * L / 2) + (mb + ma) / L;
+        return String.raw`\text{Trecho } ${bar.barId}: \quad V(x) = ${fmt(v0)} - ${fmt(q)}x, \quad M(x) = ${fmt(-ma)} + ${fmt(v0)}x - ${fmt(q/2)}x^2`;
+      }).join(String.raw` \\ `)} \end{array} \right.`,
+      explanation: 'Para fins didáticos, as equações analíticas permitem determinar os valores exatos de cortante e momento em qualquer ponto do vão.',
+      norm: 'Resistência dos Materiais',
     },
+    {
+      id: 'cross-influence-lines',
+      title: 'Análise de Trens-Tipo (Linhas de Influência)',
+      formula: String.raw`\text{Envoltória} = \max/\min [ \text{Momento} (x) \text{ para toda carga móvel} ]`,
+      substitution: String.raw`\text{Alternância de sobrecargas nos vãos adjacentes}`,
+      result: String.raw`\text{Pior Caso (Apoios vs Vãos)}`,
+      explanation: 'Em vigas contínuas, os esforços máximos não ocorrem com toda a viga carregada simultaneamente. As Linhas de Influência determinam a posição exata da sobrecarga para maximizar momentos nos apoios (cargas adjacentes) ou nos vãos (cargas alternadas).',
+      norm: 'Teoria das Estruturas',
+    },
+    {
+      id: 'biblio-hibbeler',
+      title: 'Referência Bibliográfica (Teoria das Estruturas)',
+      formula: String.raw`\text{HIBBELER, R.C. Análise Estrutural. 8.ed.}`,
+      substitution: String.raw`\text{Capítulo 11: Análise de Vigas e Pórticos Estaticamente Indeterminados}`,
+      result: String.raw`\text{Base teórica para o Método de Hardy Cross}`,
+      explanation: 'A metodologia de distribuição de momentos e cálculo de rigidez segue os padrões da literatura clássica de engenharia estrutural.',
+      norm: 'Bibliografia Base'
+    }
   ];
 }
 
@@ -119,22 +145,46 @@ export function BeamCrossPlayground() {
   const [beamInput, setBeamInput] = useState<BeamInput>(defaultBeamInput);
   const [results, setResults] = useState<CrossSolveResult | null>(null);
 
-  // Sincronizar com o estado global para o visualizador 2D
+  // Sincronizar com o estado global para o visualizador 2D (com debounce para evitar loops)
   useEffect(() => {
-    updateParams({
-      spans: beamInput.spans,
-      supports: beamInput.supports,
-      h: (beamInput.sectionH || 50) / 100,
-      b: (beamInput.sectionB || 20) / 100,
-      fck: beamInput.fck || 25,
-      L: beamInput.spans.reduce((sum, s) => sum + (s.length || 0), 0)
-    });
-  }, [beamInput, updateParams]);
+    const timer = setTimeout(() => {
+      updateParams({
+        spans: beamInput.spans,
+        supports: beamInput.supports,
+        h: (beamInput.sectionH || 50) / 100,
+        b: (beamInput.sectionB || 20) / 100,
+        fck: beamInput.fck || 25,
+        L: beamInput.spans.reduce((sum, s) => sum + (s.length || 0), 0)
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beamInput.spans, beamInput.supports, beamInput.sectionH, beamInput.sectionB, beamInput.fck]);
 
   const totalLength = useMemo(() => Math.max(beamInput.spans.reduce((sum, span) => sum + asFiniteNumber(span.length), 0), 0), [beamInput.spans]);
   const maxAbsShear = results ? Math.max(0, ...results.diagrams.map((point) => Math.abs(asFiniteNumber(point.shear)))) : 0;
   const maxAbsMoment = results ? Math.max(0, ...results.diagrams.map((point) => Math.abs(asFiniteNumber(point.moment)))) : 0;
   const maxAbsDeflection = results ? Math.max(0, ...results.diagrams.map((point) => Math.abs(asFiniteNumber(point.deflection)))) : 0;
+
+  const getStructuralDiagramData = (type: 'shear' | 'moment' | 'deflection') => {
+    if (!results?.diagrams) return null;
+    
+    return {
+      type,
+      unit: type === 'shear' ? 'kN' : type === 'moment' ? 'kNm' : 'mm',
+      label: type === 'shear' ? 'ESFORÇO CORTANTE' : type === 'moment' ? 'MOMENTO FLETOR' : 'LINHA ELÁSTICA',
+      series: [{
+        name: 'Hardy Cross',
+        points: results.diagrams.map(p => ({ x: p.xGlobal, y: p[type] ?? 0 })),
+        color: type === 'shear' ? 'hsl(217 91% 55%)' : type === 'moment' ? 'hsl(262 83% 58%)' : 'hsl(20 90% 48%)'
+      }],
+      reactions: results.nodeReactions.map((r, i) => ({
+        x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
+        value: r.verticalReaction,
+        label: r.nodeId
+      }))
+    };
+  };
 
   const updateSection = (field: 'sectionB' | 'sectionH' | 'fck', value: number) => {
     setBeamInput((current) => {
@@ -272,29 +322,29 @@ export function BeamCrossPlayground() {
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">Base b (cm)</Label>
-            <Input type="number" value={beamInput.sectionB} onChange={(event) => updateSection('sectionB', Number(event.target.value))} className="h-9 bg-background/50" />
+            <Input type="number" value={beamInput.sectionB ?? 20} onChange={(event) => updateSection('sectionB', Number(event.target.value))} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">Altura h (cm)</Label>
-            <Input type="number" value={beamInput.sectionH} onChange={(event) => updateSection('sectionH', Number(event.target.value))} className="h-9 bg-background/50" />
+            <Input type="number" value={beamInput.sectionH ?? 50} onChange={(event) => updateSection('sectionH', Number(event.target.value))} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">fck (MPa)</Label>
-            <Input type="number" value={beamInput.fck} onChange={(event) => updateSection('fck', Number(event.target.value))} className="h-9 bg-background/50" />
+            <Input type="number" value={beamInput.fck ?? 25} onChange={(event) => updateSection('fck', Number(event.target.value))} className="h-9 bg-background/50" />
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">E (GPa)</Label>
-            <Input type="number" value={beamInput.eGPa} onChange={(event) => setBeamInput((current) => ({ ...current, eGPa: Number(event.target.value) }))} className="h-9 bg-background/50" />
+            <Input type="number" value={beamInput.eGPa ?? 25} onChange={(event) => setBeamInput((current) => ({ ...current, eGPa: Number(event.target.value) }))} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">Tolerância</Label>
-            <Input type="number" step="0.001" value={beamInput.tolerance} onChange={(event) => setBeamInput((current) => ({ ...current, tolerance: Number(event.target.value) }))} className="h-9 bg-background/50" />
+            <Input type="number" step="0.001" value={beamInput.tolerance ?? 0.01} onChange={(event) => setBeamInput((current) => ({ ...current, tolerance: Number(event.target.value) }))} className="h-9 bg-background/50" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[10px] text-muted-foreground uppercase">Iterações</Label>
-            <Input type="number" value={beamInput.maxIterations} onChange={(event) => setBeamInput((current) => ({ ...current, maxIterations: Number(event.target.value) }))} className="h-9 bg-background/50" />
+            <Input type="number" value={beamInput.maxIterations ?? 50} onChange={(event) => setBeamInput((current) => ({ ...current, maxIterations: Number(event.target.value) }))} className="h-9 bg-background/50" />
           </div>
         </div>
       </div>
@@ -322,11 +372,14 @@ export function BeamCrossPlayground() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] text-muted-foreground uppercase">Comprimento (m)</Label>
-                <Input type="number" step="0.1" value={span.length} onChange={(event) => updateSpan(spanIndex, 'length', Number(event.target.value))} className="h-9 bg-background/50" />
+                <Input type="number" step="0.1" value={span.length ?? 4} onChange={(event) => updateSpan(spanIndex, 'length', Number(event.target.value))} className="h-9 bg-background/50" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] text-muted-foreground uppercase">Inércia (cm⁴)</Label>
-                <Input type="number" value={Math.round(span.inertiaCm4)} onChange={(event) => updateSpan(spanIndex, 'inertiaCm4', Number(event.target.value))} className="h-9 bg-background/50" />
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] text-muted-foreground uppercase">Inércia (cm⁴)</Label>
+                  <span className="text-[9px] text-muted-foreground/60 uppercase">Auto</span>
+                </div>
+                <Input type="number" value={Math.round(span.inertiaCm4 ?? 208333)} disabled className="h-9 bg-muted/50 cursor-not-allowed opacity-70" />
               </div>
             </div>
 
@@ -347,7 +400,7 @@ export function BeamCrossPlayground() {
                 <div key={`${span.id}-${loadIndex}`} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end bg-background/40 p-3 rounded-lg border border-border/40">
                   <div className="space-y-1.5">
                     <Label className="text-[9px] text-muted-foreground uppercase">{load.type === 'udl' ? 'q (kN/m)' : 'P (kN)'}</Label>
-                    <Input type="number" value={load.value} onChange={(event) => updateLoad(spanIndex, loadIndex, { value: Number(event.target.value) })} className="h-8 text-xs bg-transparent" />
+                    <Input type="number" value={load.value ?? 0} onChange={(event) => updateLoad(spanIndex, loadIndex, { value: Number(event.target.value) })} className="h-8 text-xs bg-transparent" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[9px] text-muted-foreground uppercase">Posição (m)</Label>
@@ -430,55 +483,20 @@ export function BeamCrossPlayground() {
             </table>
           </div>
 
-          <div className="space-y-3">
-            <MestreDiagram
-              points={results.diagrams.map(p => ({ x: p.xGlobal, y: p.shear ?? 0 }))}
-              totalLength={totalLength}
-              title="Diagrama de Esforço Cortante"
-              unit="kN"
-              color="hsl(217 91% 55%)"
-              fillColor="rgba(37, 99, 235, 0.1)"
-              reactions={results.nodeReactions.map((r, i) => ({
-                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
-                value: r.verticalReaction,
-                label: r.nodeId,
-                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
-                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
-                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
-              }))}
-            />
-            <MestreDiagram
-              points={results.diagrams.map(p => ({ x: p.xGlobal, y: p.moment ?? 0 }))}
-              totalLength={totalLength}
-              title="Diagrama de Momentos Fletores"
-              unit="kNm"
-              color="hsl(262 83% 58%)"
-              fillColor="rgba(147, 51, 234, 0.1)"
-              reactions={results.nodeReactions.map((r, i) => ({
-                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
-                value: r.verticalReaction,
-                label: r.nodeId,
-                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
-                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
-                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
-              }))}
-            />
-            <MestreDiagram
-              points={results.diagrams.map(p => ({ x: p.xGlobal, y: p.deflection ?? 0 }))}
-              totalLength={totalLength}
-              title="Linha Elástica / Flecha"
-              unit="mm"
-              color="hsl(20 90% 48%)"
-              fillColor="rgba(234, 88, 12, 0.1)"
-              reactions={results.nodeReactions.map((r, i) => ({
-                x: results.diagrams.find(d => d.spanId === `V${i+1}`)?.xGlobal ?? (i === results.nodeReactions.length - 1 ? totalLength : 0),
-                value: r.verticalReaction,
-                label: r.nodeId,
-                type: beamInput.supports[i] === 'pin' ? 'pinned' : 
-                      beamInput.supports[i] === 'fixed' ? 'fixed' : 
-                      beamInput.supports[i] === 'roller' ? 'roller' : undefined
-              }))}
-            />
+          <div className="space-y-6">
+            {(() => {
+              const shearData = getStructuralDiagramData('shear');
+              const momentData = getStructuralDiagramData('moment');
+              const deflectionData = getStructuralDiagramData('deflection');
+              
+              return (
+                <>
+                  {shearData && <StructuralDiagram data={shearData as any} />}
+                  {momentData && <StructuralDiagram data={momentData as any} />}
+                  {deflectionData && <StructuralDiagram data={deflectionData as any} />}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -181,6 +181,8 @@ async def calculate_special(req: SpecialElementRequest):
             caa=params.get('caa', 2),
             cover=params.get('cover_mm', None),
             asymmetric_offset=params.get('asymmetric_offset', 0.0),
+            nonlinear=False,  # Análise linear para resposta rápida no modo Mestre
+            n_elements=20,    # Discretização reduzida — adequada para pedagógico
         )
         
         # Injetar Detalhamento Módulo 6-7

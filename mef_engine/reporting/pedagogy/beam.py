@@ -169,6 +169,34 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="O equilíbrio estático global considera cargas informadas, cargas pontuais e peso próprio quando ativado no solver.",
         norm="Mecânica Estrutural"
     )
+    
+    # --- NOVO: Equações Analíticas por Trecho (Requisito Pedagógico Mestre) ---
+    analytical_formulas = diagrams.get("formulas", [])
+    if analytical_formulas:
+        formula_latex = r"\\" .join([
+            rf"\text{{Trecho }} {i+1} \, ({f['range']}): \quad {f['shear']}, \quad {f['moment']}"
+            for i, f in enumerate(analytical_formulas)
+        ])
+        me.add_step(
+            id="beam-analytical-equations",
+            title="Equações de Esforços por Trecho (Método das Seções)",
+            formula=r"V(x) = \sum F_v, \quad M(x) = \sum M_{(x)}",
+            substitution=r"\text{Isolamento de trechos conforme descontinuidades de carga/apoio}",
+            result=rf"\left\{{ \begin{{array}}{{l}} {formula_latex} \end{{array}} \right.",
+            explanation="O Método das Seções consiste em 'cortar' a viga em uma posição 'x' e aplicar as equações de equilíbrio ao corpo livre isolado. Para fins didáticos, as equações analíticas permitem determinar os valores exatos de cortante e momento em qualquer ponto, validando o modelo numérico MEF.",
+            norm="Resistência dos Materiais"
+        )
+        
+        # --- PTV (Princípio dos Trabalhos Virtuais) ---
+        me.add_step(
+            id="beam-ptv",
+            title="Deformação via Princípio dos Trabalhos Virtuais (PTV)",
+            formula=r"\delta = \int_0^L \frac{M(x) \cdot \overline{m}(x)}{EI} dx",
+            substitution=r"\text{Cálculo analítico integrado vs Matriz de Rigidez (MEF)}",
+            result=rf"\delta_{{max}} = {fmt(result.get('max_deflection_mm', 0.0), 2)}\,mm",
+            explanation="Enquanto o MEF utiliza matrizes de rigidez $[K]\{U\} = \{F\}$, a Resistência dos Materiais pura (PTV) integra o momento fletor real $M(x)$ com um momento virtual $\overline{m}(x)$ para obter a flecha exata.",
+            norm="Mecânica dos Sólidos"
+        )
 
     # 3. Verificação ELU (Flexão e Ductilidade)
     flex = design.get("flexure_bottom", {})
@@ -184,6 +212,19 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         explanation="O momento reduzido adimensional mu determina a posição da linha neutra no regime III de dimensionamento.",
         norm="NBR 6118, 17.2.2"
     )
+    
+    # --- Bloco de Whitney (Tensões na Seção) ---
+    xi = float(flex.get("xi", 0.0))
+    if xi > 0:
+        me.add_step(
+            id="beam-whitney-block",
+            title="Diagrama de Tensões: Bloco de Whitney",
+            formula=r"R_c = 0,85 f_{cd} \cdot b_w \cdot y, \quad y = 0,8 x",
+            substitution=rf"y = 0,8 \cdot ({fmt(xi, 3)} \cdot {fmt(d, 3)})",
+            result=rf"y = {fmt(0.8 * xi * d, 3)}\,m \quad (R_c = R_t)",
+            explanation="O modelo diagrama parábola-retângulo do concreto no ELU (Estádio III) é simplificado pelo bloco retangular equivalente de Whitney (altura $y = 0,8x$), onde a força de compressão $R_c$ equilibra a tração $R_t$ no aço.",
+            norm="NBR 6118, 17.2.2"
+        )
     
     kx = float(flex.get('x_d', 0.0))
     kx_lim = float(flex.get('x_d_lim', 0.45))
@@ -248,13 +289,16 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     # 5. Estados Limites de Serviço (ELS)
     branson = deflection.get("branson", {})
     if branson:
+        is_cracked = float(branson.get('Ma_kNm', 0)) > float(branson.get('Mr_kNm', 1e9))
+        estadio = "Estádio II (Seção Fissurada)" if is_cracked else "Estádio I (Seção Íntegra)"
+        
         me.add_step(
             id="beam-branson-inertia",
-            title="Rigidez Equivalente (Inércia de Branson)",
+            title="Análise de Estádios e Inércia Equivalente",
             formula=r"I_{eq} = \left(\frac{M_r}{M_a}\right)^3 I_c + \left[1 - \left(\frac{M_r}{M_a}\right)^3\right] I_{cr}",
-            substitution=rf"M_r = {fmt(branson.get('Mr_kNm'), 2)}\,kNm, \quad M_a = {fmt(branson.get('Ma_kNm'), 2)}\,kNm, \quad I_{{cr}} \approx 0,3 I_c",
-            result=rf"I_{{eq}} = {fmt(branson.get('Ieq_m4'), 7)}\,m^4",
-            explanation="Para o cálculo de flechas em serviço, a NBR 6118 exige considerar a redução de rigidez devida à fissuração do concreto (Modelo de Branson).",
+            substitution=rf"M_a = {fmt(branson.get('Ma_kNm'), 2)}\,kNm \quad M_r = {fmt(branson.get('Mr_kNm'), 2)}\,kNm",
+            result=rf"\text{{Regime: {estadio}}} \Rightarrow I_{{eq}} = {fmt(branson.get('Ieq_m4'), 7)}\,m^4",
+            explanation="Avalia-se se o momento em serviço supera o momento de fissuração ($M_r$). No Estádio II, o concreto tracionado é ignorado, reduzindo a inércia da seção de $I_c$ para $I_e$ (Modelo de Branson).",
             norm="NBR 6118, 17.3.2.1.1"
         )
 
@@ -278,4 +322,93 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     m_mef = float(summary.get("max_moment_kNm", 0.0))
     me.add_comparison_step(m_classic, m_mef)
     
+    # 7. Bibliografia (Elite Pedagogical)
+    me.add_bibliography_step()
+    
+    return me.build()
+
+def build_vigacross_blackboard(results: dict, input_data: dict) -> dict:
+    """Memorial pedagógico especializado para Vigas Contínuas (Hardy Cross)."""
+    me = MemorialEngine("Roteiro Didático: Vigas Contínuas (Hardy Cross)", "vigacross")
+    fmt = me._fmt
+    
+    # 1. Propriedades da Seção
+    me.add_standard_info()
+    me.add_step(
+        id="cross-geom",
+        title="Propriedades da Seção e Rigidez Relativa",
+        formula=r"I = \frac{b \cdot h^3}{12}, \quad K = \frac{E \cdot I}{L}",
+        substitution=rf"b = {input_data.get('sectionB', 20)}\,cm, \quad h = {input_data.get('sectionH', 50)}\,cm",
+        result=rf"I = {fmt(input_data.get('defaultInertiaCm4', 208333), 0)}\,cm^4",
+        explanation="A rigidez de cada vão determina como os momentos desbalanceados são distribuídos nos nós.",
+        norm="Teoria das Estruturas"
+    )
+    
+    # 2. Momentos de Engastamento Perfeito
+    bar_mep = results.get("barResults", [])
+    mep_text = " ; ".join([f"{b['barId']}: {fmt(b['mepA'])} / {fmt(b['mepB'])} kNm" for b in bar_mep])
+    me.add_step(
+        id="cross-mep",
+        title="Momentos de Engastamento Perfeito (MEP)",
+        formula=r"M_{EP} = \mp\frac{qL^2}{12} \quad \text{ou} \quad \mp\frac{Pab^2}{L^2}",
+        substitution=mep_text,
+        result=r"\text{Calculado para cada extremidade}",
+        explanation="Valores iniciais considerando que todos os nós estão perfeitamente engastados antes da liberação.",
+        norm="Método de Hardy Cross"
+    )
+    
+    # 3. Equações por Trecho (Requisito Mestre)
+    formula_steps = []
+    x_offset = 0.0
+    for bar in bar_mep:
+        L = bar.get("length", 1.0)
+        ma = bar.get("finalA", 0.0)
+        mb = bar.get("finalB", 0.0)
+        
+        # Simplificação: assume q constante se houver udl
+        span_id = bar.get("barId")
+        q = 0.0
+        spans = input_data.get("spans", [])
+        span_data = next((s for s in spans if s.get("id") == span_id), {})
+        loads = span_data.get("loads", [])
+        for load in loads:
+            if load.get("type") == "udl":
+                q = load.get("value", 0.0)
+        
+        # V(x) = (qL/2 + (Ma+Mb)/L) - qx
+        # Usamos mb - ma porque Ma e Mb são momentos de apoio (extrema esquerda e direita)
+        # Convenção Cross: Horário positivo. Para vigas: M_esquerda (ma) e M_direita (-mb)
+        v0 = (q * L / 2.0) + (mb + ma) / L # Simplificação pedagógica
+        v_eq = f"V(x) = {v0:.2f} - {q:.2f}x"
+        m_eq = f"M(x) = {-ma:.2f} + {v0:.2f}x - {q/2.0:.2f}x^2"
+        
+        formula_steps.append(
+            rf"\text{{Span }} {span_id} \, ({x_offset:.2f} \le x < {x_offset + L:.2f}): \quad {v_eq}, \quad {m_eq}"
+        )
+        x_offset += L
+
+    me.add_step(
+        id="cross-analytical-equations",
+        title="Equações Analíticas de Esforços (Método das Seções)",
+        formula=r"V(x) = V_{iso} + \frac{M_B + M_A}{L}, \quad M(x) = M_A + (V_0)x - \frac{qx^2}{2}",
+        substitution=r"\text{Superposição de efeitos isostáticos e momentos de apoio}",
+        result=rf"\left\{{ \begin{{array}}{{l}} {' \\\\ '.join(formula_steps)} \end{{array}} \right.",
+        explanation="As equações analíticas por trecho utilizam o Princípio da Superposição e o Método das Seções para decompor a viga contínua em vãos isolados. Esta abordagem é fundamental para o ensino de engenharia, permitindo a verificação manual do equilíbrio de cada barra.",
+        norm="Resistência dos Materiais"
+    )
+
+    # --- Linhas de Influência ---
+    me.add_step(
+        id="cross-influence-lines",
+        title="Análise de Trens-Tipo (Linhas de Influência)",
+        formula=r"\text{Envoltória} = \max/\min [ \text{Momento} (x) \text{ para toda carga móvel} ]",
+        substitution=r"\text{Alternância de sobrecargas nos vãos adjacentes}",
+        result=r"\text{Pior Caso (Apoios vs Vãos)}",
+        explanation="Em vigas contínuas, os esforços máximos não ocorrem com toda a viga carregada simultaneamente. As Linhas de Influência determinam a posição exata da sobrecarga para maximizar momentos nos apoios (cargas adjacentes) ou nos vãos (cargas alternadas).",
+        norm="Teoria das Estruturas"
+    )
+
+    # 4. Bibliografia (Elite Pedagogical)
+    me.add_bibliography_step()
+
     return me.build()

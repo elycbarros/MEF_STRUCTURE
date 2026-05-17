@@ -55,7 +55,25 @@ def build_footing_blackboard(res: dict[str, Any], payload: dict = None) -> dict[
         norm="NBR 6122"
     )
     
-    # 3. Rigidez (Sapata Rígida vs Flexível)
+    # 3. Dimensionamento à Flexão (Método das Seções)
+    A_m = float(res.get("A_m", 1.5))
+    a_col = float(res.get("a_col_m", 0.4))
+    cantilever = (A_m - a_col) / 2.0
+    sigma = float(res.get("sigma_max_kPa", 150.0))
+    B_m = float(res.get("B_m", 1.5))
+    md_calc = (sigma * (cantilever**2) / 2.0) * B_m * 1.4 # γf = 1.4
+    
+    me.add_step(
+        id="footing-moment-sections",
+        title="Momento Fletor de Projeto (Método das Seções)",
+        formula=r"M_d = \gamma_f \cdot \left( \sigma \cdot \frac{c^2}{2} \right) \cdot B",
+        substitution=rf"c = \frac{{{fmt(A_m)} - {fmt(a_col)}}}{{2}} = {fmt(cantilever)}\,m, \quad \sigma = {fmt(sigma)}\,kPa",
+        result=rf"M_d = {fmt(md_calc, 2)}\,kNm",
+        explanation="Trata-se a aba da sapata como uma viga em balanço (engastada na face do pilar). O Método das Seções permite isolar esta aba e calcular o momento fletor gerado pela reação do solo.",
+        norm="NBR 6118, 22.6.4"
+    )
+
+    # 4. Rigidez (Sapata Rígida vs Flexível)
     h = float(res.get("h_m", 0.6))
     a_col = float(res.get("a_col_m", 0.2))
     is_rigid = (h >= (float(res.get("A_m", 1.5)) - a_col)/3.0)

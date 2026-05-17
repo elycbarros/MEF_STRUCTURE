@@ -39,8 +39,37 @@ export function MemorialAccordion() {
     );
   }
 
+  const memorialView = (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {pedagogicalSteps.map((step, index) => (
+        <div key={step.id || index} className="relative">
+          {index < pedagogicalSteps.length - 1 && (
+            <div className="absolute left-6 top-12 bottom-0 w-px bg-gradient-to-b from-primary/20 via-primary/5 to-transparent -z-10" />
+          )}
+          <Card className="border-none shadow-lg bg-card overflow-hidden ring-1 ring-border/50">
+            <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-xs">
+                  {index + 1}
+                </div>
+                <h3 className="font-bold text-base tracking-tight">{step.title}</h3>
+              </div>
+              {step.norm && (
+                <span className="text-[10px] font-black uppercase text-primary/60 tracking-widest">{step.norm}</span>
+              )}
+            </div>
+            <CardContent className="p-8">
+              <StepContent step={step} isMemorial />
+            </CardContent>
+          </Card>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="space-y-4" id="pedagogical-memorial-root">
+      {/* Header and View Toggle (Hidden on Print) */}
       <div className="flex items-center justify-between mb-4 print:hidden">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
@@ -71,54 +100,35 @@ export function MemorialAccordion() {
         </Tabs>
       </div>
 
-      {viewMode === 'interactive' ? (
-        <Accordion type="single" collapsible className="w-full space-y-3">
-          {pedagogicalSteps.map((step, index) => (
-            <AccordionItem 
-              key={step.id || index} 
-              value={`item-${index}`}
-              className="border border-border rounded-xl px-4 bg-card/50 hover:bg-card transition-colors shadow-sm"
-            >
-              <AccordionTrigger className="hover:no-underline py-4">
-                <div className="flex flex-col items-start text-left gap-1">
-                  <span className="text-[10px] font-bold text-primary uppercase">Passo {index + 1}</span>
-                  <span className="font-semibold text-sm tracking-tight">{step.title}</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pb-6 pt-2 space-y-4 border-t border-border/50">
-                {/* Render Step Content */}
-                <StepContent step={step} />
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      ) : (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {pedagogicalSteps.map((step, index) => (
-            <div key={step.id || index} className="relative">
-              {index < pedagogicalSteps.length - 1 && (
-                <div className="absolute left-6 top-12 bottom-0 w-px bg-gradient-to-b from-primary/20 via-primary/5 to-transparent -z-10" />
-              )}
-              <Card className="border-none shadow-lg bg-card overflow-hidden ring-1 ring-border/50">
-                <div className="bg-primary/5 px-6 py-4 border-b border-primary/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-black text-xs">
-                      {index + 1}
-                    </div>
-                    <h3 className="font-bold text-base tracking-tight">{step.title}</h3>
+      {/* Screen View */}
+      <div className="print:hidden">
+        {viewMode === 'interactive' ? (
+          <Accordion type="single" collapsible className="w-full space-y-3">
+            {pedagogicalSteps.map((step, index) => (
+              <AccordionItem 
+                key={step.id || index} 
+                value={`item-${index}`}
+                className="border border-border rounded-xl px-4 bg-card/50 hover:bg-card transition-colors shadow-sm"
+              >
+                <AccordionTrigger className="hover:no-underline py-4">
+                  <div className="flex flex-col items-start text-left gap-1">
+                    <span className="text-[10px] font-bold text-primary uppercase">Passo {index + 1}</span>
+                    <span className="font-semibold text-sm tracking-tight">{step.title}</span>
                   </div>
-                  {step.norm && (
-                    <span className="text-[10px] font-black uppercase text-primary/60 tracking-widest">{step.norm}</span>
-                  )}
-                </div>
-                <CardContent className="p-8">
-                  <StepContent step={step} isMemorial />
-                </CardContent>
-              </Card>
-            </div>
-          ))}
-        </div>
-      )}
+                </AccordionTrigger>
+                <AccordionContent className="pb-6 pt-2 space-y-4 border-t border-border/50">
+                  <StepContent step={step} />
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : memorialView}
+      </div>
+
+      {/* Print-Only View (Always Expanded) */}
+      <div className="hidden print:block">
+        {memorialView}
+      </div>
     </div>
   );
 }

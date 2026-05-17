@@ -3,41 +3,42 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { calculateSpecialElement } from '@/lib/api-mestre';
 import { extractMestreSteps, type BeamSupport, type DistributedLoad, type MestreParams, type PointLoad, type SupportType, type MestreApiResponse } from '@/lib/mestre-types';
 import { MestreDiagram } from './MestreDiagram';
+import { StructuralDiagram } from './StructuralDiagram';
 import { StructuralDuel } from './StructuralDuel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { 
-  Box, 
-  Calculator, 
-  Brain, 
-  Ruler, 
-  TriangleAlert, 
-  Plus, 
-  Trash2, 
+import {
+  Box,
+  Calculator,
+  Brain,
+  Ruler,
+  TriangleAlert,
+  Plus,
+  Trash2,
   Settings2,
   Anchor,
   ArrowDown
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
 
 export function BeamPlayground() {
-  const { 
-    params, 
-    updateParams, 
-    setPedagogicalSteps, 
-    setIsLoading, 
+  const {
+    params,
+    updateParams,
+    setPedagogicalSteps,
+    setIsLoading,
     setError,
     setCalculationTrace,
     error,
-    isLoading, 
+    isLoading,
     selectedElementType,
     fullResults,
     setFullResults
@@ -46,67 +47,128 @@ export function BeamPlayground() {
   const results = fullResults;
   const totalLength = params.L || 6.0;
 
-  const formattedReactions = results?.reactions 
+  const formattedReactions = results?.reactions
     ? Object.values(results.reactions)
-        .sort((a: any, b: any) => (a.x ?? 0) - (b.x ?? 0))
-        .map((r: any, idx: number) => ({
-          x: r.x ?? 0,
-          type: r.type,
-          value: (r.R ?? 0),
-          label: `V${String.fromCharCode(97 + idx)}` // Va, Vb, Vc...
-        }))
+      .sort((a: any, b: any) => (a.x ?? 0) - (b.x ?? 0))
+      .map((r: any, idx: number) => ({
+        x: r.x ?? 0,
+        type: r.type,
+        value: (r.R ?? 0),
+        label: `V${String.fromCharCode(97 + idx)}` // Va, Vb, Vc...
+      }))
     : [];
+
+  const getStructuralDiagramData = (type: 'shear' | 'moment' | 'deflection') => {
+    if (!results?.diagrams) return null;
+    
+    const series = [];
+    
+    // MEF Series (Primary)
+    const mefPoints = results.diagrams[type] || [];
+    series.push({
+      name: 'MEF Numerical',
+      points: mefPoints,
+      color: type === 'shear' ? 'hsl(217 91% 55%)' : type === 'moment' ? 'hsl(262 83% 58%)' : 'hsl(20 90% 48%)'
+    });
+    
+    // Classical Series (if exists)
+    if (results.classical_diagrams) {
+      let classicalPoints: any[] = [];
+      if (type === 'shear' && results.classical_diagrams.V_kN) {
+        classicalPoints = results.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: results.classical_diagrams.V_kN[i] }));
+      } else if (type === 'moment' && results.classical_diagrams.M_kNm) {
+        classicalPoints = results.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: results.classical_diagrams.M_kNm[i] }));
+      }
+      
+      if (classicalPoints.length > 0) {
+        series.push({
+          name: 'Clássico Analítico',
+          points: classicalPoints,
+          color: '#059669', // Emerald 600
+          dashed: true
+        });
+      }
+    }
+    
+    return {
+      type,
+      unit: type === 'shear' ? 'kN' : type === 'moment' ? 'kNm' : 'mm',
+      label: type === 'shear' ? 'ESFORÇO CORTANTE' : type === 'moment' ? 'MOMENTO FLETOR' : 'LINHA ELÁSTICA',
+      series,
+      reactions: formattedReactions
+    };
+  };
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
     setIsLoading(true);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000); // 12s for complex FEA
+    const timeout = setTimeout(() => controller.abort(), 20_000); // 20s timeout
     try {
       setError(null);
-      // Prepare payload for backend (mapping internal state to expected backend keys)
+
+      // Enviar APENAS os campos relevantes para análise de viga
+      // (evita enviar camadas de solo, estacas, lajes, etc. que sobrecarregam o backend)
       const payload = {
-        ...currentParams,
-        // Ensure supports and loads are arrays
-        supports: currentParams.supports || [{ x: 0, type: 'pinned' }, { x: currentParams.L, type: 'pinned' }],
-        distributed_loads: currentParams.distributed_loads || [{ x_start: 0, x_end: currentParams.L, q_start: currentParams.q, q_end: currentParams.q }],
+        L: currentParams.L || 6.0,
+        b: currentParams.b || 0.20,
+        h: currentParams.h || 0.50,
+        fck: currentParams.fck || 30,
+        q: currentParams.q || 20,
+        section_type: currentParams.section_type || 'rectangular',
+        bf: currentParams.bf,
+        hf: currentParams.hf,
+        cover_mm: currentParams.cover_mm || 30,
+        fy: currentParams.fy || 500,
+        caa: currentParams.caa || 2,
+        beamType: currentParams.beamType || 'biapoiada',
+        // Vínculos e Cargas
+        supports: currentParams.supports || [
+          { x: 0, type: 'pinned' },
+          { x: currentParams.L || 6.0, type: 'pinned' }
+        ],
+        distributed_loads: currentParams.distributed_loads || [
+          { x_start: 0, x_end: currentParams.L || 6.0, q_start: currentParams.q || 20, q_end: currentParams.q || 20 }
+        ],
         point_loads: currentParams.point_loads || []
       };
 
-      const response = await calculateSpecialElement(selectedElementType, payload, controller.signal);
-      const steps = extractMestreSteps(response);
-      setPedagogicalSteps(steps);
-      setCalculationTrace(response.calculation_trace ?? null);
+      const response = await calculateSpecialElement('beam', payload, controller.signal);
       
-      // The actual solver output is nested in response.result
-      const analysisResults = response.result || response;
-      
-      // Ensure geometry is present for detailing views
-      if (!analysisResults.geometry) {
-        analysisResults.geometry = { b_cm: payload.b * 100, h_cm: payload.h * 100, L_m: payload.L };
-      }
+      if (response.success) {
+        setPedagogicalSteps(extractMestreSteps(response));
+        setCalculationTrace(response.calculation_trace ?? null);
 
-      setFullResults({ ...response, ...analysisResults });
-      
-      if (steps.length === 0) {
-        setError('O motor de cálculo não gerou passos. Verifique se os apoios e cargas estão dentro do vão.');
+        const analysisResults = response.result || response;
+
+        if (!analysisResults.geometry) {
+          analysisResults.geometry = { b_cm: payload.b * 100, h_cm: payload.h * 100, L_m: payload.L };
+        }
+
+        setFullResults({ ...response, ...analysisResults });
+
+        if (extractMestreSteps(response).length === 0) {
+          setError('O motor de cálculo não gerou passos. Verifique se os apoios e cargas estão dentro do vão.');
+        }
+      } else {
+        setError(response.error || "Falha na análise da viga.");
       }
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        setError('O motor MEF excedeu o tempo de resposta (12s). Tente reduzir a complexidade.');
+        setError('O motor MEF excedeu o tempo de resposta (20s). O servidor pode estar sobrecarregado.');
       } else if (error instanceof Error) {
-        // Security: Mask tracebacks to avoid information exposure
         const cleanMessage = error.message.includes('Traceback') || error.message.includes('stack trace')
-          ? 'Ocorreu um erro interno no servidor. Detalhes técnicos ocultados por segurança.'
+          ? 'Erro interno no servidor.'
           : error.message;
-        setError(`Erro técnico: ${cleanMessage}`);
+        setError(`Erro: ${cleanMessage}`);
       } else {
-        setError('Erro técnico inesperado no motor de cálculo.');
+        setError('Erro inesperado no motor de cálculo.');
       }
     } finally {
       clearTimeout(timeout);
       setIsLoading(false);
     }
-  }, [selectedElementType, setPedagogicalSteps, setIsLoading, setError, setCalculationTrace]);
+  }, [setPedagogicalSteps, setIsLoading, setError, setCalculationTrace, setFullResults]);
+
 
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = parseFloat(value);
@@ -117,7 +179,7 @@ export function BeamPlayground() {
         if (parsed <= 50) {
           eCi = alphaE * 5600 * Math.sqrt(Math.max(parsed, 1));
         } else {
-          eCi = 21500 * alphaE * Math.pow((parsed + 8) / 10, 1/3);
+          eCi = 21500 * alphaE * Math.pow((parsed + 8) / 10, 1 / 3);
         }
         const alphaI = Math.min(0.8 + 0.2 * (parsed / 80), 1.0);
         const eGPa = Math.round(eCi * alphaI / 1000);
@@ -212,18 +274,18 @@ export function BeamPlayground() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="beam-l-input" className="text-[10px] font-bold text-muted-foreground uppercase">Vão Total (L) [m]</Label>
-                <Input 
+                <Input
                   id="beam-l-input"
-                  type="number" step="0.1" 
-                  value={params.L} 
+                  type="number" step="0.1"
+                  value={params.L ?? 6.0}
                   onChange={(e) => updateNumber('L', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Tipo de Seção</Label>
-                <Select 
-                  value={params.section_type || 'rectangular'} 
+                <Select
+                  value={params.section_type || 'rectangular'}
                   onValueChange={(v) => updateParams({ section_type: v as MestreParams['section_type'] })}
                 >
                   <SelectTrigger className="h-10 bg-background/50 border-primary/10">
@@ -240,20 +302,20 @@ export function BeamPlayground() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="beam-b-input" className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [m]</Label>
-                <Input 
+                <Input
                   id="beam-b-input"
-                  type="number" step="0.01" 
-                  value={params.b} 
+                  type="number" step="0.01"
+                  value={params.b ?? 0.20}
                   onChange={(e) => updateNumber('b', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="beam-h-input" className="text-[10px] font-bold text-muted-foreground uppercase">Altura (h) [m]</Label>
-                <Input 
+                <Input
                   id="beam-h-input"
-                  type="number" step="0.01" 
-                  value={params.h} 
+                  type="number" step="0.01"
+                  value={params.h ?? 0.50}
                   onChange={(e) => updateNumber('h', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
@@ -264,18 +326,18 @@ export function BeamPlayground() {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary/5 animate-in slide-in-from-top-2">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold text-primary uppercase">Mesa (bf) [m]</Label>
-                  <Input 
-                    type="number" step="0.05" 
-                    value={params.bf || 0.60} 
+                  <Input
+                    type="number" step="0.05"
+                    value={params.bf || 0.60}
                     onChange={(e) => updateParams({ bf: parseFloat(e.target.value) })}
                     className="bg-primary/5 border-primary/20"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold text-primary uppercase">Flange (hf) [m]</Label>
-                  <Input 
-                    type="number" step="0.01" 
-                    value={params.hf || 0.10} 
+                  <Input
+                    type="number" step="0.01"
+                    value={params.hf || 0.10}
                     onChange={(e) => updateParams({ hf: parseFloat(e.target.value) })}
                     className="bg-primary/5 border-primary/20"
                   />
@@ -311,17 +373,20 @@ export function BeamPlayground() {
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Apoios e Vínculos</span>
             </div>
-            
+
             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-              {(params.supports || [{ x: 0, type: 'pinned' }, { x: params.L, type: 'pinned' }]).map((sup: BeamSupport, idx: number) => (
+              {(Array.isArray(params.supports) && typeof params.supports[0] === 'object' 
+                ? params.supports 
+                : [{ x: 0, type: 'pinned' }, { x: params.L || 6, type: 'pinned' }]
+              ).map((sup: BeamSupport, idx: number) => (
                 <div key={idx} className="flex gap-2 items-end bg-background/40 p-3 rounded-xl border border-primary/5 shadow-sm">
                   <div className="flex-1 space-y-1.5">
                     <Label className="text-[9px] uppercase font-bold text-muted-foreground">Posição (x) [m]</Label>
-                    <Input 
-                      type="number" step="0.1" value={sup.x} 
+                    <Input
+                      type="number" step="0.1" value={sup.x ?? 0}
                       onChange={(e) => {
-                        const s = [...(params.supports || [])];
-                        s[idx] = { ...s[idx], x: parseFloat(e.target.value) };
+                        const s = [...(Array.isArray(params.supports) ? params.supports : [])];
+                        s[idx] = { ...((typeof s[idx] === 'object' ? s[idx] : {}) as any), x: parseFloat(e.target.value) || 0 };
                         updateNestedParam('supports', s);
                       }}
                       className="h-8 text-xs bg-transparent"
@@ -329,8 +394,8 @@ export function BeamPlayground() {
                   </div>
                   <div className="flex-1 space-y-1.5">
                     <Label className="text-[9px] uppercase font-bold text-muted-foreground">Tipo</Label>
-                    <Select 
-                      value={sup.type} 
+                    <Select
+                      value={sup.type}
                       onValueChange={(v) => {
                         const s = [...(params.supports || [])];
                         s[idx] = { ...s[idx], type: v as SupportType };
@@ -347,7 +412,7 @@ export function BeamPlayground() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button 
+                  <Button
                     variant="ghost" size="icon" className="h-8 w-8 text-destructive/50 hover:text-destructive"
                     onClick={() => removeSupport(idx)}
                     disabled={idx < 2 && (params.supports?.length || 0) <= 2}
@@ -366,11 +431,11 @@ export function BeamPlayground() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cargas Distribuídas (q)</span>
-                <Button 
+                <Button
                   onClick={() => {
                     const current: DistributedLoad[] = params.distributed_loads || [{ x_start: 0, x_end: params.L, q_start: params.q, q_end: params.q }];
                     updateNestedParam('distributed_loads', [...current, { x_start: 0, x_end: params.L, q_start: 10, q_end: 10 }]);
-                  }} 
+                  }}
                   variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/20 text-primary"
                 >
                   <Plus className="w-3 h-3" /> Adicionar
@@ -378,16 +443,19 @@ export function BeamPlayground() {
               </div>
 
               <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-                {(params.distributed_loads || [{ x_start: 0, x_end: params.L, q_start: params.q, q_end: params.q }]).map((dl: DistributedLoad, idx: number) => (
+                {(Array.isArray(params.distributed_loads) && typeof params.distributed_loads[0] === 'object'
+                  ? params.distributed_loads 
+                  : [{ x_start: 0, x_end: params.L || 6, q_start: params.q || 20, q_end: params.q || 20 }]
+                ).map((dl: DistributedLoad, idx: number) => (
                   <div key={idx} className="bg-background/40 p-4 rounded-xl border border-primary/5 shadow-sm space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Início (x1) [m]</Label>
-                        <Input 
-                          type="number" step="0.1" value={dl.x_start} 
+                        <Input
+                          type="number" step="0.1" value={dl.x_start ?? 0}
                           onChange={(e) => {
-                            const d = [...(params.distributed_loads || [])];
-                            d[idx] = { ...d[idx], x_start: parseFloat(e.target.value) };
+                            const d = [...(Array.isArray(params.distributed_loads) ? params.distributed_loads : [])];
+                            d[idx] = { ...((typeof d[idx] === 'object' ? d[idx] : {}) as any), x_start: parseFloat(e.target.value) || 0 };
                             updateNestedParam('distributed_loads', d);
                           }}
                           className="h-8 text-xs bg-transparent"
@@ -395,11 +463,11 @@ export function BeamPlayground() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Fim (x2) [m]</Label>
-                        <Input 
-                          type="number" step="0.1" value={dl.x_end} 
+                        <Input
+                          type="number" step="0.1" value={dl.x_end ?? (params.L || 6)}
                           onChange={(e) => {
-                            const d = [...(params.distributed_loads || [])];
-                            d[idx] = { ...d[idx], x_end: parseFloat(e.target.value) };
+                            const d = [...(Array.isArray(params.distributed_loads) ? params.distributed_loads : [])];
+                            d[idx] = { ...((typeof d[idx] === 'object' ? d[idx] : {}) as any), x_end: parseFloat(e.target.value) || 0 };
                             updateNestedParam('distributed_loads', d);
                           }}
                           className="h-8 text-xs bg-transparent"
@@ -409,11 +477,11 @@ export function BeamPlayground() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-primary">q1 [kN/m]</Label>
-                        <Input 
-                          type="number" step="1" value={dl.q_start} 
+                        <Input
+                          type="number" step="1" value={dl.q_start ?? 20}
                           onChange={(e) => {
-                            const d = [...(params.distributed_loads || [])];
-                            d[idx] = { ...d[idx], q_start: parseFloat(e.target.value) };
+                            const d = [...(Array.isArray(params.distributed_loads) ? params.distributed_loads : [])];
+                            d[idx] = { ...((typeof d[idx] === 'object' ? d[idx] : {}) as any), q_start: parseFloat(e.target.value) || 0 };
                             updateNestedParam('distributed_loads', d);
                           }}
                           className="h-8 text-xs bg-primary/5 font-bold"
@@ -421,11 +489,11 @@ export function BeamPlayground() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-primary">q2 [kN/m]</Label>
-                        <Input 
-                          type="number" step="1" value={dl.q_end} 
+                        <Input
+                          type="number" step="1" value={dl.q_end ?? 20}
                           onChange={(e) => {
-                            const d = [...(params.distributed_loads || [])];
-                            d[idx] = { ...d[idx], q_end: parseFloat(e.target.value) };
+                            const d = [...(Array.isArray(params.distributed_loads) ? params.distributed_loads : [])];
+                            d[idx] = { ...((typeof d[idx] === 'object' ? d[idx] : {}) as any), q_end: parseFloat(e.target.value) || 0 };
                             updateNestedParam('distributed_loads', d);
                           }}
                           className="h-8 text-xs bg-primary/5 font-bold"
@@ -433,7 +501,7 @@ export function BeamPlayground() {
                       </div>
                     </div>
                     {idx > 0 && (
-                      <Button 
+                      <Button
                         variant="ghost" size="sm" className="w-full h-6 text-[9px] text-destructive/50 hover:text-destructive gap-1"
                         onClick={() => {
                           const d = [...(params.distributed_loads || [])];
@@ -463,11 +531,11 @@ export function BeamPlayground() {
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-muted-foreground">Pos (x) [m]</Label>
-                        <Input 
-                          type="number" step="0.1" value={pl.x} 
+                        <Input
+                          type="number" step="0.1" value={pl.x ?? 0}
                           onChange={(e) => {
-                            const p = [...(params.point_loads || [])];
-                            p[idx] = { ...p[idx], x: parseFloat(e.target.value) };
+                            const p = [...(Array.isArray(params.point_loads) ? params.point_loads : [])];
+                            p[idx] = { ...((typeof p[idx] === 'object' ? p[idx] : {}) as any), x: parseFloat(e.target.value) || 0 };
                             updateNestedParam('point_loads', p);
                           }}
                           className="h-8 text-xs bg-transparent"
@@ -475,11 +543,11 @@ export function BeamPlayground() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-primary">Força (P) [kN]</Label>
-                        <Input 
-                          type="number" step="5" value={pl.P} 
+                        <Input
+                          type="number" step="5" value={pl.P ?? 0}
                           onChange={(e) => {
-                            const p = [...(params.point_loads || [])];
-                            p[idx] = { ...p[idx], P: parseFloat(e.target.value) };
+                            const p = [...(Array.isArray(params.point_loads) ? params.point_loads : [])];
+                            p[idx] = { ...((typeof p[idx] === 'object' ? p[idx] : {}) as any), P: parseFloat(e.target.value) || 0 };
                             updateNestedParam('point_loads', p);
                           }}
                           className="h-8 text-xs bg-primary/5 font-bold"
@@ -487,18 +555,18 @@ export function BeamPlayground() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[9px] uppercase font-bold text-orange-500">Mom. (M) [kNm]</Label>
-                        <Input 
-                          type="number" step="5" value={pl.M || 0} 
+                        <Input
+                          type="number" step="5" value={pl.M ?? 0}
                           onChange={(e) => {
-                            const p = [...(params.point_loads || [])];
-                            p[idx] = { ...p[idx], M: parseFloat(e.target.value) };
+                            const p = [...(Array.isArray(params.point_loads) ? params.point_loads : [])];
+                            p[idx] = { ...((typeof p[idx] === 'object' ? p[idx] : {}) as any), M: parseFloat(e.target.value) || 0 };
                             updateNestedParam('point_loads', p);
                           }}
                           className="h-8 text-xs bg-orange-500/5 font-bold"
                         />
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       variant="ghost" size="sm" className="w-full h-6 text-[9px] text-destructive/50 hover:text-destructive gap-1"
                       onClick={() => removePointLoad(idx)}
                     >
@@ -516,17 +584,17 @@ export function BeamPlayground() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="beam-fck-input" className="text-[10px] font-bold text-muted-foreground uppercase">Concreto (fck) [MPa]</Label>
-                <Input 
+                <Input
                   id="beam-fck-input"
-                  type="number" value={params.fck} 
+                  type="number" value={params.fck ?? 30.0}
                   onChange={(e) => updateNumber('fck', e.target.value)}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">CAA (Norma)</Label>
-                <Select 
-                  value={params.caa?.toString() || '2'} 
+                <Select
+                  value={params.caa?.toString() || '2'}
                   onValueChange={(v) => updateParams({ caa: parseInt(v) })}
                 >
                   <SelectTrigger className="h-10 bg-background/50 border-primary/10">
@@ -545,16 +613,16 @@ export function BeamPlayground() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Cobrimento (c) [mm]</Label>
-                <Input 
-                  type="number" value={params.cover_mm || 30} 
+                <Input
+                  type="number" value={params.cover_mm || 30}
                   onChange={(e) => updateParams({ cover_mm: parseFloat(e.target.value) })}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">Aço (fyk) [MPa]</Label>
-                <Input 
-                  type="number" value={params.fy || 500} 
+                <Input
+                  type="number" value={params.fy || 500}
                   onChange={(e) => updateParams({ fy: parseFloat(e.target.value) })}
                   className="bg-background/50 border-primary/10"
                 />
@@ -565,16 +633,16 @@ export function BeamPlayground() {
       </Tabs>
 
       <div className="flex gap-2 pt-2">
-        <Button 
-          onClick={() => handleCalculate(params)} 
+        <Button
+          onClick={() => handleCalculate(params)}
           className="flex-1 macos-button h-12 gap-2 text-sm font-bold shadow-lg shadow-primary/20"
           disabled={isLoading}
         >
           <Calculator className="w-5 h-5" />
           {isLoading ? 'Executando Motor MEF...' : 'Analisar Estrutura'}
         </Button>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="h-12 px-4 border-primary/20 hover:bg-primary/5 text-primary"
           title="Otimização Automática (AI)"
         >
@@ -590,34 +658,20 @@ export function BeamPlayground() {
       )}
 
       {results?.diagrams && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500" id="mestre-diagrams">
-          <MestreDiagram 
-            points={results.diagrams.shear || []} 
-            title="Esforço Cortante" 
-            unit="kN" 
-            color="hsl(217 91% 55%)" 
-            fillColor="hsl(217 91% 55% / 0.1)" 
-            totalLength={totalLength}
-            reactions={formattedReactions}
-          />
-          <MestreDiagram 
-            points={results.diagrams.moment || []} 
-            title="Momento Fletor" 
-            unit="kNm" 
-            color="hsl(262 83% 58%)" 
-            fillColor="hsl(262 83% 58% / 0.1)" 
-            totalLength={totalLength}
-            reactions={formattedReactions}
-          />
-          <MestreDiagram 
-            points={results.diagrams.deflection || []} 
-            title="Linha Elástica" 
-            unit="mm" 
-            color="hsl(20 90% 48%)" 
-            fillColor="hsl(20 90% 48% / 0.1)" 
-            totalLength={totalLength}
-            reactions={formattedReactions}
-          />
+        <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500" id="mestre-diagrams">
+          {(() => {
+            const shearData = getStructuralDiagramData('shear');
+            const momentData = getStructuralDiagramData('moment');
+            const deflectionData = getStructuralDiagramData('deflection');
+            
+            return (
+              <>
+                {shearData && <StructuralDiagram data={shearData as any} />}
+                {momentData && <StructuralDiagram data={momentData as any} />}
+                {deflectionData && <StructuralDiagram data={deflectionData as any} />}
+              </>
+            );
+          })()}
         </div>
       )}
 

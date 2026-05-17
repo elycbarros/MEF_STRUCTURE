@@ -2,9 +2,8 @@
 
 import { useMestreStore } from '@/lib/store-mestre';
 import { cn } from '@/lib/utils';
-import { 
+import {
   BrainCircuit,
-  Activity,
   ChevronLeft,
   Menu
 } from 'lucide-react';
@@ -13,6 +12,67 @@ import type { MestreElementType } from '@/lib/mestre-types';
 
 import { MESTRE_MODULES, MESTRE_CATEGORIES } from '@/lib/mestre-modules';
 import { EngineeringSettings } from './EngineeringSettings';
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
+import { BASE_URL } from '@/lib/api-mestre';
+
+function ServerStatus({ collapsed }: { collapsed: boolean }) {
+  const [status, setStatus] = useState<'online' | 'offline' | 'checking'>('checking');
+  const [lastCheck, setLastCheck] = useState<string>('');
+
+  const ping = useCallback(async () => {
+    setStatus('checking');
+    try {
+      const res = await fetch(`${BASE_URL}/docs`, { method: 'HEAD', signal: AbortSignal.timeout(4000) });
+      setStatus(res.ok ? 'online' : 'offline');
+    } catch {
+      setStatus('offline');
+    }
+    setLastCheck(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  }, []);
+
+  useEffect(() => {
+    ping();
+    const interval = setInterval(ping, 30_000);
+    return () => clearInterval(interval);
+  }, [ping]);
+
+  const dot = status === 'online'
+    ? 'bg-green-500 animate-pulse'
+    : status === 'offline'
+      ? 'bg-red-500 animate-pulse'
+      : 'bg-yellow-400 animate-ping';
+
+  const label = status === 'online' ? 'Engine Online' : status === 'offline' ? 'Engine Offline' : 'Verificando...';
+
+  return (
+    <div className={cn('flex items-center gap-3', collapsed ? 'justify-center' : '')}>
+      <button
+        onClick={ping}
+        title={status === 'offline'
+          ? 'Servidor offline. Reinicie: .venv/bin/python -m uvicorn api:app --port 8000 --reload'
+          : `Verificado às ${lastCheck}. Clique para testar.`
+        }
+        className="w-8 h-8 rounded-full bg-muted/60 flex items-center justify-center shrink-0 hover:bg-muted transition-colors group relative"
+      >
+        {status === 'checking'
+          ? <RefreshCw className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+          : <span className={cn('w-2 h-2 rounded-full', dot)} />}
+      </button>
+      {!collapsed && (
+        <div className="truncate">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Servidor MEF</p>
+          <p className={cn(
+            'text-xs font-bold truncate',
+            status === 'online' ? 'text-green-600 dark:text-green-400'
+              : status === 'offline' ? 'text-red-500'
+                : 'text-yellow-500'
+          )}>{label}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function MestreSidebar() {
   const { selectedElementType, setSelectedElementType, sidebarCollapsed, setSidebarCollapsed } = useMestreStore();
@@ -37,9 +97,9 @@ export function MestreSidebar() {
             Atlas Mestre
           </h2>
         )}
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-all"
         >
@@ -66,8 +126,8 @@ export function MestreSidebar() {
                     disabled={item.disabled}
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300",
-                      isSelected 
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
+                      isSelected
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       item.disabled && "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-muted-foreground",
                       sidebarCollapsed && "justify-center px-0"
@@ -93,26 +153,13 @@ export function MestreSidebar() {
       </div>
 
       <div className={cn(
-        "p-6 border-t border-border/50 bg-muted/20 transition-all",
-        sidebarCollapsed ? "flex justify-center" : ""
+        "p-4 border-t border-border/50 bg-muted/20 transition-all space-y-4",
+        sidebarCollapsed ? "flex flex-col items-center" : ""
       )}>
-        <div className={cn("flex items-center gap-3", sidebarCollapsed ? "justify-center" : "")}>
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-            <Activity className="w-4 h-4" />
-          </div>
-          {!sidebarCollapsed && (
-            <div className="truncate">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">Status</p>
-              <p className="text-xs font-bold text-foreground flex items-center gap-1.5 truncate">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />
-                V6.2 Elite
-              </p>
-            </div>
-          )}
-        </div>
-        
+        <ServerStatus collapsed={sidebarCollapsed} />
+
         {!sidebarCollapsed && (
-          <div className="mt-4 pt-4 border-t border-border/30">
+          <div className="pt-3 border-t border-border/30">
             <EngineeringSettings />
           </div>
         )}
