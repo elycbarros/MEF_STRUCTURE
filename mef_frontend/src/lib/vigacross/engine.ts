@@ -40,10 +40,30 @@ function validateInput(input: BeamInput): void {
 
 function mepForLoad(span: SpanInput, load: SpanLoad): EndMoments {
   const L = span.length;
+
   if (load.type === 'udl') {
-    const m = (load.value * L * L) / 12;
-    return { left: -m, right: m };
+    const q1 = load.value;          // intensity at A
+    const q2 = load.q_end ?? q1;   // intensity at B (defaults to uniform)
+
+    if (Math.abs(q1 - q2) < 1e-9) {
+      // Uniform: M = ±qL²/12
+      const m = (q1 * L * L) / 12;
+      return { left: -m, right: m };
+    }
+
+    // Trapezoidal: decompose into uniform (q1) + triangular (q2-q1)
+    // For triangular load increasing A→B with intensity Δq = q2-q1:
+    //   MEP_A = -L²(7q1 + 3q2) / 60    (using standard formula)
+    //   MEP_B = +L²(3q1 + 7q2) / 60   (but we use uniform + triangle superposition)
+    // Uniform part (q1):
+    const mUnif = (q1 * L * L) / 12;
+    // Triangular part (Δq = q2-q1, increasing 0 at A to Δq at B):
+    const dq = q2 - q1;
+    const mTriA = -(dq * L * L) / 20;  // MEP_A for rising triangle
+    const mTriB =  (dq * L * L) / 30;  // MEP_B for rising triangle
+    return { left: -mUnif + mTriA, right: mUnif + mTriB };
   }
+
   const P = load.value;
   const a = load.position;
   const b = L - a;
@@ -195,14 +215,35 @@ function solveReactions(spans: SpanInput[], bars: BarEndResult[], nodes: string[
   bars.forEach((bar, i) => {
     const span = spans[i];
     const L = span.length;
-    const totalLoad = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L : l.value), 0);
-    const mLoadL = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L * (L / 2) : l.value * l.position), 0);
+
+    // Total load and moment of loads about A (for each load)
+    let totalLoad = 0;
+    let momentAboutA = 0;
+
+    span.loads.forEach(l => {
+      if (l.type === 'udl') {
+        const q1 = l.value;
+        const q2 = l.q_end ?? q1;
+        // Resultant = (q1+q2)/2 * L
+        totalLoad += ((q1 + q2) / 2) * L;
+        // Centroid of trapezoidal load from A:
+        // x_c = L * (q1 + 2*q2) / (3*(q1+q2))  when q1+q2 > 0
+        const xCentroid = (q1 + q2) > 1e-12
+          ? L * (q1 + 2 * q2) / (3 * (q1 + q2))
+          : L / 2;
+        momentAboutA += ((q1 + q2) / 2) * L * xCentroid;
+      } else {
+        totalLoad += l.value;
+        momentAboutA += l.value * l.position;
+      }
+    });
+
     const leftMoment = bar.finalA;
     const rightMoment = -bar.finalB;
-    const RA = (rightMoment - leftMoment + mLoadL) / L;
+    const RA = (rightMoment - leftMoment + momentAboutA) / L;
     const RB = totalLoad - RA;
-    reactions[i + 1].verticalReaction += RB;
     reactions[i].verticalReaction += RA;
+    reactions[i + 1].verticalReaction += RB;
   });
   return reactions;
 }
@@ -214,19 +255,40 @@ function buildDiagrams(spans: SpanInput[], bars: BarEndResult[], input: BeamInpu
     const L = span.length;
     const leftM = bars[i].finalA;
     const rightM = -bars[i].finalB;
-    const mLoadL = span.loads.reduce((s, l) => s + (l.type === 'udl' ? l.value * L * (L / 2) : l.value * l.position), 0);
-    const RA = (rightM - leftM + mLoadL) / L;
 
-    // EI (kN.m2)
+    // Reaction at A for this span (using corrected trapezoidal centroid)
+    let totalLoad = 0;
+    let momentAboutA = 0;
+    span.loads.forEach(l => {
+      if (l.type === 'udl') {
+        const q1 = l.value;
+        const q2 = l.q_end ?? q1;
+        totalLoad += ((q1 + q2) / 2) * L;
+        const xCentroid = (q1 + q2) > 1e-12 ? L * (q1 + 2 * q2) / (3 * (q1 + q2)) : L / 2;
+        momentAboutA += ((q1 + q2) / 2) * L * xCentroid;
+      } else {
+        totalLoad += l.value;
+        momentAboutA += l.value * l.position;
+      }
+    });
+    const RA = (rightM - leftM + momentAboutA) / L;
+
+    // EI (kN.m²)
     const E = input.eGPa || 210;
     const I = span.inertiaCm4 || input.defaultInertiaCm4 || 1000;
     const EI = E * I * 0.01;
 
-    // C1 constant for y(0)=0 and y(L)=0
+    // Integration constant C1 (for zero deflection at both ends)
     let termLoadsL = 0;
     span.loads.forEach(load => {
       if (load.type === 'udl') {
-        termLoadsL += (load.value * Math.pow(L, 4)) / 24;
+        const q1 = load.value;
+        const q2 = load.q_end ?? q1;
+        // Uniform part
+        termLoadsL += (q1 * Math.pow(L, 4)) / 24;
+        // Triangular correction
+        const dq = q2 - q1;
+        termLoadsL += (dq * Math.pow(L, 5)) / 120;
       } else {
         termLoadsL += (load.value * Math.pow(L - load.position, 3)) / 6;
       }
@@ -241,9 +303,16 @@ function buildDiagrams(spans: SpanInput[], bars: BarEndResult[], input: BeamInpu
 
       span.loads.forEach((load) => {
         if (load.type === 'udl') {
-          V -= load.value * x;
-          M -= (load.value * x * x) / 2;
-          defLoad += (load.value * Math.pow(x, 4)) / 24;
+          const q1 = load.value;
+          const q2 = load.q_end ?? q1;
+          const dq = q2 - q1;
+          // Intensity at position x: q(x) = q1 + dq*(x/L)
+          // Shear contribution: integral of q(x) from 0 to x
+          V -= q1 * x + (dq / (2 * L)) * x * x;
+          // Moment contribution: integral of q(x)*(x-t) dt from 0 to x
+          M -= (q1 * x * x) / 2 + (dq * x * x * x) / (6 * L);
+          // Deflection integral (4th order): uniform + triangle
+          defLoad += (q1 * Math.pow(x, 4)) / 24 + (dq * Math.pow(x, 5)) / (120 * L);
         } else if (x >= load.position) {
           V -= load.value;
           M -= load.value * (x - load.position);
@@ -260,7 +329,7 @@ function buildDiagrams(spans: SpanInput[], bars: BarEndResult[], input: BeamInpu
         xLocal: x,
         shear: V,
         moment: M,
-        deflection: -deflectionMm // Positive downwards
+        deflection: -deflectionMm
       });
     }
     xOffset += L;

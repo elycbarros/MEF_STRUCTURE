@@ -110,7 +110,7 @@ function buildCrossSteps(input: BeamInput, results: CrossSolveResult): MestreSte
       substitution: 'Superposição de efeitos isostáticos e momentos de apoio',
       result: String.raw`\left\{ \begin{array}{l} ${results.barResults.map(bar => {
         const q = input.spans.find(s => s.id === bar.barId)?.loads.find(l => l.type === 'udl')?.value || 0;
-        const L = bar.length;
+        const L = input.spans.find(s => s.id === bar.barId)?.length ?? 0;
         const ma = bar.finalA;
         const mb = bar.finalB;
         const v0 = (q * L / 2) + (mb + ma) / L;
@@ -141,7 +141,7 @@ function buildCrossSteps(input: BeamInput, results: CrossSolveResult): MestreSte
 }
 
 export function BeamCrossPlayground() {
-  const { setPedagogicalSteps, setCalculationTrace, setError, setIsLoading, isLoading, error, updateParams } = useMestreStore();
+  const { setPedagogicalSteps, setCalculationTrace, setError, setIsLoading, isLoading, error, updateParams, setFullResults } = useMestreStore();
   const [beamInput, setBeamInput] = useState<BeamInput>(defaultBeamInput);
   const [results, setResults] = useState<CrossSolveResult | null>(null);
 
@@ -149,8 +149,8 @@ export function BeamCrossPlayground() {
   useEffect(() => {
     const timer = setTimeout(() => {
       updateParams({
-        spans: beamInput.spans,
-        supports: beamInput.supports,
+        spans: beamInput.spans as any,
+        supports: beamInput.supports as any,
         h: (beamInput.sectionH || 50) / 100,
         b: (beamInput.sectionB || 20) / 100,
         fck: beamInput.fck || 25,
@@ -291,6 +291,14 @@ export function BeamCrossPlayground() {
       const solved = solveCross(beamInput);
       setResults(solved);
       setPedagogicalSteps(buildCrossSteps(beamInput, solved));
+      // Persiste resultados no store global → BeamDiagramsSection e Beam2DView lêem daqui
+      setFullResults({
+        diagrams: solved.diagrams,
+        nodeReactions: solved.nodeReactions,
+        barResults: solved.barResults,
+        converged: solved.converged,
+        iterations: solved.iterations.length,
+      });
       setCalculationTrace({
         requested_type: 'beam_cross',
         solver_module: 'vigacross.solveCross',
@@ -397,24 +405,41 @@ export function BeamCrossPlayground() {
               </div>
 
               {span.loads.map((load, loadIndex) => (
-                <div key={`${span.id}-${loadIndex}`} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end bg-background/40 p-3 rounded-lg border border-border/40">
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] text-muted-foreground uppercase">{load.type === 'udl' ? 'q (kN/m)' : 'P (kN)'}</Label>
-                    <Input type="number" value={load.value ?? 0} onChange={(event) => updateLoad(spanIndex, loadIndex, { value: Number(event.target.value) })} className="h-8 text-xs bg-transparent" />
+                <div key={`${span.id}-${loadIndex}`} className="bg-background/40 p-3 rounded-lg border border-border/40 space-y-2">
+                  <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] text-muted-foreground uppercase">{load.type === 'udl' ? 'q1 (kN/m)' : 'P (kN)'}</Label>
+                      <Input type="number" value={load.value ?? 0} onChange={(event) => updateLoad(spanIndex, loadIndex, { value: Number(event.target.value) })} className="h-8 text-xs bg-transparent" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] text-muted-foreground uppercase">{load.type === 'udl' ? 'q2 (kN/m)' : 'Posição (m)'}</Label>
+                      {load.type === 'udl' ? (
+                        <Input
+                          type="number"
+                          value={(load as any).q_end ?? load.value}
+                          onChange={(event) => updateLoad(spanIndex, loadIndex, { q_end: Number(event.target.value) } as any)}
+                          className="h-8 text-xs bg-primary/5 font-bold"
+                          title="Intensidade no final do vão (carga trapezoidal)"
+                        />
+                      ) : (
+                        <Input
+                          type="number"
+                          value={(load as any).position ?? 0}
+                          onChange={(event) => updateLoad(spanIndex, loadIndex, { position: Number(event.target.value) } as Partial<SpanLoad>)}
+                          className="h-8 text-xs bg-transparent"
+                        />
+                      )}
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/60" onClick={() => removeLoad(spanIndex, loadIndex)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[9px] text-muted-foreground uppercase">Posição (m)</Label>
-                    <Input
-                      type="number"
-                      disabled={load.type === 'udl'}
-                      value={load.type === 'point' ? load.position : 0}
-                      onChange={(event) => updateLoad(spanIndex, loadIndex, { position: Number(event.target.value) } as Partial<SpanLoad>)}
-                      className="h-8 text-xs bg-transparent disabled:opacity-40"
-                    />
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive/60" onClick={() => removeLoad(spanIndex, loadIndex)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {/* Badge trapezoidal */}
+                  {load.type === 'udl' && (load as any).q_end !== undefined && Math.abs((load as any).q_end - load.value) > 0.01 && (
+                    <div className="text-[9px] text-primary font-bold uppercase tracking-wide">
+                      ▲ Carga trapezoidal: {load.value} → {(load as any).q_end} kN/m
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

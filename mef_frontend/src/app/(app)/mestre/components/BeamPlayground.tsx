@@ -1,10 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useMestreStore } from '@/lib/store-mestre';
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type BeamSupport, type DistributedLoad, type MestreParams, type PointLoad, type SupportType, type MestreApiResponse } from '@/lib/mestre-types';
-import { MestreDiagram } from './MestreDiagram';
-import { StructuralDiagram } from './StructuralDiagram';
-import { StructuralDuel } from './StructuralDuel';
+import { extractMestreSteps, type BeamSupport, type DistributedLoad, type MestreParams, type PointLoad, type SupportType } from '@/lib/mestre-types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -44,60 +41,7 @@ export function BeamPlayground() {
     setFullResults
   } = useMestreStore();
 
-  const results = fullResults;
-  const totalLength = params.L || 6.0;
 
-  const formattedReactions = results?.reactions
-    ? Object.values(results.reactions)
-      .sort((a: any, b: any) => (a.x ?? 0) - (b.x ?? 0))
-      .map((r: any, idx: number) => ({
-        x: r.x ?? 0,
-        type: r.type,
-        value: (r.R ?? 0),
-        label: `V${String.fromCharCode(97 + idx)}` // Va, Vb, Vc...
-      }))
-    : [];
-
-  const getStructuralDiagramData = (type: 'shear' | 'moment' | 'deflection') => {
-    if (!results?.diagrams) return null;
-    
-    const series = [];
-    
-    // MEF Series (Primary)
-    const mefPoints = results.diagrams[type] || [];
-    series.push({
-      name: 'MEF Numerical',
-      points: mefPoints,
-      color: type === 'shear' ? 'hsl(217 91% 55%)' : type === 'moment' ? 'hsl(262 83% 58%)' : 'hsl(20 90% 48%)'
-    });
-    
-    // Classical Series (if exists)
-    if (results.classical_diagrams) {
-      let classicalPoints: any[] = [];
-      if (type === 'shear' && results.classical_diagrams.V_kN) {
-        classicalPoints = results.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: results.classical_diagrams.V_kN[i] }));
-      } else if (type === 'moment' && results.classical_diagrams.M_kNm) {
-        classicalPoints = results.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: results.classical_diagrams.M_kNm[i] }));
-      }
-      
-      if (classicalPoints.length > 0) {
-        series.push({
-          name: 'Clássico Analítico',
-          points: classicalPoints,
-          color: '#059669', // Emerald 600
-          dashed: true
-        });
-      }
-    }
-    
-    return {
-      type,
-      unit: type === 'shear' ? 'kN' : type === 'moment' ? 'kNm' : 'mm',
-      label: type === 'shear' ? 'ESFORÇO CORTANTE' : type === 'moment' ? 'MOMENTO FLETOR' : 'LINHA ELÁSTICA',
-      series,
-      reactions: formattedReactions
-    };
-  };
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
     setIsLoading(true);
@@ -378,7 +322,7 @@ export function BeamPlayground() {
               {(Array.isArray(params.supports) && typeof params.supports[0] === 'object' 
                 ? params.supports 
                 : [{ x: 0, type: 'pinned' }, { x: params.L || 6, type: 'pinned' }]
-              ).map((sup: BeamSupport, idx: number) => (
+              ).map((sup: any, idx: number) => (
                 <div key={idx} className="flex gap-2 items-end bg-background/40 p-3 rounded-xl border border-primary/5 shadow-sm">
                   <div className="flex-1 space-y-1.5">
                     <Label className="text-[9px] uppercase font-bold text-muted-foreground">Posição (x) [m]</Label>
@@ -657,25 +601,7 @@ export function BeamPlayground() {
         </div>
       )}
 
-      {results?.diagrams && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500" id="mestre-diagrams">
-          {(() => {
-            const shearData = getStructuralDiagramData('shear');
-            const momentData = getStructuralDiagramData('moment');
-            const deflectionData = getStructuralDiagramData('deflection');
-            
-            return (
-              <>
-                {shearData && <StructuralDiagram data={shearData as any} />}
-                {momentData && <StructuralDiagram data={momentData as any} />}
-                {deflectionData && <StructuralDiagram data={deflectionData as any} />}
-              </>
-            );
-          })()}
-        </div>
-      )}
 
-      <StructuralDuel />
 
       <div className="flex flex-col items-center gap-2 pt-4 border-t border-border/50">
         <p className="text-[10px] text-muted-foreground/60 text-center leading-relaxed italic px-8">

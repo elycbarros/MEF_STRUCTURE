@@ -8,10 +8,12 @@ export interface PointLoad {
 
 export interface UdlLoad {
   type: 'udl';
-  value: number; // kN/m
+  value: number;   // kN/m — intensity at start (q1)
+  q_end?: number;  // kN/m — intensity at end (q2); if omitted = uniform (q2 = q1)
 }
 
 export type SpanLoad = PointLoad | UdlLoad;
+
 
 export interface SpanInput {
   id: string;

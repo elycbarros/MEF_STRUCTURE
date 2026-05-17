@@ -126,7 +126,7 @@ export type MestreParams = {
   step?: number;
   total_p_kN?: number;
   m1_kNm?: number;
-  spans?: SpanInput[];
+  spans?: import('@/lib/vigacross/types').SpanInput[];
 } & Record<string, unknown>;
 
 export interface MestreStep {
