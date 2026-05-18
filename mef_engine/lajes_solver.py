@@ -23,9 +23,12 @@ from enum import Enum
 
 try:
     import structural_core_rs
-    HAS_RUST_CORE = True
 except ImportError:
-    HAS_RUST_CORE = False
+    pass
+
+# O motor Rust para lajes ainda possui problemas de estabilidade numérica e está desativado.
+# A conformidade e o equilíbrio global do solver Python foram validados e são o padrão estável.
+HAS_RUST_CORE = False
 
 
 class SupportType(Enum):
