@@ -118,9 +118,34 @@ export function Beam2DView() {
 
   const maxReaction = calcReactions.length ? Math.max(...calcReactions.map(r => Math.abs(r.value)), 0.01) : 1;
 
+  const beamSupports: { x: number; type: string }[] = (() => {
+    const rawSupports = Array.isArray(params.supports) ? params.supports : [];
+    const explicit = rawSupports
+      .map((s: any) => {
+        if (typeof s === 'string') return null;
+        if (!s || typeof s !== 'object') return null;
+        return { x: safeNum(s.x, Number.NaN), type: String(s.type || 'pinned') };
+      })
+      .filter((s): s is { x: number; type: string } => !!s && Number.isFinite(s.x));
+
+    if (!isCross && explicit.length > 0) return explicit;
+
+    if (!isCross && calcReactions.length > 0) {
+      return calcReactions.map((r, i) => ({
+        x: r.x,
+        type: i === 0 ? 'pinned' : 'roller',
+      }));
+    }
+
+    return [
+      { x: 0, type: 'pinned' },
+      { x: totalLength, type: 'roller' },
+    ];
+  })();
+
   // ── Layout constants ──────────────────────────────────────────────────────
   const loadZone    = 0.9;          // above beam
-  const reactZone   = calcReactions.length > 0 ? 0.7 : 0;
+  const reactZone   = (calcReactions.length > 0 || beamSupports.length > 0) ? 0.7 : 0;
   const stripH      = hasDiagrams ? 0.8 : 0;   // height of each diagram strip (V and M)
   const stripGap    = hasDiagrams ? 0.15 : 0;  // gap between strips
   const labelZone   = hasDiagrams ? 0.25 : 0;  // label row under each strip
@@ -155,9 +180,9 @@ export function Beam2DView() {
     if (type === 'fixed') {
       return (
         <g key={key}>
-          <rect x={x - 0.06} y={beamTop - 0.1} width={0.12} height={h + 0.2} fill="#64748b" opacity={0.7} />
+          <rect x={x - 0.06} y={beamTop - 0.1} width={0.12} height={h + 0.2} fill="#2563eb" opacity={0.8} />
           {[...Array(5)].map((_, j) => (
-            <line key={j} x1={x - 0.06} y1={beamTop - 0.1 + j * 0.2} x2={x - 0.18} y2={beamTop + j * 0.2} stroke="#64748b" strokeWidth="0.012" />
+            <line key={j} x1={x - 0.06} y1={beamTop - 0.1 + j * 0.2} x2={x - 0.18} y2={beamTop + j * 0.2} stroke="#2563eb" strokeWidth="0.012" />
           ))}
         </g>
       );
@@ -165,14 +190,14 @@ export function Beam2DView() {
     const tri = `${x},${base} ${x - sz / 2},${base + sz} ${x + sz / 2},${base + sz}`;
     return (
       <g key={key}>
-        <polygon points={tri} fill="none" stroke="hsl(var(--primary))" strokeWidth="0.025" />
+        <polygon points={tri} fill="rgba(37, 99, 235, 0.10)" stroke="#2563eb" strokeWidth="0.025" />
         {type === 'pin' || type === 'pinned'
-          ? <line x1={x - sz / 2} y1={base + sz + 0.04} x2={x + sz / 2} y2={base + sz + 0.04} stroke="hsl(var(--primary))" strokeWidth="0.018" />
+          ? <line x1={x - sz / 2} y1={base + sz + 0.04} x2={x + sz / 2} y2={base + sz + 0.04} stroke="#2563eb" strokeWidth="0.018" />
           : <>
-              <line x1={x - sz} y1={base + sz} x2={x + sz} y2={base + sz} stroke="hsl(var(--primary))" strokeWidth="0.018" />
-              <circle cx={x - sz * 0.5} cy={base + sz + 0.07} r="0.04" fill="hsl(var(--primary))" />
-              <circle cx={x}           cy={base + sz + 0.07} r="0.04" fill="hsl(var(--primary))" />
-              <circle cx={x + sz * 0.5} cy={base + sz + 0.07} r="0.04" fill="hsl(var(--primary))" />
+              <line x1={x - sz} y1={base + sz} x2={x + sz} y2={base + sz} stroke="#2563eb" strokeWidth="0.018" />
+              <circle cx={x - sz * 0.5} cy={base + sz + 0.07} r="0.04" fill="#2563eb" />
+              <circle cx={x}           cy={base + sz + 0.07} r="0.04" fill="#2563eb" />
+              <circle cx={x + sz * 0.5} cy={base + sz + 0.07} r="0.04" fill="#2563eb" />
             </>}
       </g>
     );
@@ -192,15 +217,7 @@ export function Beam2DView() {
         return el;
       });
     }
-    const sups: any[] = params.supports || [];
-    if (sups.length > 0) {
-      return sups.map((s: any, i) => renderSupport(
-        typeof s === 'object' ? safeNum(s.x) : 0,
-        typeof s === 'object' ? s.type : s,
-        i,
-      ));
-    }
-    return [renderSupport(0, 'pinned', 0), renderSupport(totalLength, 'pinned', 1)];
+    return beamSupports.map((support, i) => renderSupport(support.x, support.type, i));
   };
 
   // ── Load rendering ────────────────────────────────────────────────────────

@@ -485,7 +485,7 @@ def solve_column_section(sec: ColumnSection, loads: ColumnLoads) -> dict:
     # Limites normativos (NBR 6118 §17.3.5 / §18.2.1)
     # As_min = 0,15 Nd/fyd >= 0,4% Ac.
     # Nd em kN e fyd em MPa: As(cm2) = 0,15 * Nd(kN) * 10 / fyd(MPa).
-    fyd_mpa = fyd / 1e6
+    fyd_mpa = sec.fyk / 1.15
     As_min = max(0.004 * Ac * 1e4, 0.15 * loads.Nd_kN * 10.0 / fyd_mpa) # cm2
     As_max = 0.08 * Ac * 1e4 # cm2 (8%)
     

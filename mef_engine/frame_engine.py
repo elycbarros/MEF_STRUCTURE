@@ -129,7 +129,11 @@ class Frame3DEngine:
         n1, n2 = self.nodes[m.node_i], self.nodes[m.node_j]
         dz = abs(n2.z - n1.z)
         L = m.L if m.L > 0 else 1.0
-        return 0 if dz/L > 0.8 else 1
+        return "column" if dz / L > 0.8 else "beam"
+
+    def _get_member_type_code(self, m: FrameMember) -> int:
+        """Código esperado pelo core Rust: 0 = pilar, 1 = viga."""
+        return 0 if self._get_member_type(m) == "column" else 1
 
     def _get_m_local(self, m: FrameMember, L: float, density: float = 2500.0):
         """Matriz de Massa Lumped (M5-Master)."""
@@ -166,7 +170,7 @@ class Frame3DEngine:
         
         rust_members = []
         for m in self.members:
-            m_type = self._get_member_type(m)
+            m_type = self._get_member_type_code(m)
             # Atlas convention: Iy is minor, Iz is major axis (for vertical columns)
             # Rust Frame3DMemberPy expects: area, iy, iz, j
             rust_members.append(Frame3DMemberPy(
@@ -329,6 +333,10 @@ class Frame3DEngine:
                 U_acc[mask] = U_curr[mask] - (diff1[mask]**2) / denom[mask]
                 U_curr = U_acc
                 new_res['U_raw'] = U_curr # Garantir que o resultado use o valor acelerado
+                new_res['displacements'] = {
+                    nid: U_curr[self.node_map[nid]*6 : self.node_map[nid]*6+6]
+                    for nid in self.nodes
+                }
             
             error = np.max(np.abs(U_curr - U_prev))
             if error < tol: 

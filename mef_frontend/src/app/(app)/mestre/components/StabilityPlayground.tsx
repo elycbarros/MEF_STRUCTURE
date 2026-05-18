@@ -10,6 +10,11 @@ import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
 export function StabilityPlayground() {
   const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults, isLoading, error } = useMestreStore();
 
+  const paramNumber = (value: unknown, fallback: number) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+
   const updateParam = (key: string, value: string | number) => {
     const val = typeof value === 'string' ? parseFloat(value) : value;
     if (typeof val === 'number' && isNaN(val)) return;
@@ -62,11 +67,11 @@ export function StabilityPlayground() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">Altura Total (m)</Label>
-              <Input type="number" value={params.height || 30.0} onChange={(e) => updateParam('height', e.target.value)} className="h-9 bg-background/50" />
+              <Input type="number" value={paramNumber(params.height, 30.0)} onChange={(e) => updateParam('height', e.target.value)} className="h-9 bg-background/50" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">Frequência f1 (Hz)</Label>
-              <Input type="number" step="0.1" value={params.f1_hz || 0.5} onChange={(e) => updateParam('f1_hz', e.target.value)} className="h-9 bg-background/50 font-bold" />
+              <Input type="number" step="0.1" value={paramNumber(params.f1_hz, 0.5)} onChange={(e) => updateParam('f1_hz', e.target.value)} className="h-9 bg-background/50 font-bold" />
             </div>
           </div>
         </div>
@@ -81,14 +86,14 @@ export function StabilityPlayground() {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-[10px] text-muted-foreground uppercase font-bold">V0 (m/s)</Label>
-              <Input type="number" value={params.v0 || 30.0} onChange={(e) => updateParam('v0', e.target.value)} className="h-9 bg-background/50" />
+              <Input type="number" value={paramNumber(params.v0, 30.0)} onChange={(e) => updateParam('v0', e.target.value)} className="h-9 bg-background/50" />
             </div>
             
             <div className="flex items-center justify-between p-2 rounded-lg bg-background/40 border border-emerald-500/10">
               <span className="text-[10px] font-bold uppercase text-emerald-700">Modo Dinâmico (Davenport)</span>
               <input 
                 type="checkbox" 
-                checked={params.is_dynamic || false} 
+                checked={Boolean(params.is_dynamic)} 
                 onChange={(e) => updateParam('is_dynamic', e.target.checked ? 1 : 0)}
                 className="w-4 h-4 accent-emerald-500"
               />
@@ -98,7 +103,7 @@ export function StabilityPlayground() {
               <span className="text-[10px] font-bold uppercase text-blue-700">Análise Sísmica (NBR 15421)</span>
               <input 
                 type="checkbox" 
-                checked={params.check_seismic || false} 
+                checked={Boolean(params.check_seismic)} 
                 onChange={(e) => updateParam('check_seismic', e.target.checked ? 1 : 0)}
                 className="w-4 h-4 accent-blue-500"
               />

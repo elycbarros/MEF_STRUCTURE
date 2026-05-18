@@ -96,7 +96,7 @@ class TestBeamPremium:
         return run_beam_analysis(
             L=L,
             supports=[{"x": 0.0, "type": "pinned"}, {"x": L, "type": "pinned"}],
-            distributed_loads=[{"x_start": 0, "x_end": L, "q_start": 20_000}],
+            distributed_loads=[{"x_start": 0, "x_end": L, "q_start": 20.0}],
             b=0.20, h=0.50, fck=30,
             bf=bf, nonlinear=nonlinear,
             redistribution_delta=redistribution,

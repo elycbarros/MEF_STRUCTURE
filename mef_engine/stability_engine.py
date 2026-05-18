@@ -109,7 +109,8 @@ class StabilityEngine:
         
         m1 = m1_kNm if m1_kNm > 0 else 1.0
         delta_m = total_p_kN * delta_lim
-        gamma_z = 1.0 / (1.0 - (delta_m / m1))
+        gamma_ratio = delta_m / m1
+        gamma_z = float("inf") if gamma_ratio >= 1.0 else 1.0 / (1.0 - gamma_ratio)
         
         # Conforto Dinâmico (NBR 6123 Anexo I / Davenport)
         from wind_engine import WindEngine
@@ -128,13 +129,13 @@ class StabilityEngine:
         
         return StabilityResult(
             gamma_z=gamma_z,
-            is_stable=not p_delta_res['is_divergent'] and p_delta_res['p_delta_factor'] < 1.3,
-            requires_second_order=p_delta_res['p_delta_factor'] > 1.1,
+            is_stable=gamma_ratio < 1.0 and not p_delta_res['is_divergent'] and p_delta_res['p_delta_factor'] < 1.3,
+            requires_second_order=gamma_ratio >= 1.0 or p_delta_res['p_delta_factor'] > 1.1,
             p_delta_factor=p_delta_res['p_delta_factor'],
             peak_acceleration_ms2=acc,
             comfort_status=comfort,
             p_delta_iterations=p_delta_res['iterations'],
-            is_divergent=p_delta_res['is_divergent']
+            is_divergent=gamma_ratio >= 1.0 or p_delta_res['is_divergent']
         )
 
     @staticmethod

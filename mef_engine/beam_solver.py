@@ -285,7 +285,11 @@ class BeamFEMSolver:
 
     def solve(self, inertias: np.ndarray | None = None) -> BeamResult:
         pedagogical_proofs = {}
-        if RUST_AVAILABLE and inertias is None:
+        # The Rust 1D beam path currently returns inconsistent beam-end forces for
+        # the Mestre beam audit (for the default 6 m, 20 kN/m case it reports only
+        # 54 kN of reaction against 135 kN of applied load). Keep the authoritative
+        # Python assembly/extraction path until the native force convention is fixed.
+        if False and RUST_AVAILABLE and inertias is None:
             try:
                 from structural_core_rs import (
                     Beam1DModel, Beam1DSupportPy, Beam1DPointLoadPy, 
@@ -891,6 +895,8 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
 
     durability = _durability_params(caa, 'beam')
     cover_m = float(cover) if cover is not None else durability['cover_m']
+    if cover_m > 1.0:
+        cover_m /= 1000.0
     section = BeamSection(b=b, h=h, fck=fck, bf=bf, hf=hf, cover=cover_m, asymmetric_offset=asymmetric_offset)
     
     proc_dist = []

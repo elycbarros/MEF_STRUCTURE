@@ -108,7 +108,7 @@ export function FootingPlayground() {
                 <p className="text-[8px] text-muted-foreground leading-tight">Plastificação do solo via Winkler Não-Linear</p>
               </div>
               <Switch 
-                checked={params.is_nonlinear_isi || false} 
+                checked={Boolean(params.is_nonlinear_isi)} 
                 onCheckedChange={(val) => updateParams({ is_nonlinear_isi: val })} 
               />
             </div>

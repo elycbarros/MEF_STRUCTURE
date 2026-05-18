@@ -5,6 +5,15 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BrainCircuit } from 'lucide-react';
 
+type RenderFiber = {
+  x: number;
+  y: number;
+  area: number;
+  stress: number;
+  strain: number;
+  type: string;
+};
+
 export function FiberMeshView() {
   const { fullResults } = useMestreStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,12 +41,35 @@ export function FiberMeshView() {
     const scale = Math.min(width / b_m, height / h_m);
     const offsetX = (canvas.width - b_m * scale) / 2;
     const offsetY = (canvas.height - h_m * scale) / 2;
+    const defaultArea = (b_m * h_m) / Math.max(fibers.length, 1);
+
+    const normalizeFiber = (fiber: any): RenderFiber => {
+      if (Array.isArray(fiber)) {
+        const [x, y, area, stress, strain, type] = fiber;
+        return {
+          x: Number(x) || 0,
+          y: Number(y) || 0,
+          area: Number(area) || defaultArea,
+          stress: Number(stress) || 0,
+          strain: Number(strain) || 0,
+          type: type || 'concrete',
+        };
+      }
+
+      return {
+        x: Number(fiber?.x) || 0,
+        y: Number(fiber?.y) || 0,
+        area: Number(fiber?.area ?? fiber?.area_m2) || defaultArea,
+        stress: Number(fiber?.sig_MPa ?? fiber?.stress ?? fiber?.stress_MPa) || 0,
+        strain: Number(fiber?.eps ?? fiber?.strain) || 0,
+        type: fiber?.type || 'concrete',
+      };
+    };
+
+    const normalizedFibers: RenderFiber[] = fibers.map(normalizeFiber);
 
     // Draw Concrete Fibers
-    fibers.forEach((f: any) => {
-      // Fiber data format: [x, y, area, stress, strain, type]
-      const [fx, fy, fa, stress, strain, type] = f;
-      
+    normalizedFibers.forEach(({ x: fx, y: fy, area: fa, stress, type }) => {
       if (type === 'concrete') {
         const side = Math.sqrt(fa) * scale;
         const px = fx * scale + offsetX + (b_m * scale) / 2 - side / 2;
@@ -58,8 +90,7 @@ export function FiberMeshView() {
     });
 
     // Draw Steel Bars
-    fibers.forEach((f: any) => {
-      const [fx, fy, fa, stress, strain, type] = f;
+    normalizedFibers.forEach(({ x: fx, y: fy, area: fa, stress, type }) => {
       if (type === 'steel') {
         const px = fx * scale + offsetX + (b_m * scale) / 2;
         const py = -fy * scale + offsetY + (h_m * scale) / 2;

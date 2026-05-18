@@ -13,6 +13,7 @@ def build_lajes_blackboard(res: Any, payload: Any = None) -> dict:
         model = res.get("model") # Tenta pegar do resultado se não estiver no payload
     
     me.add_standard_info()
+    fck = float(getattr(model.material, "fck", payload.get("fck", 30.0) if payload else 30.0))
     
     # Diagrama de Referência
     me.add_step(

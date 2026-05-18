@@ -24,7 +24,7 @@ def test_beam_regression_analytical():
     res = run_beam_analysis(
         L=inputs["L"],
         supports=[{"x": 0.0, "type": "pinned"}, {"x": inputs["L"], "type": "pinned"}],
-        distributed_loads=[{"x_start": 0, "x_end": inputs["L"], "q_start": inputs["q"] * 1000}],
+        distributed_loads=[{"x_start": 0, "x_end": inputs["L"], "q_start": inputs["q"]}],
         b=inputs["bw"], h=inputs["h"], fck=30, nonlinear=False, include_self_weight=False,
         gamma_f=1.0
     )

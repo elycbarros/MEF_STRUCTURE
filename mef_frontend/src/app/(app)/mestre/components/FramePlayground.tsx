@@ -19,6 +19,7 @@ interface FrameConfig {
   b: number;
   h: number;
   q: number;
+  use_special_portico: boolean;
 }
 
 export function FramePlayground() {
@@ -43,7 +44,8 @@ export function FramePlayground() {
     level_height: Number(params.level_height) || 3.0,
     b: Number(params.b) || 0.20,
     h: Number(params.h) || 0.50,
-    q: Number(params.q) || 15.0 // kN/m
+    q: Number(params.q) || 15.0, // kN/m
+    use_special_portico: Boolean(params.use_special_portico) || false
   });
 
   const updateConfig = (key: keyof FrameConfig, value: string) => {
@@ -52,6 +54,12 @@ export function FramePlayground() {
       setFrameConfig(prev => ({ ...prev, [key]: val }));
       updateParams({ [key]: val });
     }
+  };
+
+
+  const toggleSpecialPortico = (checked: boolean) => {
+    setFrameConfig(prev => ({ ...prev, use_special_portico: checked }));
+    updateParams({ use_special_portico: checked });
   };
 
   const handleCalculate = useCallback(async () => {
@@ -64,7 +72,7 @@ export function FramePlayground() {
       const loads = [];
       const supports: Record<string, number[]> = {};
 
-      const { n_bays, n_levels, bay_width, level_height, b, h, q } = frameConfig;
+      const { n_bays, n_levels, bay_width, level_height, b, h, q, use_special_portico } = frameConfig;
 
       // Create Nodes
       for (let j = 0; j <= n_levels; j++) {
@@ -77,15 +85,35 @@ export function FramePlayground() {
             z: j * level_height
           });
 
-          // Foundation supports
-          if (j === 0) {
-            supports[id] = [0, 1, 2, 3, 4, 5]; // Fully fixed
+          // Apoios de base (modo padrão x pórtico especial)
+          if (!use_special_portico && j === 0) {
+            supports[id] = [0, 1, 2, 3, 4, 5]; // Engaste para pórtico clássico
           }
         }
       }
 
+      // No modo especial, a estrutura do pórtico nasce sobre uma viga isostática base
+      if (use_special_portico) {
+        const leftBase = 0;
+        const rightBase = n_bays;
+
+        supports[leftBase] = [0, 1, 2]; // pino
+        supports[rightBase] = [1, 2]; // rolete (livre em x)
+
+        for (let i = 0; i < n_bays; i++) {
+          const ni = i;
+          const nj = i + 1;
+          members.push({
+            id: i,
+            node_i: ni,
+            node_j: nj,
+            section: { b, h }
+          });
+        }
+      }
+
       // Create Members
-      let memberId = 0;
+      let memberId = use_special_portico ? n_bays : 0;
       for (let j = 0; j <= n_levels; j++) {
         for (let i = 0; i <= n_bays; i++) {
           const curr = j * (n_bays + 1) + i;
@@ -219,6 +247,18 @@ export function FramePlayground() {
             <Input type="number" value={frameConfig.q} onChange={(e) => updateConfig('q', e.target.value)} className="h-9 bg-background/50 font-mono font-bold text-primary" />
           </div>
         </div>
+      </div>
+      <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-2">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={frameConfig.use_special_portico}
+            onChange={(e) => toggleSpecialPortico(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <span className="text-sm font-semibold">Usar pórtico especial (apoiado em viga isostática)</span>
+        </label>
+        <p className="text-xs text-muted-foreground">Exemplo didático: viga base biapoiada (pino + rolete) com pórtico montado acima.</p>
       </div>
 
       <Button onClick={handleCalculate} className="w-full macos-button h-12 gap-2" disabled={isLoading}>
