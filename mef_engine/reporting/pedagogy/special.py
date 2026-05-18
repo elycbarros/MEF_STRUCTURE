@@ -381,7 +381,7 @@ def build_tension_pro_blackboard(res: dict, payload: dict = None) -> dict:
         title="Grau de Balanceamento",
         formula=r"\text{Balanço} = \frac{q_{eq}}{q_{serv}} \cdot 100\%",
         substitution=rf"q_{{serv}} = {fmt(res.get('q_service_kNm'))}\,kN/m",
-        result=rf"\text{Balanço} = {fmt(res.get('balance_ratio'), 1)}\%",
+        result=rf"\text{{Balanço}} = {fmt(res.get('balance_ratio'), 1)}\%",
         explanation="Indica quanto da carga de serviço é compensada pela protensão.",
         norm="Prática de Projeto"
     )

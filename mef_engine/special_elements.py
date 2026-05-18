@@ -115,8 +115,50 @@ class SpecialElementsSolver:
 
     @staticmethod
     def solve_tension_pro(span: float, q_service: float, p0: float, eccentricity: float) -> dict:
-        # ... (mantido igual)
-        pass
+        q_eq = 8.0 * p0 * eccentricity / (span ** 2) if span else 0.0
+        balance_ratio = (q_eq / q_service) * 100.0 if q_service else 0.0
+        residual_q = q_service - q_eq
+        service_moment = residual_q * span ** 2 / 8.0
+
+        # Estimativa pedagógica para uma faixa/seção padrão de 20 x 50 cm.
+        # O módulo Tension Pro ainda não recebe seção completa; estes valores
+        # mantêm o solver determinístico até a entrada geométrica ficar explícita.
+        b = 0.20
+        h = 0.50
+        area_m2 = b * h
+        inertia_m4 = b * h ** 3 / 12.0
+        section_modulus_m3 = inertia_m4 / (h / 2.0)
+        prestress_mpa = p0 / area_m2 / 1000.0
+        flexural_mpa = service_moment / section_modulus_m3 / 1000.0
+        stress_bottom = max(0.0, flexural_mpa - prestress_mpa)
+        fctm = 0.30 * (30.0 ** (2.0 / 3.0))
+
+        return {
+            "summary": {
+                "span_m": span,
+                "q_service_kNm": q_service,
+                "p0_kN": p0,
+                "eccentricity_m": eccentricity,
+                "q_eq_kNm": q_eq,
+                "balance_ratio": balance_ratio,
+                "residual_q_kNm": residual_q,
+                "service_moment_kNm": service_moment,
+                "stress_bottom_MPa": stress_bottom,
+                "fctm_MPa": fctm,
+                "status": "OK" if stress_bottom <= fctm else "REVISAR_TRAÇÃO",
+            },
+            "span_m": span,
+            "q_service_kNm": q_service,
+            "p0_kN": p0,
+            "eccentricity_m": eccentricity,
+            "q_eq_kNm": q_eq,
+            "balance_ratio": balance_ratio,
+            "residual_q_kNm": residual_q,
+            "service_moment_kNm": service_moment,
+            "stress_bottom_MPa": stress_bottom,
+            "fctm_MPa": fctm,
+            "status": "OK" if stress_bottom <= fctm else "REVISAR_TRAÇÃO",
+        }
 
     @staticmethod
     def solve_advanced_slab(Lx: float, Ly: float, h: float, fck: float, q_dist: float, kv: float = 0, is_raft: bool = True, columns: list = None, is_nonlinear_isi: bool = False) -> dict:

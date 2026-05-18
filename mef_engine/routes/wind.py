@@ -44,10 +44,21 @@ async def calculate_wind(input: WindRequest):
     # Salvar para debug/cache
     ensure_directory("output_api")
     write_json(os.path.join("output_api", "last_wind_results.json"), results)
+    trace = {
+        "requested_type": "wind",
+        "solver_module": "WindEngine.generate_force_profile",
+        "blackboard_builder": "build_stability_blackboard",
+        "classical_check": True,
+        "mef_check": False,
+    }
     
     return {
         "success": True,
+        "result": results,
+        "summary": results.get("summary", results),
+        "full_results": results,
         "pedagogical_steps": blackboard,
+        "calculation_trace": trace,
         **results
     }
 

@@ -99,9 +99,23 @@ async def analyze_mestre_frame(req: MestreFrameRequest):
         }
         memorial = build_structural_blackboard("frame", res_to_memorial, payload_dict)
 
+        requested_type = "trusses" if req.is_truss else "frames"
+        summary = res["summary"]
+        full_results = {
+            "displacements": res["displacements"],
+            "model_3d": req.model_dump(),
+            "efforts": efforts,
+            "equilibrium_audit": equilibrium,
+            "top_displacement_mm": max(abs(d[0]) for d in res["displacements"].values()) * 1000,
+            "pedagogical_proofs": pedagogical_data,
+        }
+
         return {
             "success": True,
             "mode": "MESTRE_PEDAGOGICAL",
+            "result": full_results,
+            "summary": summary,
+            "full_results": full_results,
             "displacements": res["displacements"],
             "model_3d": req.model_dump(),
             "efforts": efforts,
@@ -111,7 +125,7 @@ async def analyze_mestre_frame(req: MestreFrameRequest):
             "pedagogical_steps": memorial["steps"],
             "memorial_markdown": "# Memorial de Calculo Padronizado - Portico 3D Premium\n\nAnalise realizada via Metodo de Elementos Finitos (Matriz de Rigidez 12x12).",
             "calculation_trace": {
-                "requested_type": "frame",
+                "requested_type": requested_type,
                 "solver_module": "frame_engine",
                 "blackboard_builder": "frame_pedagogy",
                 "classical_check": True,

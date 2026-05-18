@@ -10,6 +10,9 @@ cd "$ROOT/mef_engine"
 echo "== Exam auditor regression =="
 .venv/bin/python test_exam_auditor.py
 
+echo "== Mestre response contract =="
+.venv/bin/python test_mestre_response_contract.py
+
 echo "== Frontend production build =="
 cd "$ROOT/mef_frontend"
 npm run build

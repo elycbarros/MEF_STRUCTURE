@@ -62,4 +62,18 @@ O script executa:
 
 - auditoria matemática dos solvers;
 - regressões do `exam_auditor`, incluindo PDF;
+- regressão do contrato de resposta do Mestre para vigas, pilares, lajes, sapatas, estacas, blocos, pórticos, treliças, SPT, estabilidade, vento, protensão, radier avançado e auditoria;
 - build de produção do frontend.
+
+## Regressão de Contrato
+
+O arquivo `mef_engine/test_mestre_response_contract.py` chama os handlers do backend diretamente com fixtures mínimas e exige que todos retornem:
+
+- `success: true`;
+- `result` preenchido;
+- `summary` preenchido;
+- `full_results` preenchido;
+- `pedagogical_steps` como lista ou `{ steps: [...] }`;
+- `calculation_trace` com `requested_type`, `solver_module`, `blackboard_builder`, `classical_check` e `mef_check`.
+
+Novos módulos do Mestre devem entrar nessa matriz antes de serem considerados estáveis para a interface.

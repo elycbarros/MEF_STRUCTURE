@@ -472,9 +472,14 @@ async def calculate_special(req: SpecialElementRequest):
             trace["duel"] = duel
         res["calculation_trace"] = trace
 
+    clean_result = sanitize_for_json(res) if res else {}
+    summary = clean_result.get("summary", clean_result) if isinstance(clean_result, dict) else clean_result
+
     return {
         "success": True,
-        "result": sanitize_for_json(res) if res else {},
+        "result": clean_result,
+        "summary": sanitize_for_json(summary),
+        "full_results": clean_result,
         "pedagogical_steps": blackboard,
         "calculation_trace": trace,
     }
@@ -492,12 +497,24 @@ async def calculate_spt(req: Dict):
     
     engine = GeotechnicalEngine()
     res = engine.analyze_spt(spt_data)
+    if isinstance(res, dict) and "sigma_adm_calc_kPa" not in res:
+        res["sigma_adm_calc_kPa"] = res.get("sigma_adm_kPa", 0.0)
     blackboard = build_spt_blackboard(res)
+    trace = {
+        "requested_type": "spt",
+        "solver_module": "GeotechnicalEngine.analyze_spt",
+        "blackboard_builder": "build_spt_blackboard",
+        "classical_check": True,
+        "mef_check": False,
+    }
     
     return {
         "success": True,
         "result": res,
-        "pedagogical_steps": blackboard
+        "summary": res.get("summary", res) if isinstance(res, dict) else res,
+        "full_results": res,
+        "pedagogical_steps": blackboard,
+        "calculation_trace": trace,
     }
 
 @router.post("/calculate/stability-mestre")
@@ -549,13 +566,29 @@ async def calculate_stability_mestre(req: Dict):
         "width_x": width_x,
         "seismic": seismic
     }
+    res["q0_kN_m2"] = max((point.get("q_Pa", 0.0) for point in wind_data.get("profile", [])), default=0.0) / 1000.0
     
     blackboard = build_stability_blackboard(res)
+    trace = {
+        "requested_type": "stability",
+        "solver_module": "StabilityEngine.calculate_advanced_stability",
+        "blackboard_builder": "build_stability_blackboard",
+        "classical_check": True,
+        "mef_check": False,
+    }
     
     return {
         "success": True,
         "result": sanitize_for_json(res),
-        "pedagogical_steps": blackboard
+        "summary": sanitize_for_json({
+            "gamma_z": res.get("gamma_z"),
+            "comfort_status": res.get("comfort_status"),
+            "is_stable": res.get("is_stable"),
+            "peak_acceleration": res.get("peak_acceleration"),
+        }),
+        "full_results": sanitize_for_json(res),
+        "pedagogical_steps": blackboard,
+        "calculation_trace": trace,
     }
 
 @router.post("/generate/professional-memorial")

@@ -120,7 +120,7 @@ def build_footing_blackboard(res: dict[str, Any], payload: dict = None) -> dict[
             title="Duelo Estrutural: Comparação de Modelos",
             formula=r"\text{Bielas vs. Flexão}",
             substitution=r"\text{Auditoria Interna de Paridade}",
-            result=res["calculation_trace"]["duel"][0]["verdict"] if isinstance(res["calculation_trace"]["duel"], list) else "Análise Concluída",
+            result=res["calculation_trace"]["duel"][0].get("verdict", "Análise Concluída") if isinstance(res["calculation_trace"]["duel"], list) else "Análise Concluída",
             explanation="Comparamos o método clássico de bielas e tirantes com o modelo de viga equivalente para garantir a redundância do cálculo.",
             norm="NBR 6118, 22.6.4"
         )
