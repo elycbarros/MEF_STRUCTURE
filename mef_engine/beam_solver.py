@@ -738,7 +738,8 @@ class ClassicalBeamSolver:
                 dist = x2 - x1
                 if dist > 0:
                     load_resultants = [ClassicalBeamSolver._total_distributed_load(dl) for dl in all_dloads]
-                    M_loads_x1 = sum(p.P * (p.x - x1) for p in pts) + \
+                    M_loads_x1 = sum(p.P * (p.x - x1) for p in pts) - \
+                                 sum(p.M for p in pts) + \
                                  sum(force * (centroid - x1) for force, centroid in load_resultants)
                     R2 = M_loads_x1 / dist
                     R1 = (sum(force for force, _ in load_resultants) + sum(p.P for p in pts)) - R2
@@ -748,7 +749,8 @@ class ClassicalBeamSolver:
                 x1 = s1.x
                 load_resultants = [ClassicalBeamSolver._total_distributed_load(dl) for dl in all_dloads]
                 R1 = (sum(force for force, _ in load_resultants) + sum(p.P for p in pts))
-                M1 = sum(p.P * (p.x - x1) for p in pts) + \
+                M1 = sum(p.P * (p.x - x1) for p in pts) - \
+                     sum(p.M for p in pts) + \
                      sum(force * (centroid - x1) for force, centroid in load_resultants)
                 internal_reactions = [{'x': x1, 'R': R1, 'M': -M1}]
 
@@ -773,6 +775,7 @@ class ClassicalBeamSolver:
                 if xi > p.x + 1e-6:
                     curr_v -= p.P
                     curr_m -= p.P * (xi - p.x)
+                    curr_m -= p.M
             
             for r in internal_reactions:
                 if xi > r['x'] - 1e-6:
@@ -836,7 +839,7 @@ class ClassicalBeamSolver:
                         m_parts.append(f"{-pv:+.2f}(x - {p.x:.2f})")
                     if abs(p.M) > 1e-3:
                         pm = p.M / 1000.0
-                        m_parts.append(f"{pm:+.2f}")
+                        m_parts.append(f"{-pm:+.2f}")
             
             # 3. Cargas Distribuídas
             pp = (model.section.area * 25000.0 / 1000.0) if getattr(model, "include_self_weight", True) else 0.0
@@ -864,7 +867,7 @@ class ClassicalBeamSolver:
                 return s
 
             trechos.append({
-                "range": f"{x1:.2f} \le x < {x2:.2f}",
+                "range": fr"{x1:.2f} \le x < {x2:.2f}",
                 "shear": f"V(x) = {clean_expr(v_parts)}",
                 "moment": f"M(x) = {clean_expr(m_parts)}"
             })

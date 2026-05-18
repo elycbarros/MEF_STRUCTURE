@@ -68,7 +68,7 @@ export function Beam2DView() {
             : params.q > 0
               ? [{ type: 'udl', value: params.q, x_start: 0, x_end: params.L || 6.0 }]
               : []),
-          ...(params.point_loads || []).map((pl: any) => ({ type: 'point', value: pl.P, position: pl.x })),
+          ...(params.point_loads || []).map((pl: any) => ({ type: 'point', value: pl.P, moment: pl.M || 0, position: pl.x })),
         ],
       }];
 
@@ -254,10 +254,30 @@ export function Beam2DView() {
         if (load.type === 'point') {
           const px  = x0 + safeNum(load.position);
           const pv  = safeNum(load.value);
+          const mv  = safeNum(load.moment);
           return (
-            <g key={`l-${si}-${li}`} className="text-destructive">
-              <line x1={px} y1={beamTop - 0.75} x2={px} y2={beamTop - 0.04} stroke="currentColor" strokeWidth="0.022" markerEnd="url(#arr-load)" />
-              <text x={px} y={beamTop - 0.84} textAnchor="middle" fontSize="0.13" fontWeight="900" fill="currentColor">{pv} kN</text>
+            <g key={`l-${si}-${li}`}>
+              {pv > 0 && (
+                <g className="text-destructive">
+                  <line x1={px} y1={beamTop - 0.75} x2={px} y2={beamTop - 0.04} stroke="currentColor" strokeWidth="0.022" markerEnd="url(#arr-load)" />
+                  <text x={px} y={beamTop - 0.84} textAnchor="middle" fontSize="0.13" fontWeight="900" fill="currentColor">{pv} kN</text>
+                </g>
+              )}
+              {mv !== 0 && (
+                <g className="text-orange-500">
+                  <path
+                    d={mv > 0
+                      ? `M ${px + 0.15} ${beamTop - 0.4} A 0.15 0.15 0 1 0 ${px} ${beamTop - 0.25}`
+                      : `M ${px - 0.15} ${beamTop - 0.4} A 0.15 0.15 0 1 1 ${px} ${beamTop - 0.25}`
+                    }
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="0.025"
+                    markerEnd="url(#arr-load)"
+                  />
+                  <text x={px} y={beamTop - 0.62} textAnchor="middle" fontSize="0.12" fontWeight="900" fill="currentColor">{Math.abs(mv)} kNm</text>
+                </g>
+              )}
             </g>
           );
         }
