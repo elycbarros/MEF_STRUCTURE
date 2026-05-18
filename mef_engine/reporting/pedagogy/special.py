@@ -405,17 +405,37 @@ def build_exam_auditor_blackboard(res: dict, payload: dict = None) -> dict:
     fmt = me._fmt
     
     question_id = res.get("question_id", "q47_fcc_2018")
+    correct = res.get("correct_reactions", {})
+    exam = res.get("exam_reactions", {})
+    model = res.get("model", {})
+    solver_result = res.get("solver_result", {})
     
     me.add_standard_info()
     
     if question_id == "q47_fcc_2018":
+        length = float(model.get("length_m", res.get("L", 8.0)))
+        supports = model.get("supports", [])
+        loads = model.get("point_loads", [])
+        x_a = float(supports[0].get("x", 0.0)) if len(supports) > 0 else 0.0
+        x_b = float(supports[1].get("x", 6.0)) if len(supports) > 1 else 6.0
+        load = loads[0] if loads else {"x": length, "P": 30.0}
+        x_p = float(load.get("x", length))
+        p = float(load.get("P", 30.0))
+        span_ab = abs(x_b - x_a)
+        overhang = abs(x_p - x_b)
+        ra = float(correct.get("Ra", 0.0))
+        rb = float(correct.get("Rb", 0.0))
+        rb_exam = float(exam.get("Rb", 0.0))
+        divergence = abs(rb_exam - rb)
+        max_moment = float(solver_result.get("summary", {}).get("max_moment_kNm", abs(ra * span_ab)))
+
         me.add_step(
             id="q47-moments",
             title="1. Equilíbrio de Momentos no Apoio B",
-            formula=r"\sum M_B = 0 \Rightarrow R_A \cdot L + P \cdot d = 0",
-            substitution=r"R_A \cdot 6{,}0 + 30{,}0 \cdot 2{,}0 = 0",
-            result=r"R_A = -10{,}0\,kN \quad (\text{Para baixo})",
-            explanation="Para contrapor o torque de tombamento da carga de 30 kN no balanço à direita, o apoio esquerdo A deve exercer uma força puramente de ancoragem (para baixo).",
+            formula=r"\sum M_B = 0 \Rightarrow R_A \cdot L_{AB} + P \cdot a = 0",
+            substitution=rf"R_A \cdot {fmt(span_ab, 1)} + {fmt(p, 1)} \cdot {fmt(overhang, 1)} = 0",
+            result=rf"R_A = {fmt(ra, 1)}\,kN \quad (\text{{{'Para baixo' if ra < 0 else 'Para cima'}}})",
+            explanation=f"Modelo calculado: viga total de {fmt(length, 1)} m, apoio A em x={fmt(x_a, 1)} m, apoio B em x={fmt(x_b, 1)} m e carga pontual de {fmt(p, 1)} kN em x={fmt(x_p, 1)} m.",
             norm="Mecânica Clássica (Equilíbrio Estático)"
         )
         
@@ -423,14 +443,12 @@ def build_exam_auditor_blackboard(res: dict, payload: dict = None) -> dict:
             id="q47-vertical",
             title="2. Equilíbrio de Forças Verticais",
             formula=r"\sum F_z = 0 \Rightarrow R_A + R_B - P = 0",
-            substitution=r"-10{,}0 + R_B - 30{,}0 = 0",
-            result=r"R_B = +40{,}0\,kN \quad (\text{Para cima})",
-            explanation="O apoio central B atua como fulcro e absorve tanto a carga gravitacional descendente de 30 kN quanto a reação de ancoragem de 10 kN.",
+            substitution=rf"{fmt(ra, 1)} + R_B - {fmt(p, 1)} = 0",
+            result=rf"R_B = {fmt(rb, 1)}\,kN \quad (\text{{{'Para baixo' if rb < 0 else 'Para cima'}}})",
+            explanation=f"O solver retorna momento máximo de {fmt(max_moment, 2)} kNm, coerente com o binário criado pela carga no balanço.",
             norm="Newton - 3ª Lei"
         )
         
-        # Validation step showing the divergence
-        divergence = abs(20.0 - 40.0) # 20 kN stated by FCC vs 40 kN physical
         me.add_validation_step(
             id="q47-audit",
             title="Divergência Física no Gabarito Oficial (Erro da FCC)",
@@ -438,42 +456,54 @@ def build_exam_auditor_blackboard(res: dict, payload: dict = None) -> dict:
             limit=0.001,
             operator="<=",
             unit="kN",
-            explanation="A banca FCC publicou Rb = +20 kN, violando o equilíbrio estático do sistema estrutural. Divergência física de 20 kN (50% de erro).",
+            explanation=f"A banca informa Rb = {fmt(rb_exam, 1)} kN, enquanto o modelo físico calculado exige Rb = {fmt(rb, 1)} kN.",
             norm="Auditoria de Projetos"
         )
         
     elif question_id == "q31_vunesp_2021":
+        reactions = solver_result.get("reactions", {})
+        efforts = solver_result.get("member_efforts", {})
+        ra = float(correct.get("Ra", 0.0))
+        rb = float(correct.get("Rb", 0.0))
+        rax = float(correct.get("Rax", 0.0))
+        rax_exam = float(exam.get("Rax", 0.0))
+        top_effort = efforts.get(2, efforts.get("2", {}))
+        diagonal_effort = efforts.get(7, efforts.get("7", {}))
+        top_member_n = float(top_effort.get("i", {}).get("N", 0.0))
+        diagonal_n = float(diagonal_effort.get("i", {}).get("N", 0.0))
+        width = float(model.get("width_m", res.get("L", 3.0)))
+        height = float(model.get("height_m", res.get("h", 6.0)))
+        divergence = abs(rax_exam - rax)
+
         me.add_step(
             id="q31-reactions",
             title="1. Reações de Apoio Globais",
-            formula=r"R_B = \frac{F_x \cdot h_1 + F_z \cdot L}{d}, \quad R_A = \text{{Equilíbrio}}",
-            substitution=r"R_B = \frac{20 \cdot 6 - 20 \cdot 6}{3}",
-            result=r"R_B = 60{,}0\,kN \quad (\uparrow), \quad R_A = 40{,}0\,kN \quad (\downarrow)",
-            explanation="O binário de forças aplicadas gera um conjugado de momento fletor que é absorvido pelas reações verticais dos apoios.",
+            formula=r"\sum F_x = 0,\quad \sum F_z = 0,\quad \sum M = 0",
+            substitution=rf"b = {fmt(width, 1)}\,m,\quad h = {fmt(height, 1)}\,m",
+            result=rf"R_A = {fmt(ra, 1)}\,kN,\quad R_B = {fmt(rb, 1)}\,kN,\quad R_{{Ax}} = {fmt(rax, 1)}\,kN",
+            explanation=f"As reações foram extraídas diretamente do solver de treliça. Nós de apoio retornados: {', '.join(reactions.keys()) if isinstance(reactions, dict) else 'A e B'}.",
             norm="Estática das Estruturas"
         )
         
         me.add_step(
             id="q31-axial",
             title="2. Esforço Axial nos Membros Superiores (EF)",
-            formula=r"N_{EF} = -F_x = -20{,}0\,kN",
-            substitution=r"N_{EF} = -20{,}0\,kN",
-            result=r"N_{EF} = -20{,}0\,kN \quad (\text{Compressão})",
-            explanation="A barra horizontal superior está sob compressão pura para transferir a força de 20 kN do nó livre para o engaste virtual.",
+            formula=r"N_i = \mathbf{f}_{local}\cdot\mathbf{x}_{local}",
+            substitution=rf"N_{{sup}} = {fmt(top_member_n, 2)}\,kN,\quad N_{{diag}} = {fmt(diagonal_n, 2)}\,kN",
+            result=rf"N_{{sup}} = {fmt(top_member_n, 1)}\,kN \quad (\text{{{'Compressão' if top_member_n < 0 else 'Tração'}}})",
+            explanation=f"A diagonal auditada retorna {fmt(diagonal_n, 2)} kN, valor compatível com a decomposição vetorial da malha treliçada.",
             norm="Método dos Nós / MEF"
         )
         
-        # Validation step
         me.add_validation_step(
             id="q31-audit",
-            title="Status de Coerência Física",
-            value=0.0,
+            title="Divergência de Sinal na Reação Horizontal",
+            value=divergence,
             limit=0.1,
             operator="<=",
             unit="kN",
-            explanation="Cálculo numérico do solver MEF bate perfeitamente com a teoria física, revelando que a barra horizontal superior é realmente comprimida sob -20 kN.",
+            explanation=f"O gabarito usa Rax = {fmt(rax_exam, 1)} kN, mas o equilíbrio global do solver retorna Rax = {fmt(rax, 1)} kN.",
             norm="Auditoria Estrutural"
         )
         
     return me.build()
-

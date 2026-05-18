@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Zap, Calculator, Activity, Ruler, ShieldCheck, Info } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +23,8 @@ export function TensionProPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -55,9 +53,7 @@ export function TensionProPlayground() {
       const payload: Partial<MestreParams> = { ...tensionParams };
       const data = await calculateSpecialElement('tension_pro', payload);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        applyMestreResponse(data);
       } else {
         setError("Falha na análise de protensão.");
       }
@@ -66,7 +62,7 @@ export function TensionProPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [tensionParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults]);
+  }, [applyMestreResponse, tensionParams, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">

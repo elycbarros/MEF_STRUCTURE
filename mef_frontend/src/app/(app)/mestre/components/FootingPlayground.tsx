@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { StructuralDuel } from './StructuralDuel';
 import { useCallback } from 'react';
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 
 import { MestreDiagram } from './MestreDiagram';
 import { SoilProfileVisualizer } from './SoilProfileVisualizer';
@@ -17,10 +17,8 @@ export function FootingPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -31,9 +29,7 @@ export function FootingPlayground() {
     try {
       const data = await calculateSpecialElement('footing', currentParams);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        applyMestreResponse(data);
       } else {
         setError("Falha na análise da sapata.");
       }
@@ -42,7 +38,7 @@ export function FootingPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setIsLoading, setPedagogicalSteps, setError, setFullResults]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
   const updateParam = (key: keyof MestreParams, value: string) => {
     const val = parseFloat(value);

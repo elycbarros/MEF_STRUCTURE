@@ -317,10 +317,14 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         pdf.add_page()
         pdf.chapter_title('7', 'Anexos Gráficos e Diagramas de Análise')
         
-        conversation_dir = "/Users/elycbarros/.gemini/antigravity/brain/79d6f7c6-9836-40b2-b91e-5104cbe67b15"
+        image_dir = Path(
+            results.get("diagram_dir")
+            or project_meta.get("diagram_dir")
+            or Path(output_path).parent
+        )
         
         if is_truss:
-            truss_img = Path(conversation_dir) / "diagrama_trelica_esforcos.png"
+            truss_img = image_dir / "diagrama_trelica_esforcos.png"
             if truss_img.exists():
                 pdf.section_title("Diagrama de Esforços Axiais nas Barras (kN)")
                 # W=170mm (A4 margem esquerda/direita de 20mm deixa ~170mm livres)
@@ -331,8 +335,8 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                 pdf.cell(0, 5, "Figura 7.1: Distribuição de carregamento axial nas barras sob a convenção de cores: Azul (Tração) e Vermelho (Compressão).", 0, 1, 'C')
                 pdf.set_text_color(0, 0, 0)
         else:
-            shear_img = Path(conversation_dir) / "diagrama_viga_cortante.png"
-            moment_img = Path(conversation_dir) / "diagrama_viga_momento.png"
+            shear_img = image_dir / "diagrama_viga_cortante.png"
+            moment_img = image_dir / "diagrama_viga_momento.png"
             
             if shear_img.exists():
                 pdf.section_title("Diagrama de Esforço Cortante V(x) [kN]")

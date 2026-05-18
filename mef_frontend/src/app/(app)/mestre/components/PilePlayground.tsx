@@ -12,10 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Microscope, Anchor, Layers, Calculator, Brain } from 'lucide-react';
 import { useCallback } from 'react';
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams, type SoilLayer } from '@/lib/mestre-types';
+import { type MestreParams, type SoilLayer } from '@/lib/mestre-types';
 
 export function PilePlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, isLoading } = useMestreStore();
+  const { params, updateParams, setIsLoading, setError, applyMestreResponse, isLoading } = useMestreStore();
 
   const handleLayerChange = (index: number, field: keyof SoilLayer, value: SoilLayer[keyof SoilLayer]) => {
     const newLayers = [...params.layers];
@@ -44,8 +44,7 @@ export function PilePlayground() {
     try {
       const data = await calculateSpecialElement('pile', currentParams);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
+        applyMestreResponse(data);
       } else {
         setError("Falha na análise da estaca.");
       }
@@ -54,7 +53,7 @@ export function PilePlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setIsLoading, setPedagogicalSteps, setError]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
   const updateParam = (key: keyof MestreParams, value: string | number) => {
     const val = typeof value === 'string' ? parseFloat(value) : value;

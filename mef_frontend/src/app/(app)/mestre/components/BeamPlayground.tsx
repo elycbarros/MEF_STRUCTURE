@@ -30,15 +30,13 @@ export function BeamPlayground() {
   const {
     params,
     updateParams,
-    setPedagogicalSteps,
     setIsLoading,
     setError,
-    setCalculationTrace,
+    applyMestreResponse,
     error,
     isLoading,
     selectedElementType,
     fullResults,
-    setFullResults
   } = useMestreStore();
 
 
@@ -79,16 +77,18 @@ export function BeamPlayground() {
       const response = await calculateSpecialElement('beam', payload, controller.signal);
       
       if (response.success) {
-        setPedagogicalSteps(extractMestreSteps(response));
-        setCalculationTrace(response.calculation_trace ?? null);
-
-        const analysisResults = response.result || response;
+        const analysisResults = (
+          response.result && typeof response.result === 'object' ? response.result : response
+        ) as Record<string, unknown>;
 
         if (!analysisResults.geometry) {
           analysisResults.geometry = { b_cm: payload.b * 100, h_cm: payload.h * 100, L_m: payload.L };
         }
 
-        setFullResults({ ...response, ...analysisResults });
+        applyMestreResponse({
+          ...response,
+          full_results: { ...response, ...analysisResults },
+        });
 
         if (extractMestreSteps(response).length === 0) {
           setError('O motor de cálculo não gerou passos. Verifique se os apoios e cargas estão dentro do vão.');
@@ -111,7 +111,7 @@ export function BeamPlayground() {
       clearTimeout(timeout);
       setIsLoading(false);
     }
-  }, [setPedagogicalSteps, setIsLoading, setError, setCalculationTrace, setFullResults]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
 
   const updateNumber = (key: keyof MestreParams, value: string) => {

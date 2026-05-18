@@ -57,10 +57,10 @@ export function ExamAuditorPlayground() {
   const {
     updateParams,
     setIsLoading,
-    setPedagogicalSteps,
     setError,
     setCalculationTrace,
     setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error
@@ -76,13 +76,13 @@ export function ExamAuditorPlayground() {
       // 1. Configurar parâmetros no store para o HUD 2D/3D no frontend
       if (selectedQuestionId === 'q47_fcc_2018') {
         updateParams({
-          L: 6.0,
+          L: 8.0,
           b: 0.20,
           h: 0.50,
           q: 0.0,
           fck: 30,
           supports: [
-            { x: 0.0, type: 'fixed' },
+            { x: 0.0, type: 'pinned' },
             { x: 6.0, type: 'roller' }
           ],
           distributed_loads: [],
@@ -106,9 +106,7 @@ export function ExamAuditorPlayground() {
       });
 
       if (res.success) {
-        setPedagogicalSteps(res.pedagogical_steps);
-        setCalculationTrace(res.calculation_trace || {});
-        setFullResults(res.full_results || res.result);
+        applyMestreResponse(res);
       } else {
         setError('O motor estrutural falhou em auditar a questão.');
       }
@@ -117,7 +115,7 @@ export function ExamAuditorPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedQuestionId, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults]);
+  }, [selectedQuestionId, updateParams, setIsLoading, setError, applyMestreResponse]);
 
   const handleDownloadPDF = () => {
     if (!fullResults || (fullResults as any).question_id !== selectedQuestionId) {
@@ -152,7 +150,6 @@ export function ExamAuditorPlayground() {
           onValueChange={(val) => {
             setSelectedQuestionId(val as QuestionId);
             setFullResults(null);
-            setPedagogicalSteps(null);
             setCalculationTrace(null);
           }}
         >

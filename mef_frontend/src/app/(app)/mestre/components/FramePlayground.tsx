@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react';
 import { GitBranch, Calculator, Ruler, Layers, ShieldCheck, Info } from 'lucide-react';
 
 import { analyzeMestreFrame } from '@/lib/api-mestre';
-import { extractMestreSteps } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,10 +26,8 @@ export function FramePlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -150,12 +147,9 @@ export function FramePlayground() {
       const data = await analyzeMestreFrame(nodes, members, loads, supports);
       
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        
         // Map results to nodes for visualization
-        const nodes = data.model_3d?.nodes || [];
-        const resultNodes = nodes.map((n: any) => {
+        const modelNodes = data.model_3d?.nodes || [];
+        const resultNodes = modelNodes.map((n: any) => {
           const disp = data.displacements[String(n.id)] || [0, 0, 0, 0, 0, 0];
           return {
             ...n,
@@ -165,10 +159,13 @@ export function FramePlayground() {
           };
         });
 
-        setFullResults({
+        applyMestreResponse({
           ...data,
-          nodes: resultNodes,
-          members: data.model_3d?.members || []
+          full_results: {
+            ...data,
+            nodes: resultNodes,
+            members: data.model_3d?.members || []
+          }
         });
       } else {
         setError("Falha na análise do pórtico.");
@@ -179,7 +176,7 @@ export function FramePlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [frameConfig, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults]);
+  }, [applyMestreResponse, frameConfig, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">

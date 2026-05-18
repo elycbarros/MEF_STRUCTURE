@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Wind, Activity, Calculator, Brain, Building2, Ruler, Shield } from 'lucide-react';
 import { useCallback } from 'react';
 import { calculateStability } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 
 export function StabilityPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults, isLoading, error } = useMestreStore();
+  const { params, updateParams, setIsLoading, setError, applyMestreResponse, isLoading, error } = useMestreStore();
 
   const paramNumber = (value: unknown, fallback: number) => {
     const numeric = Number(value);
@@ -27,15 +27,17 @@ export function StabilityPlayground() {
     try {
       const data = await calculateStability(p);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? {
-          requested_type: 'stability',
-          solver_module: 'WindEngine.estimate_gamma_z',
-          blackboard_builder: 'build_stability_blackboard',
-          classical_check: true,
-          mef_check: false
+        applyMestreResponse({
+          ...data,
+          calculation_trace: data.calculation_trace ?? {
+            requested_type: 'stability',
+            solver_module: 'WindEngine.estimate_gamma_z',
+            blackboard_builder: 'build_stability_blackboard',
+            classical_check: true,
+            mef_check: false
+          },
+          full_results: data.result ?? data,
         });
-        setFullResults(data.result ?? data);
       } else {
         setError("Falha na análise de estabilidade.");
       }
@@ -45,7 +47,7 @@ export function StabilityPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setFullResults, setIsLoading, setPedagogicalSteps, setError]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">

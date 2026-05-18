@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react';
 import { Network, Calculator, Activity, Layers, ShieldCheck, Info } from 'lucide-react';
 
 import { analyzeMestreFrame } from '@/lib/api-mestre';
-import { extractMestreSteps } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,10 +33,8 @@ export function TrussPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -208,9 +205,6 @@ export function TrussPlayground() {
       const data = await analyzeMestreFrame(nodes, members, loads, supports, true);
       
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        
         // Map results to nodes for visualization (Crucial for deformed diagram)
         const resultNodes = nodes.map(n => {
           // Displacements are keyed by stringified node ID in the API response
@@ -223,10 +217,13 @@ export function TrussPlayground() {
           };
         });
         
-        setFullResults({
+        applyMestreResponse({
           ...data,
-          nodes: resultNodes,
-          members: members
+          full_results: {
+            ...data,
+            nodes: resultNodes,
+            members: members
+          }
         });
       } else {
         setError("Falha na análise da treliça.");
@@ -237,7 +234,7 @@ export function TrussPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [trussConfig, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults]);
+  }, [applyMestreResponse, trussConfig, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">

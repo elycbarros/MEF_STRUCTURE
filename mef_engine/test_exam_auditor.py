@@ -1,75 +1,46 @@
-import os
-import sys
 import unittest
-from fastapi.testclient import TestClient
 
-# Adicionar CWD ao path para imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from special_elements import SpecialElementsSolver
+from reporting.pedagogy.special import build_exam_auditor_blackboard
 
-from api import app
 
 class TestExamAuditor(unittest.TestCase):
-    def setUp(self):
-        self.client = TestClient(app)
-
     def test_q47_fcc_2018(self):
-        print("\n--- Testando Questão 47 - FCC 2018 ---")
-        payload = {
-            "type": "exam_auditor",
-            "params": {
-                "question_id": "q47_fcc_2018"
-            }
-        }
-        response = self.client.post("/api/mestre/calculate/special-elements", json=payload)
-        self.assertEqual(response.status_code, 200)
-        
-        data = response.json()
-        self.assertTrue(data["success"])
-        
-        res = data["result"]
+        res = SpecialElementsSolver.solve_exam_auditor("q47_fcc_2018")
+
         self.assertEqual(res["question_id"], "q47_fcc_2018")
-        self.assertEqual(res["correct_reactions"]["Ra"], -10.0)
-        self.assertEqual(res["correct_reactions"]["Rb"], 40.0)
         self.assertEqual(res["status"], "INVÁLIDA (Erro de Equilíbrio Físico)")
-        
-        steps = data["pedagogical_steps"]
-        self.assertEqual(steps["metadata"]["title"], "Laudo Pericial: Auditoria de Questões de Exames")
-        self.assertEqual(len(steps["steps"]), 4) # Base normativa + 2 steps + validation
-        
-        print("Reações física reais calculadas: Ra = -10 kN, Rb = 40 kN.")
-        print("Duelo comparativo gerado com sucesso!")
-        
-        # Verificar existência do PDF
-        pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static/reports/memorial_questao_47.pdf")
-        self.assertTrue(os.path.exists(pdf_path), f"PDF do memorial não encontrado em: {pdf_path}")
-        print("PDF pericial verificado no disco: memorial_questao_47.pdf")
+        self.assertAlmostEqual(res["correct_reactions"]["Ra"], -10.0, places=6)
+        self.assertAlmostEqual(res["correct_reactions"]["Rb"], 40.0, places=6)
+        self.assertEqual(res["exam_reactions"], {"Ra": 10.0, "Rb": 20.0})
+        self.assertEqual(res["model"]["length_m"], 8.0)
+        self.assertAlmostEqual(res["solver_result"]["summary"]["max_moment_kNm"], 60.0, places=2)
+
+        blackboard = build_exam_auditor_blackboard(res)
+        steps = {step["id"]: step for step in blackboard["steps"]}
+        self.assertIn("8,0 m", steps["q47-moments"]["explanation"])
+        self.assertIn("R_A = -10,0", steps["q47-moments"]["result"])
+        self.assertIn("R_B = 40,0", steps["q47-vertical"]["result"])
+        self.assertIn("Rb = 20,0 kN", steps["q47-audit"]["explanation"])
 
     def test_q31_vunesp_2021(self):
-        print("\n--- Testando Questão 31 - VUNESP 2021 ---")
-        payload = {
-            "type": "exam_auditor",
-            "params": {
-                "question_id": "q31_vunesp_2021"
-            }
-        }
-        response = self.client.post("/api/mestre/calculate/special-elements", json=payload)
-        self.assertEqual(response.status_code, 200)
-        
-        data = response.json()
-        self.assertTrue(data["success"])
-        
-        res = data["result"]
+        res = SpecialElementsSolver.solve_exam_auditor("q31_vunesp_2021")
+
         self.assertEqual(res["question_id"], "q31_vunesp_2021")
-        self.assertEqual(res["correct_reactions"]["Ra"], -40.0)
-        self.assertEqual(res["correct_reactions"]["Rb"], 60.0)
-        
-        steps = data["pedagogical_steps"]
-        self.assertEqual(steps["metadata"]["title"], "Laudo Pericial: Auditoria de Questões de Exames")
-        
-        # Verificar existência do PDF
-        pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static/reports/memorial_questao_31.pdf")
-        self.assertTrue(os.path.exists(pdf_path), f"PDF do memorial não encontrado em: {pdf_path}")
-        print("PDF pericial verificado no disco: memorial_questao_31.pdf")
+        self.assertEqual(res["status"], "INVÁLIDA (Erro de Cálculo da Formulação)")
+        self.assertAlmostEqual(res["correct_reactions"]["Ra"], -40.0, places=6)
+        self.assertAlmostEqual(res["correct_reactions"]["Rb"], 60.0, places=6)
+        self.assertAlmostEqual(res["correct_reactions"]["Rax"], -20.0, places=6)
+        self.assertAlmostEqual(res["solver_result"]["member_efforts"][2]["i"]["N"], -20.0, places=2)
+        self.assertAlmostEqual(res["solver_result"]["member_efforts"][7]["i"]["N"], 28.284271, places=5)
+
+        blackboard = build_exam_auditor_blackboard(res)
+        steps = {step["id"]: step for step in blackboard["steps"]}
+        self.assertIn("R_{Ax} = -20,0", steps["q31-reactions"]["result"])
+        self.assertIn("N_{sup} = -20,00", steps["q31-axial"]["substitution"])
+        self.assertIn("N_{diag} = 28,28", steps["q31-axial"]["substitution"])
+        self.assertIn("Rax = 20,0 kN", steps["q31-audit"]["explanation"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,14 +13,14 @@ import { Beam2DView } from './components/Beam2DView';
 import { SteelTableView } from './components/SteelTableView';
 import { ExecutiveSketch } from './components/ExecutiveSketch';
 import { SpecialPlayground } from './components/SpecialPlayground';
+import { EngineStatusPanel } from './components/EngineStatusPanel';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Separator } from '@/components/ui/separator';
 import { 
   Share2, 
   Download, 
   HelpCircle,
-  LayoutDashboard,
-  Presentation
+  LayoutDashboard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -83,19 +83,7 @@ export default function MestrePage() {
               <PlaygroundComponent />
             </div>
 
-            {/* Alerta de Verificação Rápida */}
-            <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 flex gap-4">
-              <div className="bg-primary/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-                <Presentation className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-primary">Análise Dinâmica Ativa</h4>
-                <p className="text-xs text-primary/70 leading-relaxed">
-                  O Atlas está processando os dados em tempo real via Rust Core. 
-                  O memorial à direita reflete o estado atual do elemento estrutural.
-                </p>
-              </div>
-            </div>
+            <EngineStatusPanel />
           </div>
 
           {/* Direita: Blackboard / Memorial (Col 6-12) */}

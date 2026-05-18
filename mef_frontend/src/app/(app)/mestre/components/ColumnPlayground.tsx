@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Calculator, Columns, Crosshair, RotateCw, ShieldCheck, Activity } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,10 +26,8 @@ export function ColumnPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading, 
     error 
@@ -41,9 +39,13 @@ export function ColumnPlayground() {
       setError(null);
       const data = await calculateSpecialElement('column', currentParams);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data.result?.summary ?? data.result ?? data);
+        const result = data.result && typeof data.result === 'object'
+          ? data.result as { summary?: unknown }
+          : null;
+        applyMestreResponse({
+          ...data,
+          full_results: result?.summary ?? data.result ?? data,
+        });
       } else {
         setError('Falha na análise do pilar.');
       }
@@ -52,7 +54,7 @@ export function ColumnPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setError, setIsLoading, setPedagogicalSteps, setFullResults]);
+  }, [applyMestreResponse, setError, setIsLoading]);
 
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = Number(value);

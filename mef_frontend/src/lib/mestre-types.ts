@@ -197,6 +197,9 @@ export interface MestreApiResponse {
   success?: boolean;
   pedagogical_steps?: { steps?: MestreStep[] } | MestreStep[];
   calculation_trace?: MestreCalculationTrace;
+  result?: unknown;
+  summary?: unknown;
+  full_results?: unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
@@ -205,6 +208,17 @@ export function extractMestreSteps(response: MestreApiResponse): MestreStep[] {
   const steps = response.pedagogical_steps;
   if (Array.isArray(steps)) return steps;
   return steps?.steps ?? [];
+}
+
+export function extractMestreResult<T = unknown>(response: MestreApiResponse): T {
+  return (response.full_results ?? response.result ?? response) as T;
+}
+
+export function extractMestreSummary<T = unknown>(response: MestreApiResponse): T | null {
+  const result = extractMestreResult<Record<string, unknown>>(response);
+  if (response.summary) return response.summary as T;
+  if (result && typeof result === "object" && "summary" in result) return result.summary as T;
+  return null;
 }
 
 export interface StructuralDuelEntry {

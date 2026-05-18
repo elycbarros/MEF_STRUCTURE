@@ -4,7 +4,7 @@ import { useCallback } from 'react';
 import { Wind, Calculator, Gauge, Shield, Box, Brain, Activity } from 'lucide-react';
 
 import { calculateWind } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,10 +25,8 @@ export function WindPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -39,9 +37,7 @@ export function WindPlayground() {
     try {
       const data = await calculateWind(currentParams);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        applyMestreResponse(data);
       } else {
         setError("Falha no cálculo de vento.");
       }
@@ -51,7 +47,7 @@ export function WindPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setIsLoading, setPedagogicalSteps, setError, setFullResults]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = Number(value);

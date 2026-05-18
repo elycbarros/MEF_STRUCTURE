@@ -441,9 +441,11 @@ async def calculate_special(req: SpecialElementRequest):
             
         blackboard["duel"] = duel
         
+        clean_res = sanitize_for_json(res)
+
         return {
             "success": True,
-            "result": res,
+            "result": clean_res,
             "summary": {
                 "question_id": res.get("question_id"),
                 "status": res.get("status"),
@@ -453,7 +455,7 @@ async def calculate_special(req: SpecialElementRequest):
             "calculation_trace": trace,
             "pedagogical_steps": blackboard,
             "memorial_markdown": res.get("recurso_tese"),
-            "full_results": res
+            "full_results": clean_res
         }
 
     else:

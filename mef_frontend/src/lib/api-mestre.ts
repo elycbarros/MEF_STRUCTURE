@@ -6,6 +6,22 @@ import type { MestreApiResponse, MestreElementType, MestreParams } from './mestr
 
 export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+export type MestreHealth = {
+  status?: string;
+  engine?: string;
+  version?: string;
+};
+
+export async function getMestreHealth(signal?: AbortSignal): Promise<MestreHealth> {
+  const response = await fetch(`${BASE_URL}/api/health`, { signal });
+
+  if (!response.ok) {
+    throw new Error(`Engine indisponível: ${response.statusText || response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function calculateSpecialElement(
   type: MestreElementType,
   params: Partial<MestreParams>,

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Calculator, Grid3X3, Layers, Ruler, TriangleAlert } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,10 +21,8 @@ export function SlabPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading, 
     error 
@@ -48,13 +46,9 @@ export function SlabPlayground() {
     setIsLoading(true);
     try {
       setError(null);
-      setCalculationTrace(null);
-      setPedagogicalSteps([]);
       const data = await calculateSpecialElement('slab', buildPayload(currentParams));
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        applyMestreResponse(data);
       } else {
         setError('Falha na análise da laje.');
       }
@@ -64,7 +58,7 @@ export function SlabPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [buildPayload, setCalculationTrace, setError, setIsLoading, setPedagogicalSteps]);
+  }, [applyMestreResponse, buildPayload, setError, setIsLoading]);
 
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = Number(value);

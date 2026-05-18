@@ -2,14 +2,14 @@ import { useCallback } from 'react';
 import { Calculator, Cuboid, Diameter, Ruler, TriangleAlert } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function PileCapPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, isLoading, error } = useMestreStore();
+  const { params, updateParams, setIsLoading, setError, applyMestreResponse, isLoading, error } = useMestreStore();
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
     setIsLoading(true);
@@ -17,8 +17,7 @@ export function PileCapPlayground() {
       setError(null);
       const data = await calculateSpecialElement('pile_cap', currentParams);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
+        applyMestreResponse(data);
       } else {
         setError('Falha na análise do bloco sobre estacas.');
       }
@@ -27,7 +26,7 @@ export function PileCapPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setError, setIsLoading, setPedagogicalSteps]);
+  }, [applyMestreResponse, setError, setIsLoading]);
 
   const updateNumber = (key: keyof MestreParams, value: string) => {
     const parsed = Number(value);

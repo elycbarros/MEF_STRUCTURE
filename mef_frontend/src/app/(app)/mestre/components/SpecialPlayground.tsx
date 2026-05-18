@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Calculator, Brain, Settings2, Info, Ruler, Waves, Layers, Maximize2, TriangleAlert } from 'lucide-react';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
 import { useState, useCallback } from 'react';
-import { extractMestreSteps, type MestreParams } from '@/lib/mestre-types';
+import { type MestreParams } from '@/lib/mestre-types';
 
 export function SpecialPlayground() {
-  const { selectedElementType, setPedagogicalSteps, setIsLoading, setError, setCalculationTrace, error, isLoading } = useMestreStore();
+  const { selectedElementType, setIsLoading, setError, applyMestreResponse, error, isLoading } = useMestreStore();
   const [paramsByElement, setParamsByElement] = useState<Record<string, Partial<MestreParams>>>({});
   const params = paramsByElement[selectedElementType] ?? {};
 
@@ -19,15 +19,14 @@ export function SpecialPlayground() {
       setError(null);
       const result = await calculateSpecialElement(selectedElementType, currentParams);
       if (result.success && result.pedagogical_steps) {
-        setPedagogicalSteps(extractMestreSteps(result));
-        setCalculationTrace(result.calculation_trace ?? null);
+        applyMestreResponse(result);
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Erro de conexão com o motor.");
     } finally {
       setIsLoading(false);
     }
-  }, [selectedElementType, setCalculationTrace, setError, setPedagogicalSteps, setIsLoading]);
+  }, [applyMestreResponse, selectedElementType, setError, setIsLoading]);
 
   const updateParam = (key: keyof MestreParams, value: MestreParams[keyof MestreParams]) => {
     const newParams = { ...params, [key]: value };

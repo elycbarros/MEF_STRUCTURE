@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react';
 import { Grid3X3, Calculator, Ruler, Layers, ShieldCheck, Info, Trash2, Plus } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
-import { extractMestreSteps } from '@/lib/mestre-types';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,10 +40,8 @@ export function AdvancedSlabPlayground() {
     params, 
     updateParams, 
     setIsLoading, 
-    setPedagogicalSteps, 
     setError, 
-    setCalculationTrace, 
-    setFullResults,
+    applyMestreResponse,
     fullResults,
     isLoading,
     error 
@@ -97,9 +94,7 @@ export function AdvancedSlabPlayground() {
       const data = await calculateSpecialElement('advanced_slab', payload);
       
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? null);
-        setFullResults(data);
+        applyMestreResponse(data);
       } else {
         setError("Falha na análise avançada.");
       }
@@ -108,7 +103,7 @@ export function AdvancedSlabPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [slabConfig, columns, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults]);
+  }, [applyMestreResponse, slabConfig, columns, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">

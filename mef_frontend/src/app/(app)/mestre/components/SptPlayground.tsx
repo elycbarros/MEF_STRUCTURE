@@ -12,10 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Search, Layers, Calculator, Brain, Shield } from 'lucide-react';
 import { useCallback } from 'react';
 import { calculateSpt } from '@/lib/api-mestre';
-import { extractMestreSteps, type SoilLayer } from '@/lib/mestre-types';
+import { type SoilLayer } from '@/lib/mestre-types';
 
 export function SptPlayground() {
-  const { params, updateParams, setIsLoading, setPedagogicalSteps, setError, setCalculationTrace, setFullResults, isLoading, error } = useMestreStore();
+  const { params, updateParams, setIsLoading, setError, applyMestreResponse, isLoading, error } = useMestreStore();
 
   const handleLayerChange = (index: number, field: keyof SoilLayer, value: SoilLayer[keyof SoilLayer]) => {
     const newLayers = [...params.layers];
@@ -52,15 +52,17 @@ export function SptPlayground() {
 
       const data = await calculateSpt(sptData);
       if (data.success) {
-        setPedagogicalSteps(extractMestreSteps(data));
-        setCalculationTrace(data.calculation_trace ?? {
-          requested_type: 'spt',
-          solver_module: 'GeotechnicalEngine.analyze_spt',
-          blackboard_builder: 'build_spt_blackboard',
-          classical_check: true,
-          mef_check: false
+        applyMestreResponse({
+          ...data,
+          calculation_trace: data.calculation_trace ?? {
+            requested_type: 'spt',
+            solver_module: 'GeotechnicalEngine.analyze_spt',
+            blackboard_builder: 'build_spt_blackboard',
+            classical_check: true,
+            mef_check: false
+          },
+          full_results: data.result ?? data,
         });
-        setFullResults(data.result ?? data);
       } else {
         setError("Falha na análise de SPT.");
       }
@@ -70,7 +72,7 @@ export function SptPlayground() {
     } finally {
       setIsLoading(false);
     }
-  }, [setCalculationTrace, setFullResults, setIsLoading, setPedagogicalSteps, setError]);
+  }, [applyMestreResponse, setIsLoading, setError]);
 
   return (
     <div className="space-y-6">
