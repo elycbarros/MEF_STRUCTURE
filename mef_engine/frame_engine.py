@@ -61,6 +61,7 @@ class Frame3DEngine:
         self.node_map = {nid: i for i, nid in enumerate(sorted(self.nodes.keys()))}
         self.ndof = 6 * len(self.nodes)
         self.use_rust = use_rust_if_available
+        self.is_truss = False
         
         # Populate lengths
         for m in self.members:
@@ -88,6 +89,14 @@ class Frame3DEngine:
         return T, L
 
     def _get_k_local(self, m: FrameMember, L: float, P: float = 0.0):
+        if hasattr(self, 'is_truss') and self.is_truss:
+            ke = np.zeros((12, 12))
+            A = m.section.b * m.section.h
+            E = m.section.E
+            ke[0, 0] = ke[6, 6] = E * A / L
+            ke[0, 6] = ke[6, 0] = -E * A / L
+            return ke
+
         S = m.section
         A, Iy, Iz, J, E, G = S.b*S.h, S.h*S.b**3/12, S.b*S.h**3/12, 0.141*S.b*S.h**3, S.E, S.G
         
@@ -219,6 +228,18 @@ class Frame3DEngine:
 
         has_shells = hasattr(self, "shells") and len(self.shells) > 0
         should_use_rust = use_rust if use_rust is not None else (RUST_AVAILABLE and use_rust_engine(len(self.members), len(self.nodes), has_shells))
+        if hasattr(self, 'is_truss') and self.is_truss:
+            should_use_rust = False
+
+        # Copy supports to avoid mutating caller's dictionary
+        supports_copy = {nid: list(blocked) for nid, blocked in supports.items()}
+        if hasattr(self, 'is_truss') and self.is_truss:
+            for nid in self.nodes:
+                if nid not in supports_copy:
+                    supports_copy[nid] = []
+                for d in [1, 3, 4, 5]:
+                    if d not in supports_copy[nid]:
+                        supports_copy[nid].append(d)
 
         F = np.zeros(self.ndof)
         for l in loads: 
@@ -236,7 +257,7 @@ class Frame3DEngine:
         if should_use_rust and not elastic_supports:
             try:
                 from structural_core_rs import solve_frame_3d_from_model
-                model_rs = self._get_rust_model(loads, supports, reduce_stiffness)
+                model_rs = self._get_rust_model(loads, supports_copy, reduce_stiffness)
                 
                 # Rust agora faz TUDO: Assemble + Solve esparso nativo
                 res_rs = solve_frame_3d_from_model(model_rs)
@@ -290,7 +311,7 @@ class Frame3DEngine:
             # Resolução com penalidade
             penalty = 1e20
             K_work = K.copy().tolil()
-            for nid, blocked in supports.items():
+            for nid, blocked in supports_copy.items():
                 base_idx = self.node_map[nid]*6
                 for d in blocked:
                     idx = base_idx + d

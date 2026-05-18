@@ -27,7 +27,8 @@ from .special import (
     build_helical_stairs_blackboard,
     build_pile_cap_blackboard,
     build_beam_opening_blackboard,
-    build_concrete_wall_blackboard
+    build_concrete_wall_blackboard,
+    build_exam_auditor_blackboard
 )
 from .detailing import (
     build_column_detailing_blackboard,

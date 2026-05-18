@@ -410,8 +410,55 @@ async def calculate_special(req: SpecialElementRequest):
             "full_results": res["full_data"]
         }
 
+    elif type == "exam_auditor":
+        question_id = params.get("question_id", "q47_fcc_2018")
+        res = SpecialElementsSolver.solve_exam_auditor(question_id, params)
+        
+        from reporting.pedagogy.special import build_exam_auditor_blackboard
+        blackboard = build_exam_auditor_blackboard(res, params)
+        
+        correct_reactions = res.get("correct_reactions", {})
+        exam_reactions = res.get("exam_reactions", {})
+        
+        duel = {
+            "title": f"Duelo Estrutural: {res.get('title')}",
+            "method_a": "Física Real (MEF / Estática)",
+            "method_b": "Gabarito da Banca",
+            "comparisons": []
+        }
+        
+        for key in correct_reactions.keys():
+            val_a = correct_reactions[key]
+            val_b = exam_reactions.get(key, 0.0)
+            diff = abs(val_a - val_b)
+            duel["comparisons"].append({
+                "metric": f"Reação em {key}",
+                "value_a": f"{val_a:+.1f} kN",
+                "value_b": f"{val_b:+.1f} kN",
+                "diff": f"{diff:.1f} kN",
+                "divergence": "Divergente" if diff > 0.001 else "Coerente"
+            })
+            
+        blackboard["duel"] = duel
+        
+        return {
+            "success": True,
+            "result": res,
+            "summary": {
+                "question_id": res.get("question_id"),
+                "status": res.get("status"),
+                "title": res.get("title"),
+                "pdf_url": res.get("pdf_url")
+            },
+            "calculation_trace": trace,
+            "pedagogical_steps": blackboard,
+            "memorial_markdown": res.get("recurso_tese"),
+            "full_results": res
+        }
+
     else:
         raise HTTPException(status_code=400, detail=f"Tipo de elemento Mestre não suportado: {type}")
+
 
     # Garantir que res seja um dicionário e tenha uma chave 'summary' para o frontend
     if isinstance(res, dict) and 'summary' not in res and 'result' not in res:

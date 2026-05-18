@@ -23,7 +23,8 @@ from reporting.pedagogy.special import (
     build_concrete_wall_blackboard,
     build_pile_cap_blackboard,
     build_beam_opening_blackboard,
-    build_tension_pro_blackboard
+    build_tension_pro_blackboard,
+    build_exam_auditor_blackboard
 )
 from reporting.pedagogy.slab import build_lajes_blackboard
 from reporting.pedagogy.frame import build_frame_blackboard
@@ -52,6 +53,7 @@ PedagogyRegistry._builders["beam_opening"] = build_beam_opening_blackboard
 PedagogyRegistry._builders["tension_pro"] = build_tension_pro_blackboard
 PedagogyRegistry._builders["frame"] = build_frame_blackboard
 PedagogyRegistry._builders["vigacross"] = build_vigacross_blackboard
+PedagogyRegistry._builders["exam_auditor"] = build_exam_auditor_blackboard
 
 def build_structural_blackboard(element_type: str, result: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     """

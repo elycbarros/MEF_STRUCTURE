@@ -360,10 +360,11 @@ interface SystemMember {
 
 interface MestreSystemDiagramProps {
   nodes: SystemNode[];
-  members: SystemMember[];
+  members: any[];
   title: string;
   deformedScale?: number;
   reactions?: Record<string, number[]>;
+  efforts?: Record<string, any>;
 }
 
 export function MestreSystemDiagram({
@@ -372,6 +373,7 @@ export function MestreSystemDiagram({
   title,
   deformedScale = 50,
   reactions = {},
+  efforts = {},
 }: MestreSystemDiagramProps) {
   if (!nodes || nodes.length === 0) return null;
 
@@ -402,9 +404,18 @@ export function MestreSystemDiagram({
 
   return (
     <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-      <div className="flex items-center gap-2">
-        <Activity className="w-3.5 h-3.5 text-primary" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-primary" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
+        </div>
+        {Object.keys(efforts).length > 0 && (
+          <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Tração</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Compressão</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400" /> Nulo</span>
+          </div>
+        )}
       </div>
 
       <div className="relative">
@@ -420,14 +431,14 @@ export function MestreSystemDiagram({
                 x1={xFor(ni.x)} y1={zFor(ni.z)}
                 x2={xFor(nj.x)} y2={zFor(nj.z)}
                 stroke="currentColor"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-                className="text-muted-foreground/30"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+                className="text-muted-foreground/35"
               />
             );
           })}
 
-          {/* Deformed Structure */}
+          {/* Deformed & Force-Colored Structure */}
           {members.map((m, i) => {
             const ni = nodes.find(n => n.id === m.node_i);
             const nj = nodes.find(n => n.id === m.node_j);
@@ -438,15 +449,59 @@ export function MestreSystemDiagram({
             const xj = nj.x + (nj.dx || 0) * deformedScale;
             const zj = nj.z + (nj.dz || 0) * deformedScale;
 
+            const eff = efforts[m.id] || efforts[String(m.id)] || null;
+            const force = eff?.i?.N !== undefined ? eff.i.N : null;
+
+            let strokeColor = "#007AFF"; // Default blue
+            let strokeWidth = "3";
+            
+            if (force !== null) {
+              if (force > 0.01) {
+                strokeColor = "#10B981"; // Emerald for tension
+                strokeWidth = "3.5";
+              } else if (force < -0.01) {
+                strokeColor = "#EF4444"; // Rose for compression
+                strokeWidth = "3.5";
+              } else {
+                strokeColor = "#94A3B8"; // Slate for zero force
+                strokeWidth = "2";
+              }
+            }
+
+            const midX = (xFor(xi) + xFor(xj)) / 2;
+            const midY = (zFor(zi) + zFor(zj)) / 2;
+
             return (
-              <line
-                key={`def-${i}`}
-                x1={xFor(xi)} y1={zFor(zi)}
-                x2={xFor(xj)} y2={zFor(zj)}
-                stroke="#007AFF"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
+              <g key={`def-group-${i}`}>
+                <line
+                  key={`def-${i}`}
+                  x1={xFor(xi)} y1={zFor(zi)}
+                  x2={xFor(xj)} y2={zFor(zj)}
+                  stroke={strokeColor}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  className="transition-all duration-300"
+                />
+
+                {/* Axial Effort Value Tag */}
+                {force !== null && Math.abs(force) > 0.05 && (
+                  <g transform={`translate(${midX}, ${midY})`} className="animate-in zoom-in duration-300">
+                    <rect
+                      x="-18" y="-7" width="36" height="14" rx="3.5"
+                      fill="var(--background)"
+                      stroke={strokeColor}
+                      strokeWidth="1"
+                      className="fill-background/90"
+                    />
+                    <text
+                      textAnchor="middle" y="3" fontSize="8.5" fontWeight="bold"
+                      fill={strokeColor} className="font-mono font-black"
+                    >
+                      {force > 0 ? `+${force.toFixed(0)}` : force.toFixed(0)}
+                    </text>
+                  </g>
+                )}
+              </g>
             );
           })}
 

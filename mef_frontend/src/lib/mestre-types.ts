@@ -22,6 +22,7 @@ export type MestreElementType =
   | "trusses"
   | "advanced_slab"
   | "tension_pro"
+  | "exam_auditor"
   | "tech_library";
 
 export type SupportType = "pinned" | "fixed" | "roller" | "spring";

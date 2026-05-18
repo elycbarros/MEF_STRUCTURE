@@ -25,7 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 export default function MestrePage() {
-  const { selectedElementType, fullResults } = useMestreStore();
+  const { selectedElementType, fullResults, params } = useMestreStore();
   const activeModule = getMestreModule(selectedElementType);
   const PlaygroundComponent = activeModule?.component || SpecialPlayground;
 
@@ -69,7 +69,13 @@ export default function MestrePage() {
             
             {/* HUD Visualizador */}
             <div className="h-[350px] shrink-0">
-              {(selectedElementType === 'beam' || selectedElementType === 'beam_cross') ? <Beam2DView /> : <Beam3DView />}
+              {(selectedElementType === 'beam' || 
+                selectedElementType === 'beam_cross' || 
+                (selectedElementType === 'exam_auditor' && params.truss_type !== 'q31')) ? (
+                <Beam2DView />
+              ) : (
+                <Beam3DView />
+              )}
             </div>
 
             {/* Painel de Controle */}

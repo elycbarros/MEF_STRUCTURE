@@ -18,7 +18,8 @@ import {
   Zap,
   GitBranch,
   Network,
-  LucideIcon
+  LucideIcon,
+  Award
 } from 'lucide-react';
 import { MestreElementType } from './mestre-types';
 import React from 'react';
@@ -41,6 +42,7 @@ import { FramePlayground } from '@/app/(app)/mestre/components/FramePlayground';
 import { TrussPlayground } from '@/app/(app)/mestre/components/TrussPlayground';
 import { TensionProPlayground } from '@/app/(app)/mestre/components/TensionProPlayground';
 import { AdvancedSlabPlayground } from '@/app/(app)/mestre/components/AdvancedSlabPlayground';
+import { ExamAuditorPlayground } from '@/app/(app)/mestre/components/ExamAuditorPlayground';
 
 export type MestreCategory = 
   | "Elementos NBR 6118"
@@ -94,6 +96,7 @@ export const MESTRE_MODULES: MestreModuleDefinition[] = [
   { id: 'beam_cross', label: 'Viga Cross', icon: Share2, category: 'Módulos Especiais', component: BeamCrossPlayground },
   { id: 'tension_pro', label: 'Tension Pro', icon: Zap, category: 'Módulos Especiais', component: TensionProPlayground },
   { id: 'reservoir', label: 'Reservatório', icon: Waves, category: 'Módulos Especiais', component: SpecialPlayground },
+  { id: 'exam_auditor', label: 'Auditoria de Questões', icon: Award, category: 'Módulos Especiais', component: ExamAuditorPlayground },
   { id: 'tech_library', label: 'Biblioteca Técnica', icon: BookOpen, category: 'Módulos Especiais', disabled: true },
 ];
 

@@ -51,12 +51,13 @@ export async function analyzeMestreFrame(
   nodes: FrameNode[],
   members: FrameMember[],
   loads: FrameLoad[],
-  supports: Record<string, number[]>
+  supports: Record<string, number[]>,
+  is_truss: boolean = false
 ): Promise<MestreApiResponse> {
   const response = await fetch(`${BASE_URL}/api/mestre/frame/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nodes, members, loads, supports }),
+    body: JSON.stringify({ nodes, members, loads, supports, is_truss }),
   });
 
   if (!response.ok) {

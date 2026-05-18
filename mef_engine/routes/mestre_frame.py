@@ -14,6 +14,7 @@ class MestreFrameRequest(BaseModel):
     loads: List[Dict]
     supports: Dict[str, List[int]]
     show_matrix_proof: bool = True
+    is_truss: bool = False
 
 @router.post("/analyze")
 async def analyze_mestre_frame(req: MestreFrameRequest):
@@ -43,8 +44,9 @@ async def analyze_mestre_frame(req: MestreFrameRequest):
         ]
         supports = {int(k): v for k, v in req.supports.items()}
         
-        # 2. Motor (Agora usando Rust Core de Alta Performance)
-        engine = Frame3DEngine(nodes, members, use_rust_if_available=True)
+        # 2. Motor (Agora usando Rust Core de Alta Performance se não for treliça)
+        engine = Frame3DEngine(nodes, members, use_rust_if_available=not req.is_truss)
+        engine.is_truss = req.is_truss
         
         # 3. Análise (1a Ordem - Mestre é sempre 1a ordem por padrão pedagógico)
         res = engine.solve(loads, supports, reduce_stiffness=False)
@@ -88,7 +90,8 @@ async def analyze_mestre_frame(req: MestreFrameRequest):
             "nodes": req.nodes,
             "members": req.members,
             "loads": req.loads,
-            "supports": req.supports
+            "supports": req.supports,
+            "is_truss": req.is_truss
         }
         res_to_memorial = {
             "pedagogical_proofs": pedagogical_data,

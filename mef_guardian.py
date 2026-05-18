@@ -6,7 +6,7 @@ import signal
 
 # Configurações
 BACKEND_DIR = "mef_engine"
-FRONTEND_DIR = "mef_dashboard"
+FRONTEND_DIR = "mef_frontend"
 BACKEND_CMD = ["python3", "api.py"]
 FRONTEND_CMD = ["npm", "run", "dev"]
 
