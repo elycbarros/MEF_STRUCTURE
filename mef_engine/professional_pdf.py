@@ -1,5 +1,6 @@
 from __future__ import annotations
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 from pathlib import Path
 from datetime import datetime
 import json
@@ -19,9 +20,9 @@ class ProfessionalMemorialPDF(FPDF):
             self.set_font('Helvetica', 'B', 10)
             self.set_text_color(50, 50, 50)
             obra = self.project_meta.get('obra', 'PROJETO ESTRUTURAL')
-            self.cell(0, 10, f'MEMORIAL DE CÁLCULO - {obra.upper()}', 0, 0, 'L')
+            self.cell(0, 10, f'MEMORIAL DE CÁLCULO - {obra.upper()}', 0, align='L', new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_font('Helvetica', '', 9)
-            self.cell(0, 10, f'Emissão: {datetime.now().strftime("%d/%m/%Y")}', 0, 1, 'R')
+            self.cell(0, 10, f'Emissão: {datetime.now().strftime("%d/%m/%Y")}', 0, align='R', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.line(10, 20, 200, 20)
             self.ln(5)
 
@@ -29,7 +30,7 @@ class ProfessionalMemorialPDF(FPDF):
         self.set_y(-15)
         self.set_font('Helvetica', 'I', 8)
         self.set_text_color(150, 150, 150)
-        self.cell(0, 10, f'ATLAS Structural Engine | v4.0 | Página {self.page_no()}', 0, 0, 'C')
+        self.cell(0, 10, f'ATLAS Structural Engine | v4.0 | Página {self.page_no()}', 0, align='C', new_x=XPos.RIGHT, new_y=YPos.TOP)
 
     def add_cover(self):
         self.add_page()
@@ -60,24 +61,24 @@ class ProfessionalMemorialPDF(FPDF):
     def chapter_title(self, num, title):
         self.set_font('Helvetica', 'B', 14)
         self.set_text_color(0, 51, 102) # Navy Blue
-        self.cell(0, 10, f"{num}. {title.upper()}", 0, 1, 'L')
+        self.cell(0, 10, f"{num}. {title.upper()}", 0, align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.line(10, self.get_y(), 100, self.get_y())
         self.ln(5)
 
     def section_title(self, title):
         self.set_font('Helvetica', 'B', 11)
         self.set_text_color(40, 40, 40)
-        self.cell(0, 8, title, 0, 1, 'L')
+        self.cell(0, 8, title, 0, align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.ln(2)
 
     def add_kpi_grid(self, kpis: list[tuple]):
         self.set_font('Helvetica', '', 10)
         for label, value in kpis:
             self.set_text_color(100, 100, 100)
-            self.cell(60, 7, f" {label}:", 1, 0, 'L')
+            self.cell(60, 7, f" {label}:", 1, align='L', new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_text_color(0, 0, 0)
             self.set_font('Helvetica', 'B', 10)
-            self.cell(130, 7, f" {value}", 1, 1, 'L')
+            self.cell(130, 7, f" {value}", 1, align='L', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.set_font('Helvetica', '', 10)
         self.ln(5)
 
@@ -85,13 +86,13 @@ class ProfessionalMemorialPDF(FPDF):
         self.set_font('Helvetica', 'B', 9)
         self.set_fill_color(240, 240, 240)
         for i, h in enumerate(header):
-            self.cell(widths[i], 8, h, 1, 0, 'C', fill=True)
+            self.cell(widths[i], 8, h, 1, align='C', fill=True, new_x=XPos.RIGHT, new_y=YPos.TOP)
         self.ln()
         
         self.set_font('Helvetica', '', 9)
         for row in data:
             for i, item in enumerate(row):
-                self.cell(widths[i], 7, str(item), 1, 0, 'C')
+                self.cell(widths[i], 7, str(item), 1, align='C', new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.ln()
         self.ln(5)
 
@@ -111,6 +112,45 @@ class ProfessionalMemorialPDF(FPDF):
                 f"{row['weight_kg']:.2f}"
             ])
         self.add_executive_table(header, formatted_data, widths)
+
+    def add_exam_audit_section(self, audit: dict):
+        self.chapter_title('7', 'Comparação com Gabarito Oficial e Tese Técnica')
+        self.section_title(audit.get("title", "Auditoria de Questão"))
+
+        self.set_font('Helvetica', '', 9)
+        self.set_text_color(45, 45, 45)
+        statement = audit.get("statement", "")
+        if statement:
+            self.multi_cell(0, 5, f"Enunciado resumido: {statement}")
+            self.ln(2)
+
+        correct = audit.get("correct_reactions", {})
+        exam = audit.get("exam_reactions", {})
+        rows = []
+        for key, value in correct.items():
+            exam_value = exam.get(key, 0.0)
+            rows.append([
+                key,
+                f"{exam_value:+.2f} kN",
+                f"{float(value):+.2f} kN",
+                f"{abs(float(value) - float(exam_value)):.2f} kN",
+            ])
+        if rows:
+            self.add_executive_table(
+                ['Grandeza', 'Gabarito', 'Solver / Física', 'Divergência'],
+                rows,
+                [35, 45, 55, 45],
+            )
+
+        self.section_title("Conclusão Pericial")
+        self.set_font('Helvetica', 'B', 10)
+        self.set_text_color(140, 0, 0)
+        self.multi_cell(0, 5, audit.get("status", "Status não informado"))
+        self.ln(2)
+        self.set_font('Helvetica', '', 9)
+        self.set_text_color(0, 0, 0)
+        self.multi_cell(0, 5, audit.get("recurso_tese", "Tese técnica não informada."))
+        self.ln(5)
 
 def generate_professional_memorial(output_path: str, results: dict, project_meta: dict):
     pdf = ProfessionalMemorialPDF(project_meta)
@@ -265,7 +305,7 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         equilibrium = results.get("equilibrium_audit", {})
         if equilibrium:
             pdf.set_font('Helvetica', 'B', 10)
-            pdf.cell(0, 8, "Reações de Apoio nas Restrições:", 0, 1)
+            pdf.cell(0, 8, "Reações de Apoio nas Restrições:", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_font('Helvetica', '', 9)
             
             header_reac = ['Nó ID', 'Rx (kN)', 'Ry (kN)', 'Rz (kN)', 'Mx (kNm)', 'My (kNm)', 'Mz (kNm)']
@@ -286,7 +326,7 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
             pdf.add_executive_table(header_reac, data_reac, widths_reac)
             
             pdf.set_font('Helvetica', 'B', 10)
-            pdf.cell(0, 8, "Resumo de Equilíbrio de Forças Globais:", 0, 1)
+            pdf.cell(0, 8, "Resumo de Equilíbrio de Forças Globais:", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_font('Helvetica', '', 9)
             
             sum_applied = equilibrium.get("sum_applied_kN_m", [0]*6)
@@ -309,13 +349,17 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
             is_ok = "CONVERGENTE / APROVADO" if equilibrium.get("is_equilibrated", True) else "REVISÃO REQUERIDA"
             pdf.set_font('Helvetica', 'B', 10)
             pdf.set_text_color(0, 122, 255)
-            pdf.cell(0, 10, f"STATUS DA AUDITORIA ESTÁTICA: {is_ok}", 0, 1)
+            pdf.cell(0, 10, f"STATUS DA AUDITORIA ESTÁTICA: {is_ok}", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(5)
+
+        if results.get("exam_audit"):
+            pdf.add_exam_audit_section(results["exam_audit"])
             
         # 7. Diagramas e Anexos Gráficos
+        annex_chapter = '8' if results.get("exam_audit") else '7'
         pdf.add_page()
-        pdf.chapter_title('7', 'Anexos Gráficos e Diagramas de Análise')
+        pdf.chapter_title(annex_chapter, 'Anexos Gráficos e Diagramas de Análise')
         
         image_dir = Path(
             results.get("diagram_dir")
@@ -332,7 +376,7 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                 pdf.ln(5)
                 pdf.set_font('Helvetica', 'I', 8)
                 pdf.set_text_color(100, 100, 100)
-                pdf.cell(0, 5, "Figura 7.1: Distribuição de carregamento axial nas barras sob a convenção de cores: Azul (Tração) e Vermelho (Compressão).", 0, 1, 'C')
+                pdf.cell(0, 5, "Figura 7.1: Distribuição de carregamento axial nas barras sob a convenção de cores: Azul (Tração) e Vermelho (Compressão).", 0, align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_text_color(0, 0, 0)
         else:
             shear_img = image_dir / "diagrama_viga_cortante.png"
@@ -344,19 +388,19 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                 pdf.ln(5)
                 pdf.set_font('Helvetica', 'I', 8)
                 pdf.set_text_color(100, 100, 100)
-                pdf.cell(0, 5, "Figura 7.1: Distribuição de Esforço Cortante ao longo da extensão da viga bi-apoiada com balanço.", 0, 1, 'C')
+                pdf.cell(0, 5, "Figura 7.1: Distribuição de Esforço Cortante ao longo da extensão da viga bi-apoiada com balanço.", 0, align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_text_color(0, 0, 0)
                 pdf.ln(5)
                 
             if moment_img.exists():
                 pdf.add_page()
-                pdf.chapter_title('7', 'Anexos Gráficos e Diagramas de Análise (Cont.)')
+                pdf.chapter_title(annex_chapter, 'Anexos Gráficos e Diagramas de Análise (Cont.)')
                 pdf.section_title("Diagrama de Momento Fletor M(x) [kNm]")
                 pdf.image(str(moment_img), x=20, w=170)
                 pdf.ln(5)
                 pdf.set_font('Helvetica', 'I', 8)
                 pdf.set_text_color(100, 100, 100)
-                pdf.cell(0, 5, "Figura 7.2: Distribuição de Momento Fletor. Fibra tracionada desenhada para cima (Convenção NBR 6118-2023).", 0, 1, 'C')
+                pdf.cell(0, 5, "Figura 7.2: Distribuição de Momento Fletor. Fibra tracionada desenhada para cima (Convenção NBR 6118-2023).", 0, align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_text_color(0, 0, 0)
             
     else:
