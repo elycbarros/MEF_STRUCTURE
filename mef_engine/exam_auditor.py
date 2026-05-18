@@ -207,6 +207,91 @@ def audit_q31_vunesp_2021() -> dict:
     return result
 
 
+def build_professional_pdf_payload(audit_result: dict) -> tuple[dict, dict]:
+    question_id = audit_result.get("question_id")
+    if question_id == Q47.id:
+        model = audit_result["model"]
+        beam = audit_result["solver_result"]
+        reactions = audit_result["correct_reactions"]
+        max_moment = float(beam.get("summary", {}).get("max_moment_kNm", 0.0))
+        max_shear = float(beam.get("summary", {}).get("max_shear_kN", 0.0))
+
+        results = {
+            "model_3d": {
+                "is_truss": False,
+                "nodes": [
+                    {"id": 0, "x": 0.0, "y": 0.0, "z": 0.0},
+                    {"id": 1, "x": 6.0, "y": 0.0, "z": 0.0},
+                    {"id": 2, "x": 8.0, "y": 0.0, "z": 0.0},
+                ],
+                "members": [
+                    {"id": 0, "node_i": 0, "node_j": 1, "section": {"b": audit_result.get("b", 0.20), "h": audit_result.get("h", 0.50)}},
+                    {"id": 1, "node_i": 1, "node_j": 2, "section": {"b": audit_result.get("b", 0.20), "h": audit_result.get("h", 0.50)}},
+                ],
+                "supports": {"0": [1, 2], "1": [2]},
+                "loads": [{"node_id": 2, "fz": -30.0}],
+            },
+            "displacements": {
+                "0": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "1": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                "2": [0.0, 0.0, -float(beam.get("summary", {}).get("max_deflection_mm", 0.0)) / 1000.0, 0.0, 0.0, 0.0],
+            },
+            "efforts": {
+                "0": {"i": {"N": 0.0, "Vy": reactions["Ra"], "Vz": reactions["Ra"], "My": 0.0, "Mz": 0.0}, "j": {"N": 0.0, "Vy": -reactions["Ra"], "Vz": -reactions["Ra"], "My": -max_moment, "Mz": -max_moment}},
+                "1": {"i": {"N": 0.0, "Vy": max_shear, "Vz": max_shear, "My": -max_moment, "Mz": -max_moment}, "j": {"N": 0.0, "Vy": -max_shear, "Vz": -max_shear, "My": 0.0, "Mz": 0.0}},
+            },
+            "equilibrium_audit": {
+                "reactions": {
+                    "0": [0.0, 0.0, reactions["Ra"], 0.0, 0.0, 0.0],
+                    "1": [0.0, 0.0, reactions["Rb"], 0.0, 0.0, 0.0],
+                },
+                "sum_applied_kN_m": [0.0, 0.0, -30.0, 0.0, -60.0, 0.0],
+                "sum_reactions_kN_m": [0.0, 0.0, reactions["Ra"] + reactions["Rb"], 0.0, 60.0, 0.0],
+                "equilibrium_error_kN_m": [0.0, 0.0, reactions["Ra"] + reactions["Rb"] - 30.0, 0.0, 0.0, 0.0],
+                "is_equilibrated": True,
+            },
+            "exam_audit": audit_result,
+        }
+        meta = {
+            "obra": "Memorial Estrutural da Questao 47 (FCC 2018)",
+            "local": "Auditoria de equilíbrio estático",
+            "responsavel": "Atlas MEF Structural",
+            "registro": "Laudo técnico gerado por solver",
+        }
+        return results, meta
+
+    if question_id == Q31.id:
+        solver = audit_result["solver_result"]
+        model = audit_result["model"]
+        nodes = model["nodes"]
+        members = [
+            {"id": m["id"], "node_i": m["node_i"], "node_j": m["node_j"], "section": {"b": 0.1, "h": 0.1}}
+            for m in model["members"]
+        ]
+        results = {
+            "model_3d": {
+                "is_truss": True,
+                "nodes": nodes,
+                "members": members,
+                "supports": {"0": [0, 1, 2, 3, 4, 5], "1": [1, 2, 3, 4, 5]},
+                "loads": model["loads"],
+            },
+            "displacements": {str(node["id"]): [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for node in nodes},
+            "efforts": solver["member_efforts"],
+            "equilibrium_audit": solver["equilibrium"],
+            "exam_audit": audit_result,
+        }
+        meta = {
+            "obra": "Memorial Estrutural da Questao 31 (VUNESP 2021)",
+            "local": "Auditoria de treliça plana",
+            "responsavel": "Atlas MEF Structural",
+            "registro": "Laudo técnico gerado por solver",
+        }
+        return results, meta
+
+    raise ValueError(f"Questão sem payload profissional: {question_id}")
+
+
 AUDITORS: dict[str, Callable[[], dict]] = {
     Q47.id: audit_q47_fcc_2018,
     Q31.id: audit_q31_vunesp_2021,

@@ -1,5 +1,9 @@
 import unittest
+import tempfile
+from pathlib import Path
 
+from exam_auditor import build_professional_pdf_payload
+from professional_pdf import generate_professional_memorial
 from special_elements import SpecialElementsSolver
 from reporting.pedagogy.special import build_exam_auditor_blackboard
 
@@ -23,6 +27,13 @@ class TestExamAuditor(unittest.TestCase):
         self.assertIn("R_B = 40,0", steps["q47-vertical"]["result"])
         self.assertIn("Rb = 20,0 kN", steps["q47-audit"]["explanation"])
 
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "q47.pdf"
+            pdf_results, pdf_meta = build_professional_pdf_payload(res)
+            generate_professional_memorial(str(output), pdf_results, pdf_meta)
+            self.assertTrue(output.exists())
+            self.assertGreater(output.stat().st_size, 1000)
+
     def test_q31_vunesp_2021(self):
         res = SpecialElementsSolver.solve_exam_auditor("q31_vunesp_2021")
 
@@ -40,6 +51,13 @@ class TestExamAuditor(unittest.TestCase):
         self.assertIn("N_{sup} = -20,00", steps["q31-axial"]["substitution"])
         self.assertIn("N_{diag} = 28,28", steps["q31-axial"]["substitution"])
         self.assertIn("Rax = 20,0 kN", steps["q31-audit"]["explanation"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "q31.pdf"
+            pdf_results, pdf_meta = build_professional_pdf_payload(res)
+            generate_professional_memorial(str(output), pdf_results, pdf_meta)
+            self.assertTrue(output.exists())
+            self.assertGreater(output.stat().st_size, 1000)
 
 
 if __name__ == "__main__":

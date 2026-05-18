@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { Award, ShieldAlert, FileText, CheckCircle, AlertTriangle, ArrowRight, Download, Activity, HelpCircle } from 'lucide-react';
-import { calculateSpecialElement } from '@/lib/api-mestre';
+import { BASE_URL, calculateSpecialElement, generateExamAuditorMemorial } from '@/lib/api-mestre';
 import { useMestreStore } from '@/lib/store-mestre';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -67,6 +67,7 @@ export function ExamAuditorPlayground() {
   } = useMestreStore();
 
   const [selectedQuestionId, setSelectedQuestionId] = useState<QuestionId>('q47_fcc_2018');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const activeQuestion = QUESTIONS.find(q => q.id === selectedQuestionId) || QUESTIONS[0];
 
   const handleAudit = useCallback(async () => {
@@ -117,15 +118,20 @@ export function ExamAuditorPlayground() {
     }
   }, [selectedQuestionId, updateParams, setIsLoading, setError, applyMestreResponse]);
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!fullResults || (fullResults as any).question_id !== selectedQuestionId) {
       setError('Por favor, execute a análise MEF primeiro para consolidar o Laudo.');
       return;
     }
-    const pdfUrl = (fullResults as any).pdf_url;
-    if (pdfUrl) {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      window.open(`${backendUrl}${pdfUrl}`, '_blank');
+    setIsGeneratingPdf(true);
+    setError(null);
+    try {
+      const generated = await generateExamAuditorMemorial(selectedQuestionId);
+      window.open(`${BASE_URL}${generated.pdf_url}`, '_blank');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao gerar PDF da auditoria.');
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -224,10 +230,10 @@ export function ExamAuditorPlayground() {
             variant="outline"
             className="flex-1 border-white/10 hover:bg-zinc-800 text-xs font-semibold py-1.5 h-auto text-zinc-300 flex items-center justify-center gap-2"
             onClick={handleDownloadPDF}
-            disabled={!fullResults || (fullResults as any).question_id !== selectedQuestionId}
+            disabled={isGeneratingPdf || !fullResults || (fullResults as any).question_id !== selectedQuestionId}
           >
-            <Download className="h-4 w-4" />
-            Minuta de Recurso (PDF)
+            <Download className={`h-4 w-4 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
+            {isGeneratingPdf ? 'Gerando PDF...' : 'Minuta de Recurso (PDF)'}
           </Button>
         </CardFooter>
       </Card>

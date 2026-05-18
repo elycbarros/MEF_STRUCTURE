@@ -182,3 +182,22 @@ export async function generateProfessionalMemorial(
 
   return response.json();
 }
+
+export async function generateExamAuditorMemorial(
+  question_id: string,
+  signal?: AbortSignal
+): Promise<{ success: boolean; pdf_url: string; filename: string; question_id: string }> {
+  const response = await fetch(`${BASE_URL}/api/mestre/generate/exam-auditor-memorial`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question_id }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Erro ao gerar PDF da auditoria');
+  }
+
+  return response.json();
+}

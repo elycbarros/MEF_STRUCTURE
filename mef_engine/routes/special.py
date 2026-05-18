@@ -592,6 +592,31 @@ async def generate_memorial_endpoint(req: Dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
 
+@router.post("/generate/exam-auditor-memorial")
+async def generate_exam_auditor_memorial(req: Dict):
+    from exam_auditor import build_professional_pdf_payload, solve_exam_auditor
+    from professional_pdf import generate_professional_memorial
+    import os
+
+    question_id = req.get("question_id", "q47_fcc_2018")
+    output_dir = "static/reports"
+    os.makedirs(output_dir, exist_ok=True)
+    filename = f"memorial_{question_id}.pdf"
+    file_path = os.path.join(output_dir, filename)
+
+    try:
+        audit_result = solve_exam_auditor(question_id)
+        results, project_meta = build_professional_pdf_payload(audit_result)
+        generate_professional_memorial(file_path, results, project_meta)
+        return {
+            "success": True,
+            "pdf_url": f"/static/reports/{filename}",
+            "filename": filename,
+            "question_id": question_id,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF da auditoria: {str(e)}")
+
 @router.post("/calculate/integrated-foundation")
 async def calculate_integrated_foundation(req: Dict):
     from geotechnical_engine import GeotechnicalEngine
