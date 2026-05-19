@@ -280,83 +280,161 @@ def generate_academic_blackboard_pdf(
 
 
 def _plot_structural_diagrams(classical: dict | None, mef: dict | None, output_dir: str):
-    # Shear Plot
-    plt.figure(figsize=(10, 3))
-    
+    # Extract classical data
+    class_shear_x, class_shear_y = [], []
+    class_moment_x, class_moment_y = [], []
+    class_defl_x, class_defl_y = [], []
+
     if classical:
-        xc, Vc = np.array(classical['x_m']), np.array(classical['V_kN'])
-        xc_p = np.concatenate([[xc[0]], xc, [xc[-1]]])
-        Vc_p = np.concatenate([[0], Vc, [0]])
-        plt.plot(xc_p, Vc_p, color='#059669', linewidth=2, label='Clássico (Analítico)', alpha=0.9)
-        plt.fill_between(xc_p, Vc_p, color='#059669', alpha=0.1)
-        
-    if mef and 'V_kN' in mef:
-        xm, Vm = np.array(mef['x_m']), np.array(mef['V_kN'])
-        plt.plot(xm, Vm, color='#64748b', linewidth=1, linestyle='--', label='Engine Premium', alpha=0.7)
+        if 'shear' in classical and isinstance(classical['shear'], list):
+            class_shear_x = [pt['x'] for pt in classical['shear'] if isinstance(pt, dict) and 'x' in pt]
+            class_shear_y = [pt['y'] for pt in classical['shear'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'V_kN' in classical:
+            class_shear_x = classical.get('x_shear_m', classical.get('x_m', []))
+            class_shear_y = classical['V_kN']
+
+        if 'moment' in classical and isinstance(classical['moment'], list):
+            class_moment_x = [pt['x'] for pt in classical['moment'] if isinstance(pt, dict) and 'x' in pt]
+            class_moment_y = [pt['y'] for pt in classical['moment'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'M_kNm' in classical:
+            class_moment_x = classical.get('x_moment_m', classical.get('x_m', []))
+            class_moment_y = classical['M_kNm']
+
+        if 'deflection' in classical and isinstance(classical['deflection'], list):
+            class_defl_x = [pt['x'] for pt in classical['deflection'] if isinstance(pt, dict) and 'x' in pt]
+            class_defl_y = [pt['y'] for pt in classical['deflection'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'delta_mm' in classical or 'w_mm' in classical:
+            class_defl_x = classical.get('x_nodes_m', classical.get('x_m', []))
+            class_defl_y = classical.get('delta_mm', classical.get('w_mm', []))
+
+    # Extract MEF data
+    mef_shear_x, mef_shear_y = [], []
+    mef_moment_x, mef_moment_y = [], []
+    mef_defl_x, mef_defl_y = [], []
+
+    if mef:
+        if 'shear' in mef and isinstance(mef['shear'], list):
+            mef_shear_x = [pt['x'] for pt in mef['shear'] if isinstance(pt, dict) and 'x' in pt]
+            mef_shear_y = [pt['y'] for pt in mef['shear'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'V_kN' in mef:
+            mef_shear_x = mef.get('x_shear_m', mef.get('x_m', []))
+            mef_shear_y = mef['V_kN']
+
+        if 'moment' in mef and isinstance(mef['moment'], list):
+            mef_moment_x = [pt['x'] for pt in mef['moment'] if isinstance(pt, dict) and 'x' in pt]
+            mef_moment_y = [pt['y'] for pt in mef['moment'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'M_kNm' in mef:
+            mef_moment_x = mef.get('x_moment_m', mef.get('x_m', []))
+            mef_moment_y = mef['M_kNm']
+
+        if 'deflection' in mef and isinstance(mef['deflection'], list):
+            mef_defl_x = [pt['x'] for pt in mef['deflection'] if isinstance(pt, dict) and 'x' in pt]
+            mef_defl_y = [pt['y'] for pt in mef['deflection'] if isinstance(pt, dict) and 'y' in pt]
+        elif 'delta_mm' in mef or 'w_mm' in mef:
+            mef_defl_x = mef.get('x_nodes_m', mef.get('x_m', []))
+            mef_defl_y = mef.get('delta_mm', mef.get('w_mm', []))
+
+    # 1. Shear Plot
+    plt.figure(figsize=(10, 3))
+    has_shear = False
+    if len(class_shear_x) > 0 and len(class_shear_y) > 0:
+        xc = np.array(class_shear_x)
+        Vc = np.array(class_shear_y)
+        min_len = min(len(xc), len(Vc))
+        if min_len > 0:
+            xc = xc[:min_len]
+            Vc = Vc[:min_len]
+            xc_p = np.concatenate([[xc[0]], xc, [xc[-1]]])
+            Vc_p = np.concatenate([[0], Vc, [0]])
+            plt.plot(xc_p, Vc_p, color='#059669', linewidth=2, label='Clássico (Analítico)', alpha=0.9)
+            plt.fill_between(xc_p, Vc_p, color='#059669', alpha=0.1)
+            has_shear = True
+
+    if len(mef_shear_x) > 0 and len(mef_shear_y) > 0:
+        xm = np.array(mef_shear_x)
+        Vm = np.array(mef_shear_y)
+        min_len = min(len(xm), len(Vm))
+        if min_len > 0:
+            plt.plot(xm[:min_len], Vm[:min_len], color='#64748b', linewidth=1, linestyle='--', label='Engine Premium', alpha=0.7)
+            has_shear = True
 
     plt.axhline(0, color='black', linewidth=0.8)
     plt.title("Esforço Cortante V(x) [kN]", fontsize=10, fontweight='bold')
     plt.grid(True, linestyle='--', alpha=0.3)
-    plt.legend(fontsize=8, loc='upper right')
+    if has_shear:
+        plt.legend(fontsize=8, loc='upper right')
     
     shear_img = os.path.join(output_dir, "pdf_diag_shear.png")
     plt.savefig(shear_img, dpi=150, bbox_inches='tight')
     plt.close()
 
-    # Moment Plot
+    # 2. Moment Plot
     plt.figure(figsize=(10, 3))
-    
-    if classical:
-        xc, Mc = np.array(classical['x_m']), np.array(classical['M_kNm'])
-        xc_p = np.concatenate([[xc[0]], xc, [xc[-1]]])
-        Mc_p = np.concatenate([[0], Mc, [0]])
-        plt.plot(xc_p, Mc_p, color='#c2410c', linewidth=2, label='Clássico (Analítico)', alpha=0.9)
-        plt.fill_between(xc_p, Mc_p, color='#c2410c', alpha=0.1)
+    has_moment = False
+    if len(class_moment_x) > 0 and len(class_moment_y) > 0:
+        xc = np.array(class_moment_x)
+        Mc = np.array(class_moment_y)
+        min_len = min(len(xc), len(Mc))
+        if min_len > 0:
+            xc = xc[:min_len]
+            Mc = Mc[:min_len]
+            xc_p = np.concatenate([[xc[0]], xc, [xc[-1]]])
+            Mc_p = np.concatenate([[0], Mc, [0]])
+            plt.plot(xc_p, Mc_p, color='#c2410c', linewidth=2, label='Clássico (Analítico)', alpha=0.9)
+            plt.fill_between(xc_p, Mc_p, color='#c2410c', alpha=0.1)
+            has_moment = True
 
-    if mef and 'M_kNm' in mef:
-        xm, Mm = np.array(mef['x_m']), np.array(mef['M_kNm'])
-        plt.plot(xm, Mm, color='#64748b', linewidth=1, linestyle='--', label='Engine Premium', alpha=0.7)
+    if len(mef_moment_x) > 0 and len(mef_moment_y) > 0:
+        xm = np.array(mef_moment_x)
+        Mm = np.array(mef_moment_y)
+        min_len = min(len(xm), len(Mm))
+        if min_len > 0:
+            plt.plot(xm[:min_len], Mm[:min_len], color='#64748b', linewidth=1, linestyle='--', label='Engine Premium', alpha=0.7)
+            has_moment = True
 
     plt.axhline(0, color='black', linewidth=0.8)
     plt.gca().invert_yaxis()
     plt.title("Momento Fletor M(x) [kNm]", fontsize=10, fontweight='bold')
     plt.grid(True, linestyle='--', alpha=0.3)
-    plt.legend(fontsize=8, loc='upper right')
+    if has_moment:
+        plt.legend(fontsize=8, loc='upper right')
     
     moment_img = os.path.join(output_dir, "pdf_diag_moment.png")
     plt.savefig(moment_img, dpi=150, bbox_inches='tight')
     plt.close()
 
-    # Deflection Plot
+    # 3. Deflection Plot
     deflection_img = None
-    if (mef and ('delta_mm' in mef or 'w_mm' in mef)) or (classical and ('delta_mm' in classical or 'w_mm' in classical)):
-        plt.figure(figsize=(10, 3))
-        if mef:
-            # Deflection is node-based (41 values)
-            # Element forces (V, M) are element-based (40 values)
-            if 'w_mm' in mef or 'delta_mm' in mef:
-                xm = np.array(mef.get('x_nodes_m', mef.get('x_m', [])))
-                Dm = np.array(mef.get('delta_mm', mef.get('w_mm', [])))
-            else:
-                xm = np.array(mef.get('x_m', []))
-                Dm = np.array(mef.get('delta_mm', []))
+    has_defl = False
+    has_class_defl = len(class_defl_x) > 0 and len(class_defl_y) > 0
+    has_mef_defl = len(mef_defl_x) > 0 and len(mef_defl_y) > 0
 
-            if len(xm) > 0 and len(Dm) > 0:
-                # Ensure they have same length
-                min_len = min(len(xm), len(Dm))
+    if has_class_defl or has_mef_defl:
+        plt.figure(figsize=(10, 3))
+        if has_class_defl:
+            xc = np.array(class_defl_x)
+            Dc = np.array(class_defl_y)
+            min_len = min(len(xc), len(Dc))
+            if min_len > 0:
+                plt.plot(xc[:min_len], Dc[:min_len], color='#059669', linewidth=2, label='Clássico (Analítico)', alpha=0.9)
+                plt.fill_between(xc[:min_len], Dc[:min_len], color='#059669', alpha=0.1)
+                has_defl = True
+        
+        if has_mef_defl:
+            xm = np.array(mef_defl_x)
+            Dm = np.array(mef_defl_y)
+            min_len = min(len(xm), len(Dm))
+            if min_len > 0:
                 plt.plot(xm[:min_len], Dm[:min_len], color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
                 plt.fill_between(xm[:min_len], Dm[:min_len], color='#2563eb', alpha=0.1)
-        elif classical:
-            xc = np.array(classical['x_m'])
-            Dc = np.array(classical.get('delta_mm', classical.get('w_mm', [])))
-            if len(xc) > 0 and len(Dc) > 0:
-                plt.plot(xc, Dc, color='#2563eb', linewidth=2, label='Flecha (mm)', alpha=0.9)
-                plt.fill_between(xc, Dc, color='#2563eb', alpha=0.1)
+                has_defl = True
 
         plt.axhline(0, color='black', linewidth=0.8)
         plt.gca().invert_yaxis() # Deformação para baixo positiva
         plt.title("Deformação - Flecha y(x) [mm]", fontsize=10, fontweight='bold')
         plt.grid(True, linestyle='--', alpha=0.3)
+        if has_defl:
+            plt.legend(fontsize=8, loc='upper right')
         
         deflection_img = os.path.join(output_dir, "pdf_diag_deflection.png")
         plt.savefig(deflection_img, dpi=150, bbox_inches='tight')

@@ -138,6 +138,7 @@ class LajesMindlinSolver:
         self.model.validate()
         self._build_mesh()
         self._last_distributed_load_total = 0.0
+        self.support_nodes = []
 
     def _build_mesh(self) -> None:
         m = self.model
@@ -510,6 +511,36 @@ class LajesMindlinSolver:
         self.nodes = np.array(res["nodes"])
         self.elements = np.array(res["elements"], dtype=int)
         self._tributary_areas = self._compute_tributary_areas()
+        
+        # Identificar nós de apoio
+        support_nodes = set()
+        for p in m.pillars:
+            half_bx = p.bx / 2.0
+            half_by = p.by / 2.0
+            x_min, x_max = p.x - half_bx, p.x + half_bx
+            y_min, y_max = p.y - half_by, p.y + half_by
+            found_any = False
+            for i, node in enumerate(self.nodes):
+                if (x_min - 1e-4 <= node[0] <= x_max + 1e-4) and \
+                   (y_min - 1e-4 <= node[1] <= y_max + 1e-4):
+                    support_nodes.add(i)
+                    found_any = True
+            if not found_any:
+                distances = np.linalg.norm(self.nodes - np.array([p.x, p.y]), axis=1)
+                support_nodes.add(np.argmin(distances))
+        for line in m.line_supports:
+            import math
+            dx = line.x2 - line.x1
+            dy = line.y2 - line.y1
+            length = math.sqrt(dx**2 + dy**2)
+            if length > 1e-9:
+                tol = 0.05
+                for i, node in enumerate(self.nodes):
+                    dist = abs(dy*node[0] - dx*node[1] + line.x2*line.y1 - line.y2*line.x1) / length
+                    dot = ((node[0] - line.x1)*dx + (node[1] - line.y1)*dy) / (length**2)
+                    if dist < tol and 0.0 <= dot <= 1.0:
+                        support_nodes.add(i)
+        self.support_nodes = list(support_nodes)
         
         # Extrair resultados
         u = np.array(res["u"])

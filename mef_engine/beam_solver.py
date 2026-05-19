@@ -440,6 +440,28 @@ class NonlinearBeamEngine:
 
 class BeamDesigner:
     @staticmethod
+    def get_min_reinforcement_ratio(fck: float) -> float:
+        """Taxa de armadura mínima de tração para vigas conforme ABNT NBR 6118, Tabela 17.3."""
+        if fck <= 30.0:
+            return 0.0015
+        elif fck <= 35.0:
+            return 0.00164
+        elif fck <= 40.0:
+            return 0.00179
+        elif fck <= 45.0:
+            return 0.00194
+        elif fck <= 50.0:
+            return 0.00208
+        elif fck <= 60.0:
+            return 0.00230
+        elif fck <= 70.0:
+            return 0.00252
+        elif fck <= 80.0:
+            return 0.00274
+        else:
+            return 0.00294
+
+    @staticmethod
     def design_flexure(md_kNm: float, section: BeamSection, gamma_f: float = 1.4) -> dict:
         """Dimensionamento à flexão (ELU) - NBR 6118."""
         fck = section.fck
@@ -498,9 +520,16 @@ class BeamDesigner:
                 as_tension = md_d / (fyd * 1e6 * z) if z > 0 else 0
                 status = "OK"
             
-        # Armadura Mínima (0.15% para C25/C30)
-        as_min = 0.0015 * bw * section.h * 1e4 # cm2
+        # Armadura Mínima Dinâmica NBR 6118 Tabela 17.3
+        rho_min = BeamDesigner.get_min_reinforcement_ratio(fck)
+        as_min = rho_min * bw * section.h * 1e4 # cm2
         as_cm2 = max(as_tension * 1e4, as_min)
+        
+        # Limite Máximo de Armadura NBR 6118 (§17.3.5.2.4): 4% Ac (As + As' <= 0.04 Ac)
+        total_steel_area = as_cm2 + (as_compression * 1e4)
+        max_steel_area = 0.04 * bw * section.h * 1e4
+        if total_steel_area > max_steel_area:
+            status = "ARMADURA_MAX_EXCEDIDA"
         
         return {
             'Md_kNm': round(md_kNm, 2),
@@ -548,7 +577,9 @@ class BeamDesigner:
         asw_t = (t_sd_kNm * 100.0 / (2 * Ae * 1e4 * fyd / 10.0)) * 100.0 # cm2/m (por ramo)
         
         asw_total = asw_v + 2 * asw_t # Total de ramos
-        as_min = 0.2 * (fctd/fck*10) * b * 100.0 # cm2/m
+        fctm = 0.3 * (fck**(2/3)) if fck <= 50.0 else 2.12 * math.log(1.0 + 0.11 * fck)
+        rho_sw_min = 0.2 * fctm / 500.0 # Assumindo estribos de CA-50 (fywk = 500 MPa)
+        as_min = rho_sw_min * b * 10000.0 # cm2/m (b em metros)
         asw_final = max(asw_total, as_min)
         
         return {
@@ -575,16 +606,103 @@ class BeamDesigner:
 
     @staticmethod
     def apply_moment_redistribution(M_elem: np.ndarray, support_nodes: List[int], delta: float = 0.90) -> np.ndarray:
+        """Aplica a redistribuição estática de momentos fletores mantendo o equilíbrio estático nos vãos."""
         M_red = M_elem.copy()
-        for node in support_nodes:
-            if node < len(M_elem) and M_red[node] < 0: M_red[node] *= delta
-            if node > 0 and M_red[node-1] < 0: M_red[node-1] *= delta
-        return M_red
+        if len(support_nodes) < 2:
+            return M_red
+            
+        sorted_supports = sorted(list(set(support_nodes)))
+        delta_M = np.zeros_like(M_elem)
+        
+        # 1. Aplicar a redução de momento nos apoios
+        for node in sorted_supports:
+            if node < len(M_elem) and M_elem[node] < 0:
+                delta_M[node] = M_elem[node] * (delta - 1.0)
+            if node > 0 and M_elem[node-1] < 0:
+                delta_M[node-1] = M_elem[node-1] * (delta - 1.0)
+                
+        # 2. Aplicar a compensação linear nos elementos de cada vão para manter equilíbrio
+        for i in range(len(sorted_supports) - 1):
+            idx_start = sorted_supports[i]
+            idx_end = sorted_supports[i+1]
+            idx_start_elem = min(idx_start, len(M_elem) - 1)
+            idx_end_elem = min(idx_end - 1, len(M_elem) - 1)
+            for e in range(idx_start_elem + 1, idx_end_elem):
+                t = (e - idx_start_elem) / (idx_end_elem - idx_start_elem) if idx_end_elem > idx_start_elem else 0.0
+                delta_M[e] = (1.0 - t) * delta_M[idx_start_elem] + t * delta_M[idx_end_elem]
+                
+        return M_elem + delta_M
+
+    @classmethod
+    def apply_moment_redistribution_dynamic(cls, M_elem: np.ndarray, support_nodes: List[int], section: BeamSection, gamma_f: float = 1.4, user_delta: float = 0.90) -> Tuple[np.ndarray, List[float]]:
+        """Aplica a redistribuição dinâmica de momentos baseada na ductilidade (x/d) no apoio (NBR 6118)."""
+        M_red = M_elem.copy()
+        if len(support_nodes) < 2:
+            return M_red, [1.0] * len(support_nodes)
+            
+        sorted_supports = sorted(list(set(support_nodes)))
+        node_deltas = {}
+        
+        # 1. Calcular delta para cada apoio baseado no x/d elástico
+        for node in sorted_supports:
+            # Pegar o momento elástico mais negativo dos elementos adjacentes ao nó de suporte
+            adjacent_moments = []
+            if node < len(M_elem):
+                adjacent_moments.append(M_elem[node])
+            if node > 0:
+                adjacent_moments.append(M_elem[node - 1])
+            
+            M_elastic = min(adjacent_moments) if adjacent_moments else 0.0
+            
+            if M_elastic >= 0:
+                node_deltas[node] = 1.0
+                continue
+                
+            # Dimensionar com o momento elástico
+            md_kNm = (M_elastic / 1000.0) * gamma_f
+            res_design = cls.design_flexure(md_kNm, section, gamma_f)
+            xi = res_design['x_d']
+            
+            # Limite normativo NBR 6118:2023 §14.6.4.3
+            if section.fck <= 50.0:
+                delta_allow = 0.44 + 1.25 * xi
+                delta_allow = max(0.75, min(1.0, delta_allow))
+            else:
+                delta_allow = 0.56 + 1.25 * xi
+                delta_allow = max(0.85, min(1.0, delta_allow))
+                
+            # O delta final respeita o limite do usuário e o limite normativo (menor redistribuição para segurança)
+            delta_final = max(user_delta, delta_allow)
+            node_deltas[node] = delta_final
+            
+        delta_M = np.zeros_like(M_elem)
+        
+        # 2. Aplicar a redução nos apoios
+        for node in sorted_supports:
+            d_node = node_deltas[node]
+            if node < len(M_elem) and M_elem[node] < 0:
+                delta_M[node] = M_elem[node] * (d_node - 1.0)
+            if node > 0 and M_elem[node-1] < 0:
+                delta_M[node-1] = M_elem[node-1] * (d_node - 1.0)
+                
+        # 3. Aplicar a compensação nos elementos de cada vão
+        for i in range(len(sorted_supports) - 1):
+            idx_start = sorted_supports[i]
+            idx_end = sorted_supports[i+1]
+            idx_start_elem = min(idx_start, len(M_elem) - 1)
+            idx_end_elem = min(idx_end - 1, len(M_elem) - 1)
+            for e in range(idx_start_elem + 1, idx_end_elem):
+                t = (e - idx_start_elem) / (idx_end_elem - idx_start_elem) if idx_end_elem > idx_start_elem else 0.0
+                delta_M[e] = (1.0 - t) * delta_M[idx_start_elem] + t * delta_M[idx_end_elem]
+                
+        return M_elem + delta_M, [round(node_deltas[node], 3) for node in sorted_supports]
 
     @classmethod
     def full_design(cls, result: BeamResult, model: BeamModel, redistribution_delta: float = 0.90) -> dict:
         support_nodes = [int(np.round(s.x / (model.L / result.n_elements))) for s in model.supports]
-        M_design = cls.apply_moment_redistribution(result.M, support_nodes, delta=redistribution_delta)
+        M_design, applied_deltas = cls.apply_moment_redistribution_dynamic(
+            result.M, support_nodes, model.section, gamma_f=model.gamma_f, user_delta=redistribution_delta
+        )
         
         gamma_f = model.gamma_f
         M_max_pos = np.max(M_design) / 1000.0 * gamma_f
@@ -614,6 +732,8 @@ class BeamDesigner:
         flexure_status = (
             flex_bottom['x_d'] <= flex_bottom['x_d_lim']
             and flex_top['x_d'] <= flex_top['x_d_lim']
+            and flex_bottom['status'] != "ARMADURA_MAX_EXCEDIDA"
+            and flex_top['status'] != "ARMADURA_MAX_EXCEDIDA"
         )
         overall_status = (
             'ATENDE'
@@ -626,6 +746,7 @@ class BeamDesigner:
         
         return {
             'redistribution_applied': redistribution_delta,
+            'applied_redistribution_deltas': applied_deltas,
             'M_max_pos_kNm': round(M_max_pos, 2),
             'M_max_neg_kNm': round(M_max_neg, 2),
             'flexure_bottom': flex_bottom,
@@ -1047,7 +1168,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
     
     # Gerar Resumo de Detalhamento 3D (Módulo 6-7)
     from beam_detailing import BeamDetailer
-    detailing_summary = BeamDetailer.generate_detailing_summary(design, L, h, fck)
+    detailing_summary = BeamDetailer.generate_detailing_summary(design, b, h, fck, L_beam_m=L)
 
     # Gerar Memorial Pedagógico (Mestre) via dispatcher seguro
     from master_pedagogy import build_beam_blackboard, build_forensic_audit, build_composite_pedagogy

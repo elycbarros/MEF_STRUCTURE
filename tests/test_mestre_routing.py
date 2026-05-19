@@ -39,7 +39,7 @@ CASES = [
     (
         "footing",
         {"Nd": 500.0, "sigma_adm": 300.0, "ap": 0.2, "bp": 0.2, "fck": 25.0},
-        "footing_solver.solve_isolated_footing",
+        "SpecialElementsSolver.solve_footing",
         False,
     ),
     (

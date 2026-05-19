@@ -620,8 +620,28 @@ def run_design_checks(config: LabConfig) -> dict:
         df_flex = pd.read_csv(out / 'radier_design_flexure_v2.csv')
         as_inf_x = df_flex['Asx_bottom_adot_cm2_m'].median()
         as_inf_y = df_flex['Asy_bottom_adot_cm2_m'].median()
+        as_sup_x = df_flex['Asx_top_adot_cm2_m'].median()
+        as_sup_y = df_flex['Asy_top_adot_cm2_m'].median()
         
-        det_inf_x = DetailingEngine.suggest_reinforcement(as_inf_x, 12.5)
+        details = DetailingEngine.detail_mesh(as_inf_x, as_inf_y, as_sup_x, as_sup_y)
+        
+        bars_by_phi = {}
+        for key, det in details.items():
+            phi = det['diameter']
+            if phi <= 0: continue
+            spacing_m = det['spacing'] / 100.0
+            span = config.Ly if 'x' in key else config.Lx
+            bar_len = config.Lx if 'x' in key else config.Ly
+            n_bars = int(span / spacing_m) + 1 if spacing_m > 0 else 0
+            weight = n_bars * bar_len * (np.pi * (phi / 1000.0)**2 / 4.0) * 7850.0 * 1.10
+            
+            if phi not in bars_by_phi:
+                bars_by_phi[phi] = {'phi': phi, 'n': 0, 'len': bar_len, 'weight': 0.0}
+            bars_by_phi[phi]['n'] += n_bars
+            bars_by_phi[phi]['len'] = max(bars_by_phi[phi]['len'], bar_len)
+            bars_by_phi[phi]['weight'] += weight
+            
+        steel_data_list = list(bars_by_phi.values())
         
         dxf_path = out / f'{config.base_name}_detailing.dxf'
         dxf = RadierDXFEngine(str(dxf_path), config.Lx, config.Ly)
@@ -630,11 +650,11 @@ def run_design_checks(config: LabConfig) -> dict:
         dxf.draw_dimensions()
         
         # Desenha malha inferior
-        dxf.draw_mesh('ARM_INF', det_inf_x['spacing'] / 100.0, det_inf_x['text'] + " INF")
+        dxf.draw_mesh('ARM_INF', details['bottom_x']['spacing'] / 100.0, details['bottom_x']['text'] + " INF")
         
         # Novo: Prancha Executiva (Carimbo e Listagem)
         dxf.draw_title_block(config.base_name, config.client_profile, "Radier Lab Professional")
-        dxf.draw_bar_list(steel_metrics)
+        dxf.draw_bar_list(steel_data_list)
         
         # Desenha reforços de punção se existirem
         if 'punching_check_file' in results:
@@ -758,7 +778,7 @@ def run_full_pipeline_demo(config: LabConfig | None = None) -> dict:
         'fck': config.fck,
         'area_m2': config.Lx * config.Ly,
         'volume_m3': config.Lx * config.Ly * config.h,
-        'line_supports': [ls.model_dump() if hasattr(ls, 'model_dump') else ls for ls in (config.line_supports or [])],
+        'line_supports': [ls.model_dump() if hasattr(ls, 'model_dump') else ls for ls in (getattr(config, 'line_supports', None) or [])],
         'pillars': [p.model_dump() if hasattr(p, 'model_dump') else p for p in (config.pillars or [])],
         'system_type': 'laje' if is_laje else 'radier',
         'total_load_kN': det_summary.get('loads_total_kN', 0.0),

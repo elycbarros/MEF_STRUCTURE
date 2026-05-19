@@ -24,7 +24,7 @@ def run_premium_beam_audit():
             {'x': 12.0, 'type': 'pinned'},
         ],
         distributed_loads=[
-            {'x_start': 0, 'x_end': 12.0, 'q_start': 25000}, # 25 kN/m
+            {'x_start': 0, 'x_end': 12.0, 'q_start': 25.0}, # 25 kN/m
         ],
         b=0.20, h=0.50, fck=30,
         bf=0.60, hf=0.10,

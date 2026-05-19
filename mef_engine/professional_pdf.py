@@ -951,7 +951,7 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
             estribo_kpis = [
                 ('Especificação dos Estribos', stirrups_txt),
                 ('Asw necessaria',             f"{asw_cm2_m:.2f} cm2/m"),
-                ('Decalagem al',               f"{exec_geo.get('al_cm', 0.0):.1f} cm"),
+                ('Decalagem al',               f"{detailing.get('geometry', {}).get('al_cm', 0.0):.1f} cm"),
             ]
             pdf.add_kpi_grid(estribo_kpis)
             
@@ -998,7 +998,9 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         
         mef_plot_data = {
             'x_m': [pt['x'] for pt in results['diagrams']['shear']],
+            'x_shear_m': [pt['x'] for pt in results['diagrams']['shear']],
             'V_kN': [pt['y'] for pt in results['diagrams']['shear']],
+            'x_moment_m': [pt['x'] for pt in results['diagrams']['moment']],
             'M_kNm': [pt['y'] for pt in results['diagrams']['moment']],
             'x_nodes_m': [pt['x'] for pt in results['diagrams']['deflection']],
             'delta_mm': [pt['y'] for pt in results['diagrams']['deflection']],

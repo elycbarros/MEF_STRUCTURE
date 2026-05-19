@@ -30,35 +30,63 @@ class BeamDetailer:
 
     @staticmethod
     def select_reinforcement(As_required_cm2: float, b_cm: float, h_cm: float) -> Dict:
-        """Seleciona barras longitudinais para cobrir a área necessária."""
+        """Seleciona barras longitudinais para cobrir a área necessária, suportando múltiplas camadas se necessário."""
         if As_required_cm2 <= 0:
-            return {"phi_mm": 10.0, "count": 2, "area_cm2": 1.57} # Mínimo 2 barras
+            return {"phi_mm": 10.0, "count": 2, "layers": 1, "area_cm2": 1.57} # Mínimo 2 barras
 
         # Filtra bitolas usuais para vigas (10mm a 25mm)
         options = [r for r in COMMERCIAL_REBARS if 10.0 <= r.phi_mm <= 25.0]
         
         best_phi = 12.5
         best_count = 2
-        min_over_area = 100.0
+        best_layers = 1
+        min_over_area = 1000.0
+        best_rebar = None
+
+        # available_width = b_cm - 2 * cobrimento_e_estribos (aproximado 3.5cm de cada lado)
+        available_width = b_cm - 2 * 3.5
 
         for rebar in options:
-            count = math.ceil(As_required_cm2 / rebar.area_cm2)
-            count = max(count, 2) # Mínimo 2 barras por camada
+            s_h_min = max(2.0, rebar.phi_mm / 10.0)
+            n_max_per_layer = math.floor((available_width + s_h_min) / (rebar.phi_mm / 10.0 + s_h_min))
+            n_max_per_layer = max(n_max_per_layer, 2) # Sempre pelo menos 2 barras por camada
+
+            total_bars = math.ceil(As_required_cm2 / rebar.area_cm2)
+            total_bars = max(total_bars, 2)
             
-            # Verificar se cabe na largura b (espaçamento min 2cm ou phi)
-            espacamento = (b_cm - 2*3.5 - count*rebar.phi_mm/10.0) / max(count-1, 1)
-            if espacamento < 2.0: continue
+            layers_count = math.ceil(total_bars / n_max_per_layer)
             
-            over_area = (count * rebar.area_cm2) - As_required_cm2
+            # Se precisar de mais de 3 camadas, descartamos a não ser que não haja outra opção
+            if layers_count > 3:
+                continue
+
+            over_area = (total_bars * rebar.area_cm2) - As_required_cm2
             if 0 <= over_area < min_over_area:
                 min_over_area = over_area
                 best_phi = rebar.phi_mm
-                best_count = count
+                best_count = total_bars
+                best_layers = layers_count
+                best_rebar = rebar
+
+        # Fallback caso nenhuma bitola caiba em <= 3 camadas (evita falha silenciosa)
+        if best_rebar is None:
+            # Seleciona a maior bitola disponível (25mm) para minimizar o número de camadas
+            rebar = options[-1] # 25mm
+            s_h_min = max(2.0, rebar.phi_mm / 10.0)
+            n_max_per_layer = math.floor((available_width + s_h_min) / (rebar.phi_mm / 10.0 + s_h_min))
+            n_max_per_layer = max(n_max_per_layer, 2)
+            total_bars = math.ceil(As_required_cm2 / rebar.area_cm2)
+            total_bars = max(total_bars, 2)
+            best_phi = rebar.phi_mm
+            best_count = total_bars
+            best_layers = math.ceil(total_bars / n_max_per_layer)
+            best_rebar = rebar
 
         return {
             "phi_mm": best_phi,
             "count": best_count,
-            "area_cm2": round(best_count * (best_phi**2 * math.pi / 400.0), 2)
+            "layers": best_layers,
+            "area_cm2": round(best_count * best_rebar.area_cm2, 2)
         }
 
     @staticmethod
@@ -212,8 +240,28 @@ class BeamDetailer:
         det_inf = cls.select_reinforcement(As_inf_calc, b_cm, h_cm)
         det_sup = cls.select_reinforcement(As_sup_calc, b_cm, h_cm)
         
+        # Calcular d real com base na disposição real das camadas
+        def calculate_d_real(det: dict) -> float:
+            layers = det.get('layers', 1)
+            phi = det.get('phi_mm', 10.0)
+            phi_cm = phi / 10.0
+            if layers <= 1:
+                return h_cm - (3.0 + phi_cm / 2.0)
+            y_layers = []
+            y_current = 3.0 + phi_cm / 2.0
+            y_layers.append(y_current)
+            for j in range(1, layers):
+                y_current += max(2.0, phi_cm) + phi_cm
+                y_layers.append(y_current)
+            y_G = sum(y_layers) / len(y_layers)
+            return max(h_cm - y_G, h_cm * 0.5)
+            
+        d_inf_cm = calculate_d_real(det_inf)
+        d_sup_cm = calculate_d_real(det_sup)
+        d_mean_cm = (d_inf_cm + d_sup_cm) / 2.0
+        
         # Decalagem (Módulo 7)
-        al = cls.calculate_al(d_cm)
+        al = cls.calculate_al(d_mean_cm)
         
         # Ancoragens (Módulo 6)
         lb_basic_inf = cls.calculate_anchorage(det_inf['phi_mm'], fck, hook=hook_inf)
@@ -236,7 +284,7 @@ class BeamDetailer:
         )
 
         return {
-            "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": d_cm, "al_cm": al, "L_m": L_beam_m},
+            "geometry": {"b_cm": b_cm, "h_cm": h_cm, "d_cm": round(d_mean_cm, 1), "al_cm": al, "L_m": L_beam_m},
             "inf": {
                 "spec": f"{det_inf['count']} Φ {det_inf['phi_mm']}",
                 "phi_mm": det_inf['phi_mm'],

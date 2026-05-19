@@ -374,6 +374,44 @@ def _build_maturity_score(memorial: dict, config) -> dict:
     }
 
 
+def build_pressure_text_map(nodes_df: pd.DataFrame, Lx: float, Ly: float) -> str:
+    try:
+        grid_size = 5
+        dx = Lx / grid_size
+        dy = Ly / grid_size
+        
+        rows = []
+        for j in range(grid_size - 1, -1, -1):
+            row_vals = []
+            y_min = j * dy
+            y_max = (j + 1) * dy
+            for i in range(grid_size):
+                x_min = i * dx
+                x_max = (i + 1) * dx
+                
+                quad = nodes_df[
+                    (nodes_df['x_m'] >= x_min) & (nodes_df['x_m'] <= x_max) &
+                    (nodes_df['y_m'] >= y_min) & (nodes_df['y_m'] <= y_max)
+                ]
+                
+                if not quad.empty and 'qsoil_Pa' in quad.columns:
+                    q_avg = quad['qsoil_Pa'].mean() / 1000.0 # kPa
+                else:
+                    q_avg = 0.0
+                row_vals.append(f"{q_avg:.1f}")
+            rows.append(row_vals)
+            
+        md = "| Y \\ X | 0-20% | 20-40% | 40-60% | 60-80% | 80-100% |\n"
+        md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+        for idx, r in enumerate(rows):
+            y_pct = 100 - idx * 20
+            y_label = f"{y_pct-20}-{y_pct}%"
+            md += f"| **{y_label}** | " + " kPa | ".join(r) + " kPa |\n"
+        return md
+    except Exception as e:
+        return f"Erro ao gerar mapa de pressões: {str(e)}"
+
+
 def build_memorial_summary(
     config,
     deterministic_summary: dict,
@@ -466,6 +504,9 @@ def build_memorial_summary(
             }
 
     service_summary = {}
+    total_nodes = config.nx * config.ny
+    active_springs = total_nodes
+    pressure_text_map = None
     if nodes_path.exists():
         nodes_df = pd.read_csv(nodes_path)
         service_summary = {
@@ -473,6 +514,16 @@ def build_memorial_summary(
             'w_med_mm': float(nodes_df['w_m'].mean() * 1000.0),
             'w_diff_mm': float((nodes_df['w_m'].max() - nodes_df['w_m'].min()) * 1000.0),
         }
+        if 'spring_active' in nodes_df.columns:
+            active_springs = int(nodes_df['spring_active'].sum())
+        else:
+            active_springs = int(deterministic_summary.get('active_springs', total_nodes))
+        pressure_text_map = build_pressure_text_map(nodes_df, config.Lx, config.Ly)
+    else:
+        active_springs = int(deterministic_summary.get('active_springs', total_nodes))
+        
+    contact_loss_pct = 0.0 if is_laje else max(0.0, 100.0 - (active_springs / max(total_nodes, 1) * 100.0))
+
     if serviceability_path.exists():
         ser_df = pd.read_csv(serviceability_path)
         service_summary.update({
@@ -547,6 +598,15 @@ def build_memorial_summary(
             'tensao_admissivel_kPa': config.sigma_adm_kPa,
             'atende_pressao_media': q_med_kPa <= config.sigma_adm_kPa if not is_laje else True,
             'atende_pressao_max_modelo': q_max_kPa <= config.sigma_adm_kPa if not is_laje else True,
+            'contact_loss_pct': contact_loss_pct,
+            'contact_loss_status': 'EXCELENTE' if contact_loss_pct < 1.0 else ('ATENCAO' if contact_loss_pct <= 5.0 else 'CRITICO'),
+            'parecer_contato': (
+                "Aderência plena do radier ao solo (perda de contato inferior a 1%). Estabilidade de contato atendida."
+                if contact_loss_pct < 1.0 else
+                f"Perda parcial de contato detectada ({contact_loss_pct:.2f}%) na base elástica. Admissível se estável ao tombamento."
+                if contact_loss_pct <= 5.0 else
+                f"Perda significativa de contato solo-radier ({contact_loss_pct:.2f}%). Recomenda-se aumentar as dimensões da base."
+            ),
             'status': 'nao_aplicavel_sistema_elevado' if is_laje else 'avaliado',
         } if not is_laje else {},
         'pre_dimensionamento': {
@@ -584,9 +644,14 @@ def build_memorial_summary(
             }
         },
         'verificacoes_de_servico': service_summary,
+        'pressure_text_map': pressure_text_map,
         'acoes_de_vento': wind_results or {},
         'estabilidade_global': stability_results or {},
         'comparativo_metodologias': analytical_comparison or {},
+        'acoes_e_combinacoes': {
+            'carga_total_servico_kN': total_service_load_kN,
+            'carga_pilares_kN': deterministic_summary.get('column_load_kN', 0.0),
+        },
         'detalhamento_final': {
             'armadura_inferior': 'distribuir nas duas direcoes, com maior participacao em regioes de momento positivo',
             'armadura_superior': 'concentrar sobre pilares, bordas e regioes de momento negativo',
@@ -676,6 +741,18 @@ def render_standard_markdown_radier(radier_results: dict, master_config: dict) -
     else:
         md += "### 6.1 Recalques e Pressão no Solo\n\n"
         md += "A fundação foi dimensionada para garantir que as pressões de contato permaneçam abaixo da tensão admissível do solo, minimizando recalques diferenciais e distorções angulares.\n\n"
+        
+        geotech_vals = memorial.get('verificacoes_geotecnicas', {})
+        if geotech_vals:
+            contact_loss = geotech_vals.get('contact_loss_pct', 0.0)
+            md += f"- **Perda de Contato Solo-Radier**: {contact_loss:.2f}% (Status: {geotech_vals.get('contact_loss_status', 'N/D')})\n"
+            md += f"- **Parecer sobre o Contato**: {geotech_vals.get('parecer_contato', 'N/D')}\n\n"
+            
+            pressure_map = memorial.get('pressure_text_map')
+            if pressure_map:
+                md += "#### Distribuição Espacial de Pressões de Contato (Mapeamento 5x5)\n\n"
+                md += "Abaixo é apresentada a média das pressões de contato do solo ($q_{soil}$) em kPa para cada quadrante do radier:\n\n"
+                md += pressure_map + "\n\n"
 
     md += "## 7. Parecer Técnico de Engenharia (Criterio Libanio)\n\n"
     md += f"> {memorial.get('parecer_tecnico_mestre', 'Analise estrutural concluida com base nos criterios normativos vigentes.')}\n\n"

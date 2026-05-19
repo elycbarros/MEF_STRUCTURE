@@ -202,8 +202,10 @@ class SlabLab:
         
         # Auditoria de flecha no ponto crítico
         max_w_idx = np.argmax(res_els.disp[:, 0])
-        ma_kNm = abs(res_els.mx[max_w_idx] / 1000.0) # Simplificação: usa Mx do elemento correspondente
-        as_cm2 = reinforcement['elements'][max_w_idx]['Asx_bottom'] if 'elements' in reinforcement else 1.0
+        matching_elements = np.where(res_els.elements == max_w_idx)[0]
+        max_w_el_idx = matching_elements[0] if len(matching_elements) > 0 else 0
+        ma_kNm = abs(res_els.mx[max_w_el_idx] / 1000.0) # Simplificação: usa Mx do elemento correspondente
+        as_cm2 = reinforcement['elements'][max_w_el_idx]['Asx_bottom'] if ('elements' in reinforcement and max_w_el_idx < len(reinforcement['elements'])) else 1.0
         
         deflection_audit = service_engine.calculate_nonlinear_deflection(
             w_instant=res_els.disp[max_w_idx, 0] * 1000.0,

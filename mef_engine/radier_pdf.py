@@ -381,6 +381,12 @@ def _add_executive_cover(pdf: "RadierPDF", results: dict, project_meta: dict) ->
     pdf.cell(0, 7, "  KPIs do Projeto", 0, 1, "L", fill=True)
     pdf.ln(3)
 
+    # Calculate exact minimum reinforcement ratio and contact loss
+    as_min = results.get('memorial', {}).get('verificacoes_estruturais', {}).get('flexao', {}).get('As_min_total_cm2_m', 0.0)
+    h_m = master.get('h', 1.0)
+    rho_min_pct = (as_min / (h_m * 10000.0)) * 100.0 if h_m > 0 else 0.0
+    contact_loss_pct = geotech.get('contact_loss_pct', 0.0)
+
     kpis = [
         ("Dimensões (m)", f"{_fmt(master.get('Lx'))} x {_fmt(master.get('Ly'))}"),
         ("Espessura h (m)", _fmt(master.get("h"), 2)),
@@ -390,6 +396,8 @@ def _add_executive_cover(pdf: "RadierPDF", results: dict, project_meta: dict) ->
         ("Confiança kv", f"{_fmt(kv_conf, 2)}" if kv_conf is not None else "N/D"),
         ("Pressão Máx (kPa)", _fmt(geotech.get("pressao_max_modelo_kPa"), 2)),
         ("Sigma_adm (kPa)", _fmt(geotech.get("tensao_admissivel_kPa"), 2)),
+        ("Perda de Contato (%)", f"{_fmt(contact_loss_pct, 2)}%"),
+        ("Taxa Armadura Mín (%)", f"{_fmt(rho_min_pct, 3)}%"),
         ("Ratio Pressão", _fmt(exec_decision.get("pressure_ratio"), 3)),
         ("Ratio Punção", _fmt(exec_decision.get("punching_ratio"), 3)),
         ("Recalque Máx (mm)", _fmt(service.get("w_max_mm"), 2)),
@@ -662,96 +670,6 @@ def generate_radier_report_pdf(output_path: str | Path, results: dict, project_m
     piles_data = results.get('piles_data') or results.get('radier', {}).get('pile_results')
     if piles_data:
         pdf.add_piles_section(piles_data)
-    
-    def add_markdown_content(self, markdown_text: str):
-        if not markdown_text: return
-        self.chapter_title('Memorial Técnico Detalhado (M4)')
-        
-        lines = markdown_text.split('\n')
-        in_table = False
-        table_data = []
-        table_header = []
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                if in_table:
-                    self._render_parsed_table(table_header, table_data)
-                    in_table = False
-                    table_data = []
-                    table_header = []
-                self.ln(2)
-                continue
-            
-            # Icons replacement for standard fonts
-            line = line.replace('✅', '[OK]').replace('❌', '[FAIL]').replace('⚠️', '[!]').replace('📌', '*')
-            
-            if line.startswith('# '):
-                self.chapter_title(line[2:])
-            elif line.startswith('## '):
-                self.section_title(line[3:])
-            elif line.startswith('- '):
-                self.set_font('Arial', '', 9)
-                self.set_text_color(60, 60, 60)
-                self.multi_cell(0, 5, f'  * {line[2:]}')
-            elif line.startswith('|'):
-                # Simple table parser
-                if '---' in line: continue # skip separator
-                parts = [p.strip() for p in line.split('|') if p.strip()]
-                if not in_table:
-                    table_header = parts
-                    in_table = True
-                else:
-                    table_data.append(parts)
-            else:
-                self.set_font('Arial', '', 9)
-                self.set_text_color(40, 40, 40)
-                self.multi_cell(0, 5, line)
-        
-        if in_table:
-            self._render_parsed_table(table_header, table_data)
-
-    def _render_parsed_table(self, header, data):
-        if not header: return
-        num_cols = len(header)
-        col_width = 190 / num_cols
-        self.add_table(header, data, [col_width] * num_cols)
-
-def generate_radier_report_pdf(output_path: str | Path, results: dict, project_meta: dict):
-    pdf = RadierPDF(project_meta)
-    pdf.add_page()
-    
-    is_laje = results.get('system_type') == 'laje'
-    master = results.get('master', {})
-
-    # Capa executiva (Frente F)
-    _add_executive_cover(pdf, results, project_meta)
-
-    # 1. Resumo Executivo
-    pdf.chapter_title('1. Resumo Executivo')
-    exec_decision = results.get('executive_decision', {})
-    pdf.add_metric('Decisão', exec_decision.get('executive_label', 'N/D'))
-    pdf.add_metric('Status', exec_decision.get('decision_status', 'N/D'))
-    pdf.add_metric('Go/No-Go', exec_decision.get('go_no_go', 'N/D'))
-    pdf.add_metric('Recomendação Principal', exec_decision.get('main_recommendation', 'N/D'))
-    pdf.ln(5)
-    
-    pdf.add_metric('Concreto fck', _fmt(master.get('fck'), 0, ' MPa'))
-    pdf.ln(5)
-
-    # 2.1 Resumo de Materiais
-    pdf.chapter_title('2.1 Resumo de Materiais (Estimativo)')
-    metrics = results.get('memorial', {}).get('verificacoes_estruturais', {}).get('flexao', {}).get('metrics', {})
-    if metrics:
-        pdf.add_metric('Volume de Concreto', _fmt(metrics.get('concrete_volume_m3')), ' m3')
-        pdf.add_metric('Peso Total de Aço (+10%)', _fmt(metrics.get('total_steel_kg')), ' kg')
-        pdf.add_metric('Taxa de Aço (por volume)', _fmt(metrics.get('steel_density_kg_m3')), ' kg/m3')
-        pdf.add_metric('Taxa de Aço (por área)', _fmt(metrics.get('steel_density_kg_m2')), ' kg/m2')
-    pdf.ln(5)
-    
-    # ... (other sections omitted for brevity in replace_file_content if possible, 
-    # but I must keep the integrity of generate_radier_report_pdf)
-    
     # 14. Memorial M4 (Standardized Markdown)
     memorial = results.get('memorial', {})
     if memorial.get('standard_markdown'):

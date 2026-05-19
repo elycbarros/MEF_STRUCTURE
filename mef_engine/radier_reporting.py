@@ -605,6 +605,8 @@ def build_markdown_report(config, master: dict, output_dir: str | Path) -> str:
     det = pd.read_json(det_summary_path, typ='series').to_dict()
     batch = pd.read_csv(master['batch_kpis_file'])
     memorial = load_memorial(master['memorial_summary_file'])
+    inverse = master.get('inverse_and_uq_summary') or {}
+    bayes = master.get('bayesian_summary') or {}
     
     is_laje = memorial.get('system_type') == 'laje'
     system_label = memorial.get('system_label', 'Radier')

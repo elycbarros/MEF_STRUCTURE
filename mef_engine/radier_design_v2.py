@@ -88,6 +88,15 @@ def _wk_nbr_mm(phi_mm: float, eta1: float, sigma_s_mpa: pd.Series, rho_ri: pd.Se
     wk_2 = phi_mm / (12.5 * eta1) * (sigma / es_mpa) * ((4.0 / rho) + 45.0)
     return pd.Series(np.minimum(wk_1, wk_2), index=sigma_s_mpa.index)
 
+def get_slab_min_reinforcement_ratio(fck: float) -> float:
+    """Retorna a taxa de armadura mínima (rho_min) para lajes/placas em flexão simples,
+    conforme a Tabela 19.1 da ABNT NBR 6118:2023. Realiza interpolação para classes intermediárias.
+    """
+    xp = [20.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 70.0, 80.0, 90.0, 100.0]
+    fp = [0.00150, 0.00150, 0.00164, 0.00178, 0.00191, 0.00204, 0.00215, 0.00227, 0.00248, 0.00269, 0.00288, 0.00305]
+    return float(np.interp(fck, xp, fp))
+
+
 def design_flexure_from_elements(elements_csv: str, cfg: DesignConfig, out_csv: str = 'output/radier_design_flexure_v2.csv'):
     df = pd.read_csv(elements_csv)
     d = max(cfg.h - cfg.cover - 0.010, 0.05)
@@ -140,10 +149,8 @@ def design_flexure_from_elements(elements_csv: str, cfg: DesignConfig, out_csv: 
     df['Asy_bottom_req_cm2_m'] = (df['My_bottom_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_by))) * 1e4
     df['Asy_top_req_cm2_m'] = (df['My_top_Nm_per_m'] / (fyd * 1e6 * d * (1 - psi * lambda_c * xi_ty))) * 1e4
 
-    # Taxa Mínima (NBR 6118 Tabela 19.1)
-    fctm = 0.3 * (cfg.fck ** (2/3)) if cfg.fck <= 50 else 2.12 * np.log(1 + 0.11 * cfg.fck)
-    # rho_min para lajes (estimativa por fctm/fyk)
-    rho_min = max(0.0015, 0.233 * fctm / cfg.fyk)
+    # Taxa Mínima exata da NBR 6118:2023 Tabela 19.1
+    rho_min = get_slab_min_reinforcement_ratio(cfg.fck)
     as_min_total_cm2_m = rho_min * 1.0 * cfg.h * 1e4
     as_min_face_cm2_m = as_min_total_cm2_m / 2.0
     
@@ -408,7 +415,7 @@ def _estimate_rho_punching(
     d_cm = max(d * 100.0, 1e-9)
     rho_x = asx / (100.0 * d_cm)
     rho_y = asy / (100.0 * d_cm)
-    return max((rho_x * rho_y) ** 0.5, 0.001)
+    return min(max((rho_x * rho_y) ** 0.5, 0.001), 0.02)
 
 
 def check_punching(
@@ -514,11 +521,9 @@ def check_punching(
     for i, row in enumerate(out.itertuples()):
         tau_sd = row.tau_sd_MPa
         tau_rd1 = row.tau_rd1_MPa
-        
         if tau_sd > tau_rd1:
-            # Asw = (tau_sd - 0.10 * tau_rd1) * u1 * d / (0.9 * fywd) -> simplificado
-            # NBR 6118: tau_sd <= tau_rd3 = 0.10 * tau_rd1 + 0.90 * rho_w * fywd
-            asw = max((tau_sd - 0.10 * tau_rd1) * (u1[i] * 100.0) * d_cm / (0.90 * fywd / 10.0), 0.0)
+            # Asw = (tau_sd - 0.10 * tau_rd1) * u1 * (0.75 * d) / (0.90 * fywd)
+            asw = max((tau_sd - 0.10 * tau_rd1) * (u1[i] * 100.0) * (0.75 * d_cm) / (0.90 * fywd), 0.0)
             asw_req_cm2.append(asw)
             
             # Detalhamento Sugerido: Studs de 10mm (area = 0.785 cm2)

@@ -120,10 +120,54 @@ class SlabDesignEngine:
         as_min = rho_min * (bw * cfg.h if is_ribbed else 1.0 * cfg.h) * 1e4
         if is_ribbed: as_min = as_min / cfg.dist_nerv # as_min por metro
         
+        is_ductile = (x / d) <= (0.45 if cfg.fck <= 50 else 0.35)
+        z_m = d - psi * lambda_c * x
         return {
             "x_m": x,
-            "as_final_cm2": max(as_req_cm2, as_min)
+            "z_m": z_m,
+            "as_req_cm2": as_req_cm2,
+            "as_min_cm2": as_min,
+            "as_final_cm2": max(as_req_cm2, as_min),
+            "is_ductile": is_ductile
         }
+
+    @staticmethod
+    def check_punching_2023(
+        fsd_kN: float,
+        pos: Tuple[float, float],
+        col_w: float,
+        col_h: float,
+        d: float,
+        rho_l: float,
+        cfg: SlabDesignConfig
+    ) -> Dict[str, Any]:
+        """
+        Verificação de punção conforme NBR 6118:2023.
+        """
+        d_mm = d * 1000.0
+        k = 1.0 + np.sqrt(200.0 / np.maximum(d_mm, 1e-9))
+        k_factor = float(np.minimum(k, 2.0))
+        
+        # Perímetro crítico u1 a 2d da face do pilar
+        u1 = 2.0 * (col_w + col_h) + 4.0 * np.pi * d
+        
+        # Tensão solicitante (considerando beta simplificado = 1.15 para pilar interno)
+        beta = 1.15
+        tau_sd = beta * (fsd_kN * 1000.0) / (u1 * d) / 1e6  # MPa
+        
+        # Tensão resistente (tau_rd1)
+        gamma_c = cfg.gamma_c
+        fck = cfg.fck
+        tau_rd1 = (0.18 / gamma_c) * k_factor * np.power(100.0 * rho_l * fck, 1.0 / 3.0)
+        
+        return {
+            "k_factor": k_factor,
+            "u1": u1,
+            "tau_sd_MPa": float(tau_sd),
+            "tau_rd1_MPa": float(tau_rd1),
+            "status": "OK" if tau_sd <= tau_rd1 else "REQUER_REFORCO"
+        }
+
 
     def design_from_mef(self, res: Any) -> Dict[str, Any]:
         """
