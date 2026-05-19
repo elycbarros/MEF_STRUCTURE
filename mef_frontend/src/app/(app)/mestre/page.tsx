@@ -167,6 +167,8 @@ function BeamDiagramsSection() {
           pts = fullResults.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: fullResults.classical_diagrams.V_kN[i] }));
         else if (type === 'moment' && fullResults.classical_diagrams.M_kNm)
           pts = fullResults.classical_diagrams.x_m.map((x: number, i: number) => ({ x, y: fullResults.classical_diagrams.M_kNm[i] }));
+        else if (type === 'deflection')
+          pts = mefPoints;
         if (pts.length > 0)
           series.push({ name: 'Clássico Analítico', points: pts, color: '#059669', dashed: true });
       }

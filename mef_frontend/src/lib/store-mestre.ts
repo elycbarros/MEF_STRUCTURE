@@ -93,6 +93,7 @@ const DEFAULT_MESTRE_PARAMS: MestreParams = {
   v0: 30.0,
   height: 30.0,
   width_x: 12.0,
+  include_self_weight: true,
 };
 
 const MODULE_PARAM_PRESETS: Partial<Record<MestreElementType, Partial<MestreParams>>> = {
@@ -101,8 +102,9 @@ const MODULE_PARAM_PRESETS: Partial<Record<MestreElementType, Partial<MestrePara
     b: 0.20,
     h: 0.50,
     q: 20.0,
+    include_self_weight: true,
     supports: [{ x: 0, type: 'pinned' }, { x: 6.0, type: 'pinned' }],
-    distributed_loads: [{ x_start: 0, x_end: 6.0, q_start: 20.0, q_end: 20.0 }],
+    distributed_loads: [],
     point_loads: [],
   },
   column: { b: 0.40, h: 0.40, Nd: 1000.0, L_free: 3.0, Mxd: 25.0, Myd: 10.0 },

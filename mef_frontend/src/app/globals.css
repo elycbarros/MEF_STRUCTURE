@@ -157,11 +157,25 @@
     display: none !important;
   }
 
-  body,
   html,
-  main {
+  body,
+  #__next,
+  .flex.h-screen,
+  main,
+  .flex-1.overflow-hidden,
+  .col-span-12.lg\:col-span-7,
+  .col-span-12.lg\:col-span-7 > div {
+    display: block !important;
+    position: relative !important;
     height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     overflow: visible !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
     background: white !important;
     color: black !important;
   }
@@ -173,6 +187,9 @@
   /* Force all accordion items open when printing */
   [data-state="closed"] {
     display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    opacity: 1 !important;
   }
 
   /* Remove card shadows for a clean report look */
@@ -182,7 +199,18 @@
     box-shadow: none !important;
     border: 1px solid #e5e7eb !important;
   }
+
+  /* Prevent page breaks inside cards, tables, images, and SVGs */
+  .step-card,
+  table,
+  tr,
+  img,
+  svg {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
+
 
 /* ── Selection Screen Background ─────────────────────────────────────── */
 .selection-screen {

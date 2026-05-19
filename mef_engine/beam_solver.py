@@ -116,6 +116,8 @@ class BeamModel:
     caa: int = 2
     wk_limit_mm: float = 0.3
     include_self_weight: bool = True
+    self_weight_density: float = 25.0
+
 
 
 @dataclass
@@ -237,7 +239,9 @@ class BeamFEMSolver:
 
         # Peso próprio
         if getattr(self.model, "include_self_weight", True):
-            pp = self.model.section.area * 25000.0
+            density = getattr(self.model, "self_weight_density", 25.0)
+            pp = self.model.section.area * density * 1000.0
+
             for e in range(self.n_elem):
                 element_q[e] += pp
                 fe = self._element_load_uniform(pp) # pp sem excentricidade
@@ -313,7 +317,8 @@ class BeamFEMSolver:
                     for dl in self.model.distributed_loads
                 ]
                 if self.model.include_self_weight:
-                    pp = self.model.section.area * 25000.0
+                    density = getattr(self.model, "self_weight_density", 25.0)
+                    pp = self.model.section.area * density * 1000.0
                     rust_dists.append(Beam1DDistLoadPy(0.0, self.model.L, pp, pp, 0.0))
                 
                 model_rust = Beam1DModel(
@@ -718,7 +723,8 @@ class ClassicalBeamSolver:
         # Peso Próprio
         all_dloads = list(dloads)
         if getattr(model, "include_self_weight", True):
-            pp = model.section.area * 25000.0
+            density = getattr(model, "self_weight_density", 25.0)
+            pp = model.section.area * density * 1000.0
             all_dloads.append(DistributedLoad(x_start=0.0, x_end=L, q_start=pp, q_end=pp))
 
         # Reações de Apoio
@@ -842,7 +848,9 @@ class ClassicalBeamSolver:
                         m_parts.append(f"{-pm:+.2f}")
             
             # 3. Cargas Distribuídas
-            pp = (model.section.area * 25000.0 / 1000.0) if getattr(model, "include_self_weight", True) else 0.0
+            density = getattr(model, "self_weight_density", 25.0)
+            pp = (model.section.area * density) if getattr(model, "include_self_weight", True) else 0.0
+
             if pp > 0:
                 v_parts.append(f"{-pp:+.2f}(x - 0.00)")
                 m_parts.append(f"{-pp/2.0:+.2f}(x - 0.00)^2")
@@ -882,7 +890,7 @@ def _durability_params(caa: int, member_type: str) -> dict:
     return {'caa': caa_int, 'cover_m': cover_mm / 1000.0, 'cover_mm': cover_mm, 'wk_limit_mm': wk_limits[caa_int]}
 
 
-def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, gamma_f=1.4, asymmetric_offset=0.0):
+def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, self_weight_density=25.0, self_weight_material='concreto_armado', gamma_f=1.4, asymmetric_offset=0.0):
     # --- Hardening e Sanitização de Inputs ---
     try:
         L = float(L)
@@ -945,6 +953,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
                       caa=durability['caa'], 
                       wk_limit_mm=durability['wk_limit_mm'],
                       include_self_weight=include_self_weight,
+                      self_weight_density=self_weight_density,
                       gamma_f=gamma_f)
 
     solver = BeamFEMSolver(model)
@@ -971,7 +980,8 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
     for pl in model.point_loads:
         total_load_n += abs(pl.P)
     if include_self_weight:
-        total_load_n += section.area * 25000.0 * L
+        total_load_n += section.area * self_weight_density * 1000.0 * L
+
     
     total_reaction_kn = sum(abs(r['R']) for r in result.reactions.values())
     
@@ -1040,7 +1050,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         'success': True,
         'L': model.L,
         'summary': {
-            'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf, 
+            'L_m': L, 'b_m': b, 'h_m': h, 'bf_m': section.bf, 'hf_m': section.hf,
             'max_deflection_mm': result.max_deflection_mm,
             'max_moment_kNm': result.max_moment_kNm,
             'max_shear_kN': result.max_shear_kN,
@@ -1049,7 +1059,10 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
             'total_load_kN': round(total_load_n / 1000.0, 2),
             'total_reaction_kN': round(total_reaction_kn, 2),
             'residual_kN': round((total_load_n/1000.0) - total_reaction_kn, 3),
-            'overall_status': design.get('overall_status', 'ATENDE')
+            'overall_status': design.get('overall_status', 'ATENDE'),
+            'include_self_weight': include_self_weight,
+            'self_weight_material': self_weight_material,
+            'self_weight_density': self_weight_density,
         },
         'design': design, 
         'detailing': detailing_summary,

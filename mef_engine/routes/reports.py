@@ -185,11 +185,38 @@ async def export_academic_stability_pdf(req: dict):
         output_dir = "output_api"
         ensure_directory(output_dir)
         
-        cfg = WindConfig(v0=req.get('v0', 30.0), height=req.get('height', 30.0), width_x=req.get('width_x', 12.0))
-        engine = WindEngine()
+        v0 = float(req.get('v0', 30.0))
+        height = float(req.get('height', 30.0))
+        width_x = float(req.get('width_x', 12.0))
+        s1 = float(req.get('s1', 1.0))
+        s3 = float(req.get('s3', 1.0))
+        categoria = int(req.get('categoria', 2))
+        classe = req.get('classe', 'B')
+        
+        cfg = WindConfig(
+            v0=v0,
+            s1=s1,
+            s3=s3,
+            categoria=categoria,
+            classe=classe,
+            height=height,
+            width_x=width_x
+        )
+        engine = WindEngine(cfg)
         wind_data = engine.calculate_dynamic_pressure(cfg)
         gamma_z = engine.estimate_gamma_z(cfg.height, 10000, 50)
-        res = {**wind_data, "gamma_z": gamma_z}
+        res = {
+            **wind_data,
+            "v0": v0,
+            "s1": s1,
+            "s3": s3,
+            "categoria": categoria,
+            "classe": classe,
+            "height": height,
+            "width_x": width_x,
+            "gamma_z": gamma_z,
+            "s2_max": WindEngine.calculate_s2(height, category=categoria, class_size=classe)
+        }
         blackboard = build_stability_blackboard(res)
         
         pdf_path = os.path.join(output_dir, "mestre_estabilidade_vento.pdf")

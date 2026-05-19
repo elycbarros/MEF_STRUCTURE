@@ -168,6 +168,19 @@ async def calculate_special(req: SpecialElementRequest):
         trace.update(solver_module="beam_solver.run_beam_analysis", blackboard_builder="build_beam_blackboard", classical_check=True, mef_check=True)
         from beam_solver import run_beam_analysis
         L = params.get('L', 6.0)
+        self_weight_material = params.get('self_weight_material', 'concreto_armado')
+        material_densities = {
+            'concreto_armado': 25.0,
+            'concreto_simples': 24.0,
+            'aco': 78.5,
+            'madeira': 8.0
+        }
+        self_weight_density = material_densities.get(self_weight_material, 25.0)
+
+        dloads = params.get('distributed_loads')
+        if dloads is None:
+            dloads = [{'x_start': 0, 'x_end': L, 'q_start': params.get('q', 20.0), 'q_end': params.get('q', 20.0)}]
+
         res = run_beam_analysis(
             L=L,
             b=params.get('b', 0.20),
@@ -176,11 +189,14 @@ async def calculate_special(req: SpecialElementRequest):
             bf=params.get('bf', 0.0),
             hf=params.get('hf', 0.0),
             supports=params.get('supports') or [{'x': 0, 'type': 'pinned'}, {'x': L, 'type': 'pinned'}],
-            distributed_loads=params.get('distributed_loads') or [{'x_start': 0, 'x_end': L, 'q_start': params.get('q', 20.0), 'q_end': params.get('q', 20.0)}],
-            point_loads=params.get('point_loads') or [],
+            distributed_loads=dloads,
+            point_loads=params.get('point_loads') if params.get('point_loads') is not None else [],
             caa=params.get('caa', 2),
             cover=params.get('cover_mm', None),
             asymmetric_offset=params.get('asymmetric_offset', 0.0),
+            include_self_weight=params.get('include_self_weight', True),
+            self_weight_density=self_weight_density,
+            self_weight_material=self_weight_material,
             nonlinear=False,  # Análise linear para resposta rápida no modo Mestre
             n_elements=20,    # Discretização reduzida — adequada para pedagógico
         )
@@ -530,12 +546,32 @@ async def calculate_stability_mestre(req: Dict):
     total_p_kN = float(req.get('total_p_kN', 10000.0))
     m1_kNm = float(req.get('m1_kNm', 5000.0))
     is_dynamic = bool(req.get('is_dynamic', False))
+    s1 = float(req.get('s1', 1.0))
+    s3 = float(req.get('s3', 1.0))
+    categoria = int(req.get('categoria', 2))
+    classe = req.get('classe', 'B')
     
     # 1. Analise de Vento
-    cfg = WindConfig(v0=v0, height=height, width_x=width_x)
-    engine = WindEngine()
-    wind_data = engine.calculate_dynamic_pressure(cfg)
-    total_wind_force_kN = sum(p['q_Pa'] * width_x * 1.0 for p in wind_data['profile']) / 1000.0
+    cfg = WindConfig(
+        v0=v0,
+        s1=s1,
+        s3=s3,
+        categoria=categoria,
+        classe=classe,
+        height=height,
+        width_x=width_x,
+        is_dynamic=is_dynamic
+    )
+    engine = WindEngine(cfg)
+    wind_data = engine.generate_force_profile(
+        height=height,
+        width=width_x,
+        depth=width_x,
+        step=5.0,
+        is_dynamic=is_dynamic,
+        f1_hz=f1_hz
+    )
+    total_wind_force_kN = wind_data['summary']['total_force_kN']
     
     # 2. Analise de Estabilidade e Conforto
     res_stability = StabilityEngine.calculate_advanced_stability(
@@ -562,9 +598,14 @@ async def calculate_stability_mestre(req: Dict):
         "peak_acceleration": res_stability.peak_acceleration_ms2,
         "is_stable": res_stability.is_stable,
         "v0": v0,
+        "s1": s1,
+        "s3": s3,
+        "categoria": categoria,
+        "classe": classe,
         "height": height,
         "width_x": width_x,
-        "seismic": seismic
+        "seismic": seismic,
+        "s2_max": WindEngine.calculate_s2(height, category=categoria, class_size=classe)
     }
     res["q0_kN_m2"] = max((point.get("q_Pa", 0.0) for point in wind_data.get("profile", [])), default=0.0) / 1000.0
     

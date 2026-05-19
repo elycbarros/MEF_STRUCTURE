@@ -75,8 +75,11 @@ export type MestreParams = {
   supports?: BeamSupport[];
   distributed_loads?: DistributedLoad[];
   point_loads?: PointLoad[];
+  include_self_weight?: boolean;
+  self_weight_material?: string;
   caa?: number;
   cover_mm?: number;
+
   fy?: number;
   nd?: number;
   a_dist?: number;

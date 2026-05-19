@@ -173,10 +173,12 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     # --- NOVO: Equações Analíticas por Trecho (Requisito Pedagógico Mestre) ---
     analytical_formulas = diagrams.get("formulas", [])
     if analytical_formulas:
-        formula_latex = r"\\" .join([
-            rf"\text{{Trecho }} {i+1} \, ({f['range']}): \quad {f['shear']}, \quad {f['moment']}"
-            for i, f in enumerate(analytical_formulas)
-        ])
+        formula_lines = []
+        for i, f in enumerate(analytical_formulas):
+            formula_lines.append(rf"\text{{Trecho }} {i+1} \, ({f['range']}):")
+            formula_lines.append(rf"\quad {f['shear']}")
+            formula_lines.append(rf"\quad {f['moment']}")
+        formula_latex = " \\\\ ".join(formula_lines)
         me.add_step(
             id="beam-analytical-equations",
             title="Equações de Esforços por Trecho (Método das Seções)",
@@ -193,7 +195,7 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
             title="Deformação via Princípio dos Trabalhos Virtuais (PTV)",
             formula=r"\delta = \int_0^L \frac{M(x) \cdot \overline{m}(x)}{EI} dx",
             substitution=r"\text{Cálculo analítico integrado vs Matriz de Rigidez (MEF)}",
-            result=rf"\delta_{{max}} = {fmt(result.get('max_deflection_mm', 0.0), 2)}\,mm",
+            result=rf"\delta_{{max}} = {fmt(summary.get('max_deflection_mm', 0.0), 2)}\,mm",
             explanation="Enquanto o MEF utiliza matrizes de rigidez $[K]\{U\} = \{F\}$, a Resistência dos Materiais pura (PTV) integra o momento fletor real $M(x)$ com um momento virtual $\overline{m}(x)$ para obter a flecha exata.",
             norm="Mecânica dos Sólidos"
         )
@@ -382,9 +384,9 @@ def build_vigacross_blackboard(results: dict, input_data: dict) -> dict:
         v_eq = f"V(x) = {v0:.2f} - {q:.2f}x"
         m_eq = f"M(x) = {-ma:.2f} + {v0:.2f}x - {q/2.0:.2f}x^2"
         
-        formula_steps.append(
-            rf"\text{{Span }} {span_id} \, ({x_offset:.2f} \le x < {x_offset + L:.2f}): \quad {v_eq}, \quad {m_eq}"
-        )
+        formula_steps.append(rf"\text{{Vão }} {span_id} \, ({x_offset:.2f} \le x < {x_offset + L:.2f}):")
+        formula_steps.append(rf"\quad {v_eq}")
+        formula_steps.append(rf"\quad {m_eq}")
         x_offset += L
 
     me.add_step(

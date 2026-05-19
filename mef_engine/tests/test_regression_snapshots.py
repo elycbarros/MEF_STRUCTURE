@@ -51,8 +51,8 @@ def test_frame_regression_stability():
              FrameLoad(4, Fz=-inputs["vertical_load"]*1000/2, Fx=inputs["horizontal_load"]*1000/2)]
     supports = {1: [0,1,2,3,4,5], 2: [0,1,2,3,4,5]}
     
-    res_1 = engine.solve(loads, supports)
-    res_2 = engine.solve_p_delta(loads, supports)
+    res_1 = engine.solve(loads, supports, reduce_stiffness=True)
+    res_2 = engine.solve_p_delta(loads, supports, reduce_stiffness=True)
     
     d1 = abs(res_1["displacements"][3][0])
     d2 = abs(res_2["displacements"][3][0])

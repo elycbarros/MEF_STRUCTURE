@@ -36,6 +36,11 @@ async def calculate_wind(input: WindRequest):
     # Adicionar dados extras para o blackboard
     results.update({
         "v0": input.v0,
+        "s1": input.s1,
+        "s3": input.s3,
+        "categoria": input.categoria,
+        "classe": input.classe,
+        "s2_max": WindEngine.calculate_s2(input.altura_total, category=input.categoria, class_size=input.classe),
         "q0_kN_m2": results['summary']['max_q_Pa'] / 1000.0
     })
     

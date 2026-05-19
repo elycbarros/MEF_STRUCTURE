@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 export function BeamPlayground() {
   const {
@@ -63,14 +64,14 @@ export function BeamPlayground() {
         fy: currentParams.fy || 500,
         caa: currentParams.caa || 2,
         beamType: currentParams.beamType || 'biapoiada',
+        include_self_weight: currentParams.include_self_weight !== false,
+        self_weight_material: currentParams.self_weight_material || 'concreto_armado',
         // Vínculos e Cargas
         supports: currentParams.supports || [
           { x: 0, type: 'pinned' },
           { x: currentParams.L || 6.0, type: 'pinned' }
         ],
-        distributed_loads: currentParams.distributed_loads || [
-          { x_start: 0, x_end: currentParams.L || 6.0, q_start: currentParams.q || 20, q_end: currentParams.q || 20 }
-        ],
+        distributed_loads: Array.isArray(currentParams.distributed_loads) ? currentParams.distributed_loads : [],
         point_loads: currentParams.point_loads || []
       };
 
@@ -180,7 +181,7 @@ export function BeamPlayground() {
     updateParams({
       beamType: preset,
       supports: presets[preset],
-      distributed_loads: [{ x_start: 0, x_end: L, q_start: q, q_end: q }],
+      distributed_loads: [],
     });
   };
 
@@ -245,22 +246,28 @@ export function BeamPlayground() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="beam-b-input" className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [m]</Label>
+                <Label htmlFor="beam-b-input" className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [cm]</Label>
                 <Input
                   id="beam-b-input"
-                  type="number" step="0.01"
-                  value={params.b ?? 0.20}
-                  onChange={(e) => updateNumber('b', e.target.value)}
+                  type="number" step="1"
+                  value={params.b !== undefined ? Math.round(params.b * 100) : 20}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateParams({ b: !Number.isNaN(val) ? val / 100 : 0.20 });
+                  }}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="beam-h-input" className="text-[10px] font-bold text-muted-foreground uppercase">Altura (h) [m]</Label>
+                <Label htmlFor="beam-h-input" className="text-[10px] font-bold text-muted-foreground uppercase">Altura (h) [cm]</Label>
                 <Input
                   id="beam-h-input"
-                  type="number" step="0.01"
-                  value={params.h ?? 0.50}
-                  onChange={(e) => updateNumber('h', e.target.value)}
+                  type="number" step="1"
+                  value={params.h !== undefined ? Math.round(params.h * 100) : 50}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateParams({ h: !Number.isNaN(val) ? val / 100 : 0.50 });
+                  }}
                   className="bg-background/50 border-primary/10"
                 />
               </div>
@@ -269,20 +276,26 @@ export function BeamPlayground() {
             {params.section_type === 't-beam' && (
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary/5 animate-in slide-in-from-top-2">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold text-primary uppercase">Mesa (bf) [m]</Label>
+                  <Label className="text-[10px] font-bold text-primary uppercase">Mesa (bf) [cm]</Label>
                   <Input
-                    type="number" step="0.05"
-                    value={params.bf || 0.60}
-                    onChange={(e) => updateParams({ bf: parseFloat(e.target.value) })}
+                    type="number" step="5"
+                    value={params.bf !== undefined ? Math.round(params.bf * 100) : 60}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      updateParams({ bf: !Number.isNaN(val) ? val / 100 : 0.60 });
+                    }}
                     className="bg-primary/5 border-primary/20"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold text-primary uppercase">Flange (hf) [m]</Label>
+                  <Label className="text-[10px] font-bold text-primary uppercase">Flange (hf) [cm]</Label>
                   <Input
-                    type="number" step="0.01"
-                    value={params.hf || 0.10}
-                    onChange={(e) => updateParams({ hf: parseFloat(e.target.value) })}
+                    type="number" step="1"
+                    value={params.hf !== undefined ? Math.round(params.hf * 100) : 10}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      updateParams({ hf: !Number.isNaN(val) ? val / 100 : 0.10 });
+                    }}
                     className="bg-primary/5 border-primary/20"
                   />
                 </div>
@@ -377,8 +390,8 @@ export function BeamPlayground() {
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Cargas Distribuídas (q)</span>
                 <Button
                   onClick={() => {
-                    const current: DistributedLoad[] = params.distributed_loads || [{ x_start: 0, x_end: params.L, q_start: params.q, q_end: params.q }];
-                    updateNestedParam('distributed_loads', [...current, { x_start: 0, x_end: params.L, q_start: 10, q_end: 10 }]);
+                    const current: DistributedLoad[] = params.distributed_loads || [];
+                    updateNestedParam('distributed_loads', [...current, { x_start: 0, x_end: params.L || 6, q_start: 20, q_end: 20 }]);
                   }}
                   variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/20 text-primary"
                 >
@@ -387,10 +400,13 @@ export function BeamPlayground() {
               </div>
 
               <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
-                {(Array.isArray(params.distributed_loads) && typeof params.distributed_loads[0] === 'object'
-                  ? params.distributed_loads 
-                  : [{ x_start: 0, x_end: params.L || 6, q_start: params.q || 20, q_end: params.q || 20 }]
-                ).map((dl: DistributedLoad, idx: number) => (
+                {(!params.distributed_loads || params.distributed_loads.length === 0) && (
+                  <div className="text-center p-6 rounded-xl border border-dashed border-primary/10 bg-background/25 text-muted-foreground text-xs space-y-1">
+                    <p className="font-medium text-foreground/70">Nenhuma carga distribuída aplicada.</p>
+                    <p className="text-[10px] text-muted-foreground">Clique em "+ Adicionar" para inserir uma carga distribuída.</p>
+                  </div>
+                )}
+                {(Array.isArray(params.distributed_loads) ? params.distributed_loads : []).map((dl: DistributedLoad, idx: number) => (
                   <div key={idx} className="bg-background/40 p-4 rounded-xl border border-primary/5 shadow-sm space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -444,18 +460,16 @@ export function BeamPlayground() {
                         />
                       </div>
                     </div>
-                    {idx > 0 && (
-                      <Button
-                        variant="ghost" size="sm" className="w-full h-6 text-[9px] text-destructive/50 hover:text-destructive gap-1"
-                        onClick={() => {
-                          const d = [...(params.distributed_loads || [])];
-                          d.splice(idx, 1);
-                          updateNestedParam('distributed_loads', d);
-                        }}
-                      >
-                        <Trash2 className="w-3 h-3" /> Remover Trecho
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost" size="sm" className="w-full h-6 text-[9px] text-destructive/50 hover:text-destructive gap-1"
+                      onClick={() => {
+                        const d = [...(params.distributed_loads || [])];
+                        d.splice(idx, 1);
+                        updateNestedParam('distributed_loads', d);
+                      }}
+                    >
+                      <Trash2 className="w-3 h-3" /> Remover Trecho
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -571,6 +585,38 @@ export function BeamPlayground() {
                   className="bg-background/50 border-primary/10"
                 />
               </div>
+            </div>
+
+            <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-primary/10">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-[10px] font-bold text-muted-foreground uppercase">Incluir Peso Próprio</Label>
+                  <p className="text-[9px] text-muted-foreground">Adiciona automaticamente o peso próprio da viga nas análises</p>
+                </div>
+                <Switch
+                  checked={params.include_self_weight !== false}
+                  onCheckedChange={(checked) => updateParams({ include_self_weight: checked })}
+                />
+              </div>
+              {params.include_self_weight !== false && (
+                <div className="pt-2 border-t border-primary/5 space-y-1.5">
+                  <Label className="text-[9px] uppercase font-bold text-muted-foreground">Material da Viga</Label>
+                  <Select
+                    value={params.self_weight_material || 'concreto_armado'}
+                    onValueChange={(val) => updateParams({ self_weight_material: val })}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-transparent border-primary/10">
+                      <SelectValue placeholder="Selecione o material" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="concreto_armado">Concreto Armado (25.0 kN/m³)</SelectItem>
+                      <SelectItem value="concreto_simples">Concreto Simples (24.0 kN/m³)</SelectItem>
+                      <SelectItem value="aco">Aço Estrutural (78.5 kN/m³)</SelectItem>
+                      <SelectItem value="madeira">Madeira (8.0 kN/m³)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>

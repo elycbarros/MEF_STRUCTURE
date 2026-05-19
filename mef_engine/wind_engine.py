@@ -33,34 +33,103 @@ class WindEngine:
         self.classe = self.cfg.classe
 
     @staticmethod
-    def calculate_s2(z: float, category: str = "II", class_size: str = "B") -> float:
-        """Calcula o fator S2 conforme Tabela 1 da NBR 6123."""
-        # Valores simplificados para Categoria II, Classe B
-        # b = 1.0, p = 0.15, Fr = 1.0
-        b, p, fr = 1.0, 0.15, 1.0
-        if z < 5: z = 5
-        return b * fr * (z / 10.0)**p
-
-    @classmethod
-    def calculate_dynamic_pressure(cls, cfg: WindConfig) -> Dict:
-        """Calcula a pressao dinamica do vento em varias alturas."""
-        results = []
-        for z in range(0, int(cfg.height) + 5, 5):
-            if z == 0: z = 2 # Evitar zero
-            s2 = cls.calculate_s2(z)
-            vk = cfg.v0 * cfg.s1 * s2 * cfg.s3
-            q = 0.613 * (vk**2) # N/m2
-            results.append({"z": z, "vk": round(vk, 2), "q_Pa": round(q, 1)})
+    def get_s2_parameters(category: str | int = "II", class_size: str = "B") -> dict:
+        """Obtém os parâmetros b, p, fr conforme a Tabela 2 da NBR 6123."""
+        cat_map = {
+            "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5,
+            "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+            1: 1, 2: 2, 3: 3, 4: 4, 5: 5
+        }
         
-        # Coeficiente de Arraste (Ca) simplificado para retangulo
-        ca = 1.2 
-        force_total_kN = (results[-1]['q_Pa'] * cfg.width_x * cfg.height * ca) / 1000.0
+        cat_str = str(category).upper().replace("CAT", "").replace("EGORIA", "").strip()
+        cat_idx = cat_map.get(cat_str, cat_map.get(category, 2))
+        
+        cls_str = str(class_size).upper()
+        if cls_str not in ["A", "B", "C"]:
+            cls_str = "B"
+            
+        # NBR 6123 Tabela 2
+        params = {
+            'A': {
+                1: {'b': 1.10, 'p': 0.06, 'fr': 1.06},
+                2: {'b': 1.00, 'p': 0.085, 'fr': 1.00},
+                3: {'b': 0.94, 'p': 0.10, 'fr': 0.94},
+                4: {'b': 0.86, 'p': 0.125, 'fr': 0.86},
+                5: {'b': 0.74, 'p': 0.17, 'fr': 0.74}
+            },
+            'B': {
+                1: {'b': 1.10, 'p': 0.075, 'fr': 1.04},
+                2: {'b': 1.00, 'p': 0.10, 'fr': 0.98},
+                3: {'b': 0.94, 'p': 0.115, 'fr': 0.92},
+                4: {'b': 0.86, 'p': 0.14, 'fr': 0.84},
+                5: {'b': 0.74, 'p': 0.19, 'fr': 0.72}
+            },
+            'C': {
+                1: {'b': 1.10, 'p': 0.10, 'fr': 1.01},
+                2: {'b': 1.00, 'p': 0.12, 'fr': 0.95},
+                3: {'b': 0.94, 'p': 0.14, 'fr': 0.89},
+                4: {'b': 0.86, 'p': 0.17, 'fr': 0.80},
+                5: {'b': 0.74, 'p': 0.23, 'fr': 0.67}
+            }
+        }
+        
+        p_dict = params[cls_str][cat_idx]
+        
+        # Limite inferior de altura conforme tabela 2
+        z_min_map = {1: 2.0, 2: 5.0, 3: 10.0, 4: 15.0, 5: 20.0}
+        z_min = z_min_map.get(cat_idx, 5.0)
         
         return {
-            "profile": results,
-            "force_total_kN": round(force_total_kN, 1),
-            "ca": ca
+            'b': p_dict['b'],
+            'p': p_dict['p'],
+            'fr': p_dict['fr'],
+            'z_min': z_min,
+            'cat_idx': cat_idx,
+            'cls_str': cls_str
         }
+
+    @staticmethod
+    def calculate_s2(z: float, category: str | int = "II", class_size: str = "B") -> float:
+        """Calcula o fator S2 conforme NBR 6123 Tabela 2."""
+        params = WindEngine.get_s2_parameters(category, class_size)
+        z_calc = max(z, params['z_min'])
+        return params['b'] * params['fr'] * (z_calc / 10.0)**params['p']
+
+
+    @classmethod
+    def calculate_dynamic_pressure(cls, z_or_cfg, cfg: WindConfig | None = None) -> float | Dict:
+        """
+        Calcula a pressão dinâmica (q = 0.613 * vk^2).
+        Suporta duas assinaturas:
+        1. cls.calculate_dynamic_pressure(cfg) -> Retorna Dict (perfil completo de pressões)
+        2. cls.calculate_dynamic_pressure(z, cfg) -> Retorna float (pressão em z específica)
+        """
+        if isinstance(z_or_cfg, WindConfig):
+            cfg_obj = z_or_cfg
+            results = []
+            for z in range(0, int(cfg_obj.height) + 5, 5):
+                if z == 0: z = 2.0 # Evitar zero
+                s2 = cls.calculate_s2(z, category=cfg_obj.categoria, class_size=cfg_obj.classe)
+                vk = cfg_obj.v0 * cfg_obj.s1 * s2 * cfg_obj.s3
+                q = 0.613 * (vk**2) # N/m2
+                results.append({"z": z, "vk": round(vk, 2), "q_Pa": round(q, 1)})
+            
+            # Coeficiente de Arraste (Ca) simplificado para retangulo
+            ca = 1.2 
+            force_total_kN = (results[-1]['q_Pa'] * cfg_obj.width_x * cfg_obj.height * ca) / 1000.0
+            
+            return {
+                "profile": results,
+                "force_total_kN": round(force_total_kN, 1),
+                "ca": ca
+            }
+        else:
+            z = float(z_or_cfg)
+            cfg_obj = cfg
+            s2 = cls.calculate_s2(z, category=cfg_obj.categoria, class_size=cfg_obj.classe)
+            vk = cfg_obj.v0 * cfg_obj.s1 * s2 * cfg_obj.s3
+            q = 0.613 * (vk**2)
+            return q
 
     @staticmethod
     def estimate_gamma_z(total_height: float, total_load_kN: float, delta_h_mm: float) -> float:
@@ -76,7 +145,7 @@ class WindEngine:
         zeta: Coeficiente de amortecimento crítico (ex: 0.01 para concreto)
         """
         # Parâmetros simplificados para vento Davenport
-        v_h = self.v0 * self.calculate_s2(height)
+        v_h = self.v0 * self.calculate_s2(height, category=self.categoria, class_size=self.classe)
         
         # 1. Parâmetro de escala (L)
         l_scale = 1200.0 # m (Escala de turbulência)
@@ -107,7 +176,7 @@ class WindEngine:
         Calcula a aceleração de pico no topo para conforto humano (m/s2).
         Conforme ISO 10137 e NBR 6123.
         """
-        v_h = v0 * self.calculate_s2(height)
+        v_h = v0 * self.calculate_s2(height, category=self.categoria, class_size=self.classe)
         q_h = 0.613 * (v_h**2)
         
         # Força RMS aproximada
@@ -140,7 +209,7 @@ class WindEngine:
         z = 0.0
         while z <= height:
             z_calc = max(1.0, z)
-            s2 = self.calculate_s2(z_calc)
+            s2 = self.calculate_s2(z_calc, category=self.categoria, class_size=self.classe)
             vk = self.v0 * self.s1 * s2 * self.s3
             q_Pa = 0.613 * (vk**2)
             

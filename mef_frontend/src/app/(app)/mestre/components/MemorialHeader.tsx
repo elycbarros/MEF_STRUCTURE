@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Printer, Share2, Settings } from 'lucide-react';
+import { Download, FileText, Share2, Settings } from 'lucide-react';
 import { useMestreStore } from '@/lib/store-mestre';
 import { generateProfessionalMemorial, BASE_URL } from '@/lib/api-mestre';
 import {
@@ -18,8 +18,6 @@ import { Input } from "@/components/ui/input";
 
 export function MemorialHeader() {
   const { selectedElementType, calculationTrace, fullResults, projectMeta, setProjectMeta } = useMestreStore();
-
-  const handlePrint = () => window.print();
 
   const handleExportPDF = async () => {
     if (!fullResults) return;
@@ -178,16 +176,6 @@ export function MemorialHeader() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-9 gap-2 border-primary/20 hover:bg-primary/5 text-primary"
-          onClick={handlePrint}
-        >
-          <Printer className="w-4 h-4" />
-          <span className="hidden sm:inline">Imprimir / PDF</span>
-        </Button>
-        
         <Button 
           variant="outline" 
           size="sm" 

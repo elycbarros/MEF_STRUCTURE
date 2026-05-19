@@ -57,17 +57,13 @@ export function Beam2DView() {
         id: 'V1',
         length: params.L || 6.0,
         loads: [
-          ...(params.distributed_loads?.length
-            ? params.distributed_loads.map((dl: any) => ({
-                type: 'udl',
-                value: dl.q_start,
-                q_end: dl.q_end,
-                x_start: dl.x_start,
-                x_end: dl.x_end,
-              }))
-            : params.q > 0
-              ? [{ type: 'udl', value: params.q, x_start: 0, x_end: params.L || 6.0 }]
-              : []),
+          ...(params.distributed_loads || []).map((dl: any) => ({
+            type: 'udl',
+            value: dl.q_start,
+            q_end: dl.q_end,
+            x_start: dl.x_start,
+            x_end: dl.x_end,
+          })),
           ...(params.point_loads || []).map((pl: any) => ({ type: 'point', value: pl.P, moment: pl.M || 0, position: pl.x })),
         ],
       }];
@@ -233,6 +229,7 @@ export function Beam2DView() {
           const ex = x0 + safeNum(load.x_end, spanLen);
           const q1 = safeNum(load.value, 0);
           const q2 = safeNum(load.q_end, q1);
+          if (q1 === 0 && q2 === 0) return null;
           const w = ex - sx;
           const nArrows = Math.max(Math.floor(w * 5), 3);
           const hMax = 0.55;
@@ -348,6 +345,34 @@ export function Beam2DView() {
     );
   };
 
+  const drawSectionIcon = () => {
+    const isT = params.section_type === 't-beam';
+    const b_val = Math.round(safeNum(params.b, 0.20) * 100);
+    const h_val = Math.round(safeNum(params.h, 0.50) * 100);
+    const bf_val = Math.round(safeNum(params.bf, 0.60) * 100);
+    const hf_val = Math.round(safeNum(params.hf, 0.10) * 100);
+
+    if (isT) {
+      return (
+        <g stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.08" className="text-primary">
+          <polygon points="5,12 55,12 55,20 37,20 37,46 23,46 23,20 5,20" />
+          <text x="30" y="8" fontSize="7" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{bf_val} cm</text>
+          <text x="14" y="29" fontSize="6.5" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{hf_val}</text>
+          <text x="30" y="42" fontSize="7" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{b_val}</text>
+          <text x="49" y="34" fontSize="7" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{h_val}</text>
+        </g>
+      );
+    } else {
+      return (
+        <g stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.08" className="text-slate-500">
+          <rect x="18" y="12" width="24" height="34" rx="1.5" />
+          <text x="30" y="8" fontSize="7" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{b_val} cm</text>
+          <text x="48" y="31" fontSize="7" textAnchor="left" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{h_val} cm</text>
+        </g>
+      );
+    }
+  };
+
   return (
     <div className="w-full h-full bg-white dark:bg-slate-950 rounded-2xl border border-border/50 shadow-inner flex items-center justify-center relative overflow-hidden group">
       {/* Grid background */}
@@ -367,13 +392,32 @@ export function Beam2DView() {
           return spans.map((span, i) => {
             const sl = safeNum(span.length);
             const x = cx; cx += sl;
+            const isT = params.section_type === 't-beam';
+            const hf = safeNum(params.hf, 0.10);
             return (
               <g key={i}>
                 <rect x={x} y={beamTop} width={sl} height={h}
                   fill="currentColor" fillOpacity="0.07" stroke="currentColor" strokeWidth="0.02"
                   className="text-slate-400 dark:text-slate-600" />
+                
+                {isT && (
+                  <>
+                    {/* Flange area background (slightly darker/colored) */}
+                    <rect x={x} y={beamTop} width={sl} height={hf}
+                      fill="currentColor" fillOpacity="0.08" className="text-primary" />
+                    {/* Flange bottom separator line */}
+                    <line x1={x} y1={beamTop + hf} x2={x + sl} y2={beamTop + hf}
+                      stroke="currentColor" strokeWidth="0.012" strokeDasharray="0.03 0.02"
+                      className="text-primary/60" />
+                    {/* Text indicating flange depth */}
+                    <text x={x + 0.1} y={beamTop + hf - 0.03} fontSize="0.065" fill="currentColor" className="text-primary font-bold opacity-75">
+                      hf={(hf * 100).toFixed(0)}cm
+                    </text>
+                  </>
+                )}
+
                 {/* span label */}
-                <text x={x + sl / 2} y={0.04} textAnchor="middle" fontSize="0.09" fill="currentColor" className="text-slate-400" opacity={0.5}>
+                <text x={x + sl / 2} y={isT ? hf + 0.12 : 0.04} textAnchor="middle" fontSize="0.09" fill="currentColor" className="text-slate-400" opacity={0.5}>
                   L{i + 1}={sl.toFixed(2)}m
                 </text>
               </g>
@@ -447,6 +491,14 @@ export function Beam2DView() {
             )}
           </p>
         </div>
+      </div>
+
+      {/* Floating Cross-Section Inset */}
+      <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-md px-3 py-2 rounded-xl border border-border/60 shadow-sm flex flex-col items-center gap-1 pointer-events-none select-none">
+        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Seção Transversal</span>
+        <svg width="60" height="52" viewBox="0 0 60 52" className="text-foreground">
+          {drawSectionIcon()}
+        </svg>
       </div>
     </div>
   );
