@@ -49,6 +49,7 @@ export function Beam2DView() {
   const { params, selectedElementType, fullResults } = useMestreStore();
 
   const isCross = selectedElementType === 'beam_cross';
+  const isForceModel = !isCross && params.beam_analysis_mode === 'force_model';
 
   // ── Spans ─────────────────────────────────────────────────────────────────
   const spans: any[] = isCross && params.spans
@@ -69,7 +70,8 @@ export function Beam2DView() {
       }];
 
   const totalLength = Math.max(spans.reduce((s, sp) => s + safeNum(sp.length), 0), 0.1);
-  const h = safeNum(params.h, 0.5);
+  const physicalH = safeNum(params.h, 0.5);
+  const h = isForceModel ? 0.08 : physicalH;
 
   // ── Diagram data ──────────────────────────────────────────────────────────
   let shearPts: { x: number; y: number }[] = [];
@@ -92,6 +94,7 @@ export function Beam2DView() {
 
   const maxShear  = shearPts.length  ? Math.max(...shearPts.map(p  => Math.abs(p.y)),  0.01) : 1;
   const maxMoment = momentPts.length ? Math.max(...momentPts.map(p => Math.abs(p.y)), 0.01) : 1;
+  const usedElements = safeNum(fullResults?.summary?.n_elements ?? fullResults?.model_info?.n_elements ?? params.n_elements, 40);
 
   // ── Reactions ─────────────────────────────────────────────────────────────
   const calcReactions: { x: number; value: number; label: string }[] = (() => {
@@ -367,7 +370,7 @@ export function Beam2DView() {
         <g stroke="currentColor" strokeWidth="1.2" fill="currentColor" fillOpacity="0.08" className="text-slate-500">
           <rect x="18" y="12" width="24" height="34" rx="1.5" />
           <text x="30" y="8" fontSize="7" textAnchor="middle" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{b_val} cm</text>
-          <text x="48" y="31" fontSize="7" textAnchor="left" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{h_val} cm</text>
+          <text x="48" y="31" fontSize="7" textAnchor="start" fontWeight="bold" fill="currentColor" fillOpacity="1" stroke="none">{h_val} cm</text>
         </g>
       );
     }
@@ -392,13 +395,26 @@ export function Beam2DView() {
           return spans.map((span, i) => {
             const sl = safeNum(span.length);
             const x = cx; cx += sl;
-            const isT = params.section_type === 't-beam';
+            const isT = !isForceModel && params.section_type === 't-beam';
             const hf = safeNum(params.hf, 0.10);
             return (
               <g key={i}>
-                <rect x={x} y={beamTop} width={sl} height={h}
-                  fill="currentColor" fillOpacity="0.07" stroke="currentColor" strokeWidth="0.02"
-                  className="text-slate-400 dark:text-slate-600" />
+                {isForceModel ? (
+                  <line
+                    x1={x}
+                    y1={0}
+                    x2={x + sl}
+                    y2={0}
+                    stroke="currentColor"
+                    strokeWidth="0.035"
+                    strokeLinecap="round"
+                    className="text-slate-500 dark:text-slate-400"
+                  />
+                ) : (
+                  <rect x={x} y={beamTop} width={sl} height={h}
+                    fill="currentColor" fillOpacity="0.07" stroke="currentColor" strokeWidth="0.02"
+                    className="text-slate-400 dark:text-slate-600" />
+                )}
                 
                 {isT && (
                   <>
@@ -417,7 +433,7 @@ export function Beam2DView() {
                 )}
 
                 {/* span label */}
-                <text x={x + sl / 2} y={isT ? hf + 0.12 : 0.04} textAnchor="middle" fontSize="0.09" fill="currentColor" className="text-slate-400" opacity={0.5}>
+                <text x={x + sl / 2} y={isForceModel ? -0.08 : isT ? hf + 0.12 : 0.04} textAnchor="middle" fontSize="0.09" fill="currentColor" className="text-slate-400" opacity={0.5}>
                   L{i + 1}={sl.toFixed(2)}m
                 </text>
               </g>
@@ -461,8 +477,8 @@ export function Beam2DView() {
         {hasDiagrams && momentPts.length > 0 && (
           <g className="animate-in fade-in duration-1000">
             <line x1={-0.5} y1={momentBase - 0.06} x2={totalLength + 0.2} y2={momentBase - 0.06} stroke="currentColor" strokeWidth="0.008" strokeDasharray="0.06 0.04" className="text-slate-300 dark:text-slate-700" />
-            {/* Moment positive downward convention (flip=true) */}
-            {renderStrip(momentPts, maxMoment, momentBase, 'hsl(262 83% 58%)', 0.2, 'M', 'kNm', true)}
+            {/* Convenção de engenharia: momento positivo desenhado para baixo, no lado tracionado. */}
+            {renderStrip(momentPts, maxMoment, momentBase, 'hsl(262 83% 58%)', 0.2, 'M', 'kNm', false)}
           </g>
         )}
 
@@ -480,26 +496,31 @@ export function Beam2DView() {
         <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
           <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-            {isCross ? 'Hardy Cross' : 'MEF 2ª Ordem'}
+            {isCross ? 'Hardy Cross' : isForceModel ? 'Modelo de forças' : 'MEF 2ª Ordem'}
           </span>
         </div>
         <div className="bg-background/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-border/50 shadow-sm">
           <p className="text-xs font-bold text-foreground">
-            {totalLength.toFixed(2)}m × {(h * 100).toFixed(0)}cm
+            {isForceModel ? `${totalLength.toFixed(2)}m` : `${totalLength.toFixed(2)}m × ${(physicalH * 100).toFixed(0)}cm`}
             {hasDiagrams && shearPts.length > 0 && (
               <span className="ml-1.5 text-[10px] text-blue-500">· V+M inline</span>
+            )}
+            {hasDiagrams && (
+              <span className="ml-1.5 text-[10px] text-muted-foreground">· MEF {usedElements.toFixed(0)} el.</span>
             )}
           </p>
         </div>
       </div>
 
       {/* Floating Cross-Section Inset */}
-      <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-md px-3 py-2 rounded-xl border border-border/60 shadow-sm flex flex-col items-center gap-1 pointer-events-none select-none">
-        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Seção Transversal</span>
-        <svg width="60" height="52" viewBox="0 0 60 52" className="text-foreground">
-          {drawSectionIcon()}
-        </svg>
-      </div>
+      {!isForceModel && (
+        <div className="absolute top-3 right-3 bg-background/90 backdrop-blur-md px-3 py-2 rounded-xl border border-border/60 shadow-sm flex flex-col items-center gap-1 pointer-events-none select-none">
+          <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Seção Transversal</span>
+          <svg width="60" height="52" viewBox="0 0 60 52" className="text-foreground">
+            {drawSectionIcon()}
+          </svg>
+        </div>
+      )}
     </div>
   );
 }

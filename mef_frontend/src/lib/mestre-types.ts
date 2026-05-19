@@ -77,6 +77,9 @@ export type MestreParams = {
   point_loads?: PointLoad[];
   include_self_weight?: boolean;
   self_weight_material?: string;
+  structural_material?: "concreto_armado" | "concreto_simples" | "aco" | "madeira";
+  beam_analysis_mode?: "force_model" | "real_design";
+  n_elements?: number;
   caa?: number;
   cover_mm?: number;
 

@@ -714,13 +714,20 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                     os.remove(img_path)
                 except:
                     pass
-    elif "diagrams" in results and "design" in results and "detailing" in results:
+    elif "diagrams" in results and "design" in results:
         # Memorial de Vigas (Viga Isolada/Contínua)
-        pdf.chapter_title('1', 'Parâmetros de Projeto e Geometria')
-        
         summary = results.get("summary", {})
-        detailing = results.get("detailing", {})
+        detailing = results.get("detailing") or {}
         design = results.get("design", {})
+        beam_analysis_mode = summary.get("beam_analysis_mode", results.get("beam_analysis_mode", "real_design"))
+        structural_material = summary.get("structural_material", results.get("structural_material", "concreto_armado"))
+        design_requires_rebar = bool(summary.get(
+            "design_requires_rebar",
+            beam_analysis_mode == "real_design" and structural_material == "concreto_armado"
+        ))
+        is_force_model = beam_analysis_mode == "force_model"
+
+        pdf.chapter_title('1', 'Modelo Estrutural e Escopo da Análise')
         
         L = summary.get("L_m", 6.0)
         b = summary.get("b_m", 0.20)
@@ -731,32 +738,64 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         caa = summary.get("caa", 2)
         cover = summary.get("cover_mm", 30.0)
         
-        # Differentiate rectangular and T-beam
-        if bf > b:
-            section_desc = f"Seção T: Mesa (bf)={bf*100:.1f} cm, Flange (hf)={hf*100:.1f} cm, Alma (bw)={b*100:.1f} cm, Altura (h)={h*100:.1f} cm"
+        material_label = {
+            'concreto_armado': 'Concreto Armado',
+            'concreto_simples': 'Concreto Simples',
+            'aco': 'Aço Estrutural',
+            'madeira': 'Madeira'
+        }.get(structural_material, str(structural_material))
+
+        if is_force_model:
+            section_desc = "Barra ideal: seção transversal não utilizada no equilíbrio"
+            norms_desc = "Mecânica Estrutural / Estática"
+            scope_desc = "Modelo de forças: apoios, cargas externas, reações e diagramas"
         else:
-            section_desc = f"Retangular: {b*100:.1f} cm x {h*100:.1f} cm"
+            # Differentiate rectangular and T-beam
+            if bf > b:
+                section_desc = f"Seção T: Mesa (bf)={bf*100:.1f} cm, Flange (hf)={hf*100:.1f} cm, Alma (bw)={b*100:.1f} cm, Altura (h)={h*100:.1f} cm"
+            else:
+                section_desc = f"Retangular: {b*100:.1f} cm x {h*100:.1f} cm"
+            norms_desc = "NBR 6118:2023, NBR 6120" if design_requires_rebar else "Mecânica Estrutural / NBR aplicável ao material"
+            scope_desc = "Viga real: geometria, material e peso próprio quando ativado"
             
         self_weight_str = "Desativado"
         if summary.get("include_self_weight"):
-            material_label = {
-                'concreto_armado': 'Concreto Armado',
-                'concreto_simples': 'Concreto Simples',
-                'aco': 'Aço Estrutural',
-                'madeira': 'Madeira'
-            }.get(summary.get("self_weight_material"), "Personalizado")
             self_weight_str = f"Ativado ({material_label} - {summary.get('self_weight_density', 25.0):.1f} kN/m³)"
 
         kpis = [
-            ('Normas Aplicadas', 'NBR 6118:2023, NBR 6120'),
-            ('Geometria da Seção', section_desc),
+            ('Caminho Selecionado', scope_desc),
+            ('Referência Técnica', norms_desc),
             ('Comprimento do Vão', f"{L:.2f} m"),
-            ('Concreto (fck)', f"{fck:.1f} MPa"),
-            ('Cobrimento Nominal (cnom)', f"{cover:.1f} mm"),
-            ('Classe de Agressividade (CAA)', f"Classe {caa}"),
+            ('Discretização MEF', f"{int(summary.get('n_elements', results.get('n_elements', 40)))} elementos"),
+            ('Geometria da Seção', section_desc),
             ('Peso Próprio', self_weight_str),
         ]
+        if not is_force_model:
+            kpis.insert(4, ('Material Estrutural', material_label))
+        if design_requires_rebar:
+            kpis.extend([
+                ('Concreto (fck)', f"{fck:.1f} MPa"),
+                ('Cobrimento Nominal (cnom)', f"{cover:.1f} mm"),
+                ('Classe de Agressividade (CAA)', f"Classe {caa}"),
+            ])
         pdf.add_kpi_grid(kpis)
+        pdf.set_font('Helvetica', '', 9)
+        pdf.set_text_color(45, 45, 45)
+        if is_force_model:
+            pdf.multi_cell(
+                0, 5,
+                "Este memorial foi gerado para o caminho Modelo de Forças. "
+                "A viga é tratada como barra ideal: o relatório apresenta ações externas, equilíbrio global, reações de apoio e diagramas de esforços. "
+                "Não são aplicados peso próprio automático, verificações de durabilidade, cobrimento ou detalhamento de armaduras."
+            )
+        elif not design_requires_rebar:
+            pdf.multi_cell(
+                0, 5,
+                "Este memorial foi gerado para uma viga real sem detalhamento de armadura de concreto armado. "
+                "O relatório mantém geometria, material, peso próprio e esforços, mas não emite armaduras CA-50/CA-60."
+            )
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(4)
         
         # 2. Esforços de Cálculo e Reações de Apoio
         pdf.chapter_title('2', 'Esforços Solicitantes e Reações de Apoio')
@@ -792,96 +831,85 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         pdf.add_executive_table(header_react, data_react, widths_react)
         
         # 3. Verificação Normativa — Painel de Conformidade NBR 6118
-        pdf.chapter_title('3', 'Painel de Conformidade Normativa (NBR 6118)')
-        pdf.section_title("Verificacoes dos Estados Limites - ELU e ELS")
+        if design_requires_rebar:
+            pdf.chapter_title('3', 'Painel de Conformidade Normativa (NBR 6118)')
+            pdf.section_title("Verificacoes dos Estados Limites - ELU e ELS")
         
-        # Ler dados de verificação do design
-        flex    = design.get('flexure_bottom', {})
-        shear_d = design.get('shear', {})
-        crack_d = design.get('crack_width', {})
-        defl_d  = design.get('deflection', {})
-        
-        max_moment = summary.get('max_moment_kNm', 0.0)
-        max_shear  = summary.get('max_shear_kN', 0.0)
-        max_defl   = summary.get('max_deflection_mm', 0.0)
-        
-        # ELU — Flexão
-        kx      = float(flex.get('x_d', 0.0))
-        kx_lim  = float(flex.get('x_d_lim', 0.45))
-        flex_ok = kx <= kx_lim
-        flex_status = 'ATENDE' if flex_ok else 'NÃO ATENDE'
-        pdf.add_compliance_alert(
-            'ELU - Flexao (Linha Neutra)',
-            flex_status,
-            f"kx = {kx:.3f}",
-            f"kx,lim = {kx_lim:.2f}"
-        )
-        
-        # ELU — Cisalhamento
-        v_sd    = float(shear_d.get('Vsd_kN', max_shear * 1.4))
-        v_rd2   = float(shear_d.get('Vrd2_kN', 0.0))
-        shear_ok = v_sd <= v_rd2 if v_rd2 > 0 else True
-        shear_status = shear_d.get('biela_status', 'ATENDE' if shear_ok else 'NÃO ATENDE')
-        pdf.add_compliance_alert(
-            'ELU - Cisalhamento (Biela Comprimida)',
-            shear_status,
-            f"Vsd = {v_sd:.1f} kN",
-            f"Vrd2 = {v_rd2:.1f} kN"
-        )
-        
-        # ELS — Fissuração
-        wk       = float(crack_d.get('wk_mm', 0.0))
-        wk_lim   = float(crack_d.get('limit_mm', 0.3))
-        crack_ok = wk <= wk_lim
-        crack_status = 'ATENDE' if crack_ok else 'NÃO ATENDE'
-        pdf.add_compliance_alert(
-            'ELS - Abertura de Fissuras (wk)',
-            crack_status,
-            f"wk = {wk:.3f} mm",
-            f"wlim = {wk_lim:.2f} mm"
-        )
-        
-        # ELS — Deformação / Flecha
-        defl_lim = float(defl_d.get('limit_mm', L * 1000 / 250))
-        defl_ok  = max_defl <= defl_lim
-        defl_status = 'ATENDE' if defl_ok else 'NÃO ATENDE'
-        pdf.add_compliance_alert(
-            'ELS - Flecha Maxima (dmax)',
-            defl_status,
-            f"d = {max_defl:.2f} mm",
-            f"dlim = L/250 = {defl_lim:.1f} mm"
-        )
-        
-        # Status global — destaque em caso de reprovação geral
-        overall = design.get('overall_status', 'ATENDE')
-        any_fail = not all([flex_ok, shear_ok, crack_ok, defl_ok])
-        if any_fail:
-            pdf.ln(3)
-            pdf.set_fill_color(200, 0, 30)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 11)
-            pdf.multi_cell(
-                0, 9,
-                "  PROJETO NAO ATENDE INTEGRALMENTE A NBR 6118:2023.\n"
-                "  E IMPRESCINDIVEL REVISAO DAS DIMENSOES OU ARMADURAS ANTES DO DETALHAMENTO EXECUTIVO.",
-                align='L', fill=True
-            )
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(4)
+            # Ler dados de verificação do design
+            flex    = design.get('flexure_bottom', {})
+            shear_d = design.get('shear', {})
+            crack_d = design.get('crack_width', {})
+            defl_d  = design.get('deflection', {})
+            
+            max_moment = summary.get('max_moment_kNm', 0.0)
+            max_shear  = summary.get('max_shear_kN', 0.0)
+            max_defl   = summary.get('max_deflection_mm', 0.0)
+            
+            # ELU — Flexão
+            kx      = float(flex.get('x_d', 0.0))
+            kx_lim  = float(flex.get('x_d_lim', 0.45))
+            flex_ok = kx <= kx_lim
+            flex_status = 'ATENDE' if flex_ok else 'NÃO ATENDE'
+            pdf.add_compliance_alert('ELU - Flexao (Linha Neutra)', flex_status, f"kx = {kx:.3f}", f"kx,lim = {kx_lim:.2f}")
+            
+            # ELU — Cisalhamento
+            v_sd    = float(shear_d.get('Vsd_kN', max_shear * 1.4))
+            v_rd2   = float(shear_d.get('Vrd2_kN', 0.0))
+            shear_ok = v_sd <= v_rd2 if v_rd2 > 0 else True
+            shear_status = shear_d.get('biela_status', 'ATENDE' if shear_ok else 'NÃO ATENDE')
+            pdf.add_compliance_alert('ELU - Cisalhamento (Biela Comprimida)', shear_status, f"Vsd = {v_sd:.1f} kN", f"Vrd2 = {v_rd2:.1f} kN")
+            
+            # ELS — Fissuração
+            wk       = float(crack_d.get('wk_mm', 0.0))
+            wk_lim   = float(crack_d.get('limit_mm', 0.3))
+            crack_ok = wk <= wk_lim
+            crack_status = 'ATENDE' if crack_ok else 'NÃO ATENDE'
+            pdf.add_compliance_alert('ELS - Abertura de Fissuras (wk)', crack_status, f"wk = {wk:.3f} mm", f"wlim = {wk_lim:.2f}")
+            
+            # ELS — Deformação / Flecha
+            defl_lim = float(defl_d.get('limit_mm', L * 1000 / 250))
+            defl_ok  = max_defl <= defl_lim
+            defl_status = 'ATENDE' if defl_ok else 'NÃO ATENDE'
+            pdf.add_compliance_alert('ELS - Flecha Maxima (dmax)', defl_status, f"d = {max_defl:.2f} mm", f"dlim = L/250 = {defl_lim:.1f} mm")
+            
+            # Status global — destaque em caso de reprovação geral
+            any_fail = not all([flex_ok, shear_ok, crack_ok, defl_ok])
+            if any_fail:
+                pdf.ln(3)
+                pdf.set_fill_color(200, 0, 30)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.multi_cell(
+                    0, 9,
+                    "  PROJETO NAO ATENDE INTEGRALMENTE A NBR 6118:2023.\n"
+                    "  E IMPRESCINDIVEL REVISAO DAS DIMENSOES OU ARMADURAS ANTES DO DETALHAMENTO EXECUTIVO.",
+                    align='L', fill=True
+                )
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(4)
+            else:
+                pdf.ln(3)
+                pdf.set_fill_color(0, 140, 60)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.cell(0, 9, "  TODAS AS VERIFICACOES NORMATIVAS ATENDIDAS - NBR 6118:2023",
+                         0, align='L', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(4)
         else:
-            pdf.ln(3)
-            pdf.set_fill_color(0, 140, 60)
-            pdf.set_text_color(255, 255, 255)
-            pdf.set_font('Helvetica', 'B', 11)
-            pdf.cell(0, 9, "  TODAS AS VERIFICACOES NORMATIVAS ATENDIDAS - NBR 6118:2023",
-                     0, align='L', fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            pdf.set_text_color(0, 0, 0)
+            pdf.chapter_title('3', 'Escopo Técnico do Memorial')
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(
+                0, 5,
+                "Este relatório não emite painel de conformidade de armadura de concreto armado. "
+                "O objetivo deste caminho é registrar a análise estrutural de forças, reações e diagramas, "
+                "ou a análise física de material sem detalhamento CA."
+            )
             pdf.ln(4)
         
         # ── Seção de Detalhamento de Armaduras ───────────────────────────────
         # Exibida SOMENTE quando peso próprio está ativado (dimensionamento completo)
-        include_sw = summary.get('include_self_weight', False)
-        if include_sw:
+        if design_requires_rebar:
             pdf.chapter_title('4', 'Detalhamento das Armaduras (NBR 6118 - Modulo 6/7)')
             
             # 4.1 Armadura longitudinal inferior
@@ -959,32 +987,7 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
             
             chapter_diag = '5'
         else:
-            # Sem peso próprio: armadura resumida (calculada pela API) 
-            pdf.chapter_title('4', 'Resumo de Armaduras (Dimensionamento Parcial)')
-            as_calc   = detailing.get('As_calc_cm2', design.get('flexure_bottom', {}).get('As_cm2', 0.0))
-            as_min    = detailing.get('As_min_cm2', 0.0)
-            asw_cm2_m = detailing.get('Asw_cm2_m', design.get('shear', {}).get('Asw_cm2_m', 0.0))
-            steel_txt = detailing.get('steel_text', 'N/D')
-            asw_txt   = detailing.get('Asw_text', 'N/D')
-            kpis_design = [
-                ('Armadura Long. Calculada (As)', f"{as_calc:.2f} cm2"),
-                ('Armadura Minima (As,min)', f"{as_min:.2f} cm2"),
-                ('Detalhamento Longitudinal', steel_txt),
-                ('Armadura Transversal (Asw)', f"{asw_cm2_m:.2f} cm2/m"),
-                ('Detalhamento Transversal', asw_txt),
-                ('Flecha Máxima (ELS)', f"{max_defl:.2f} mm"),
-            ]
-            pdf.add_kpi_grid(kpis_design)
-            pdf.set_font('Helvetica', 'I', 9)
-            pdf.set_text_color(130, 80, 0)
-            pdf.multi_cell(0, 5,
-                "Nota: O detalhamento completo de armaduras (ancoragens, decalagem, estribos, "
-                "pele e torcao) é gerado automaticamente quando o peso próprio da viga está "
-                "ativado no modelo. Ative o peso próprio para obter o relatório executivo completo."
-            )
-            pdf.set_text_color(0, 0, 0)
-            pdf.ln(4)
-            chapter_diag = '5'
+            chapter_diag = '4'
         
         # ── Capítulo de Diagramas ────────────────────────────────────────────
         # 4. Diagramas de Esforços e Deformações
@@ -992,7 +995,6 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
         pdf.chapter_title(chapter_diag, 'Gráficos e Diagramas Estruturais')
         
         output_dir = os.path.dirname(output_path) or "."
-        from academic_pdf import _plot_structural_diagrams
         
         mef_plot_data = {
             'x_m': [pt['x'] for pt in results['diagrams']['shear']],
@@ -1011,10 +1013,11 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                 'M_kNm': cd.get('M_kNm', []),
                 'delta_mm': cd.get('delta_mm', [])
             }
-            
-        shear_img, moment_img, deflection_img = _plot_structural_diagrams(classical_plot_data, mef_plot_data, output_dir)
-        
+
+        shear_img = moment_img = deflection_img = None
         try:
+            from academic_pdf import _plot_structural_diagrams
+            shear_img, moment_img, deflection_img = _plot_structural_diagrams(classical_plot_data, mef_plot_data, output_dir)
             if os.path.exists(shear_img):
                 pdf.section_title("Diagrama de Esforço Cortante V(x)")
                 pdf.image(shear_img, x=20, w=170)
@@ -1027,6 +1030,15 @@ def generate_professional_memorial(output_path: str, results: dict, project_meta
                 pdf.section_title("Diagrama de Deformação / Flecha y(x)")
                 pdf.image(deflection_img, x=20, w=170)
                 pdf.ln(3)
+        except ModuleNotFoundError as img_err:
+            pdf.set_font('Helvetica', 'I', 9)
+            pdf.set_text_color(120, 80, 0)
+            pdf.multi_cell(
+                0, 5,
+                f"Gráficos não anexados porque a dependência de plotagem não está disponível ({str(img_err)}). "
+                "Os valores máximos de cortante, momento e flecha permanecem registrados nos capítulos anteriores."
+            )
+            pdf.set_text_color(0, 0, 0)
         except Exception as img_err:
             pdf.set_font('Helvetica', 'I', 9)
             pdf.cell(0, 10, f"Erro ao renderizar diagramas no PDF: {str(img_err)}", 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)

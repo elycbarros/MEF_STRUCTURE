@@ -40,6 +40,10 @@ export function BeamPlayground() {
     fullResults,
   } = useMestreStore();
 
+  const beamMode = params.beam_analysis_mode === 'force_model' ? 'force_model' : 'real_design';
+  const isForceModel = beamMode === 'force_model';
+  const structuralMaterial = params.structural_material || params.self_weight_material || 'concreto_armado';
+  const isReinforcedConcrete = structuralMaterial === 'concreto_armado';
 
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
@@ -51,21 +55,31 @@ export function BeamPlayground() {
 
       // Enviar APENAS os campos relevantes para análise de viga
       // (evita enviar camadas de solo, estacas, lajes, etc. que sobrecarregam o backend)
+      const mode: MestreParams['beam_analysis_mode'] = currentParams.beam_analysis_mode === 'force_model' ? 'force_model' : 'real_design';
+      const rawMaterial = currentParams.structural_material || currentParams.self_weight_material || 'concreto_armado';
+      const material: MestreParams['structural_material'] = (
+        ['concreto_armado', 'concreto_simples', 'aco', 'madeira'].includes(String(rawMaterial))
+          ? rawMaterial
+          : 'concreto_armado'
+      ) as MestreParams['structural_material'];
       const payload = {
         L: currentParams.L || 6.0,
         b: currentParams.b || 0.20,
         h: currentParams.h || 0.50,
         fck: currentParams.fck || 30,
         q: currentParams.q || 20,
+        beam_analysis_mode: mode,
         section_type: currentParams.section_type || 'rectangular',
         bf: currentParams.bf,
         hf: currentParams.hf,
         cover_mm: currentParams.cover_mm || 30,
         fy: currentParams.fy || 500,
         caa: currentParams.caa || 2,
+        n_elements: Math.max(1, Math.floor(Number(currentParams.n_elements) || 40)),
         beamType: currentParams.beamType || 'biapoiada',
-        include_self_weight: currentParams.include_self_weight !== false,
-        self_weight_material: currentParams.self_weight_material || 'concreto_armado',
+        include_self_weight: mode === 'real_design' && currentParams.include_self_weight !== false,
+        structural_material: material,
+        self_weight_material: material,
         // Vínculos e Cargas
         supports: currentParams.supports || [
           { x: 0, type: 'pinned' },
@@ -194,6 +208,27 @@ export function BeamPlayground() {
         </h3>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/60 bg-muted/20 p-1">
+        <Button
+          type="button"
+          variant={beamMode === 'real_design' ? 'default' : 'ghost'}
+          className="h-auto min-h-14 flex-col items-start gap-1 px-4 py-3 text-left"
+          onClick={() => updateParams({ beam_analysis_mode: 'real_design', include_self_weight: true })}
+        >
+          <span className="text-xs font-bold uppercase">Viga real</span>
+          <span className="text-[10px] font-normal opacity-75">Geometria, material, peso próprio e dimensionamento.</span>
+        </Button>
+        <Button
+          type="button"
+          variant={beamMode === 'force_model' ? 'default' : 'ghost'}
+          className="h-auto min-h-14 flex-col items-start gap-1 px-4 py-3 text-left"
+          onClick={() => updateParams({ beam_analysis_mode: 'force_model', include_self_weight: false })}
+        >
+          <span className="text-xs font-bold uppercase">Modelo de forças</span>
+          <span className="text-[10px] font-normal opacity-75">Apoios, cargas, reações e diagramas sem peso próprio.</span>
+        </Button>
+      </div>
+
       <Tabs defaultValue="geometry" className="w-full">
         <TabsList className="grid grid-cols-4 h-10 bg-muted/50 p-1 mb-6">
           <TabsTrigger value="geometry" className="text-[10px] uppercase font-bold tracking-tight gap-2">
@@ -232,6 +267,7 @@ export function BeamPlayground() {
                 <Select
                   value={params.section_type || 'rectangular'}
                   onValueChange={(v) => updateParams({ section_type: v as MestreParams['section_type'] })}
+                  disabled={isForceModel}
                 >
                   <SelectTrigger className="h-10 bg-background/50 border-primary/10">
                     <SelectValue placeholder="Seção" />
@@ -247,7 +283,7 @@ export function BeamPlayground() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="beam-b-input" className="text-[10px] font-bold text-muted-foreground uppercase">Largura (b) [cm]</Label>
-                <Input
+                  <Input
                   id="beam-b-input"
                   type="number" step="1"
                   value={params.b !== undefined ? Math.round(params.b * 100) : 20}
@@ -256,6 +292,7 @@ export function BeamPlayground() {
                     updateParams({ b: !Number.isNaN(val) ? val / 100 : 0.20 });
                   }}
                   className="bg-background/50 border-primary/10"
+                  disabled={isForceModel}
                 />
               </div>
               <div className="space-y-2">
@@ -269,11 +306,12 @@ export function BeamPlayground() {
                     updateParams({ h: !Number.isNaN(val) ? val / 100 : 0.50 });
                   }}
                   className="bg-background/50 border-primary/10"
+                  disabled={isForceModel}
                 />
               </div>
             </div>
 
-            {params.section_type === 't-beam' && (
+            {params.section_type === 't-beam' && !isForceModel && (
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-primary/5 animate-in slide-in-from-top-2">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold text-primary uppercase">Mesa (bf) [cm]</Label>
@@ -539,7 +577,54 @@ export function BeamPlayground() {
 
         <TabsContent value="materials" className="space-y-4 animate-in fade-in duration-300">
           <div className="p-5 rounded-2xl bg-muted/20 border border-border/50 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold text-muted-foreground uppercase">Elementos MEF</Label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={params.n_elements ?? 40}
+                onChange={(e) => {
+                  const value = Math.floor(Number(e.target.value));
+                  if (Number.isFinite(value)) updateParams({ n_elements: Math.max(1, value) });
+                }}
+                className="bg-background/50 border-primary/10"
+              />
+              <p className="text-[9px] text-muted-foreground">
+                Controla a discretização da viga no solver MEF. Mais elementos aumentam a resolução dos diagramas.
+              </p>
+            </div>
+
+            {isForceModel ? (
+              <div className="rounded-xl border border-primary/10 bg-background/50 p-4 text-xs text-muted-foreground leading-relaxed">
+                Neste modo, a viga é tratada como uma barra ideal para equilíbrio, reações e diagramas. O cálculo ignora peso próprio, material, cobrimento e armadura.
+              </div>
+            ) : (
+              <>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold text-muted-foreground uppercase">Material estrutural</Label>
+                <Select
+                  value={structuralMaterial}
+                  onValueChange={(val) => updateParams({
+                    structural_material: val as MestreParams['structural_material'],
+                    self_weight_material: val,
+                  })}
+                >
+                  <SelectTrigger className="h-10 bg-background/50 border-primary/10">
+                    <SelectValue placeholder="Selecione o material" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="concreto_armado">Concreto armado</SelectItem>
+                    <SelectItem value="concreto_simples">Concreto simples</SelectItem>
+                    <SelectItem value="aco">Aço estrutural</SelectItem>
+                    <SelectItem value="madeira">Madeira</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+            {isReinforcedConcrete && (
+              <>
+              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="beam-fck-input" className="text-[10px] font-bold text-muted-foreground uppercase">Concreto (fck) [MPa]</Label>
                 <Input
@@ -586,6 +671,8 @@ export function BeamPlayground() {
                 />
               </div>
             </div>
+              </>
+            )}
 
             <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-primary/10">
               <div className="flex items-center justify-between">
@@ -602,8 +689,11 @@ export function BeamPlayground() {
                 <div className="pt-2 border-t border-primary/5 space-y-1.5">
                   <Label className="text-[9px] uppercase font-bold text-muted-foreground">Material da Viga</Label>
                   <Select
-                    value={params.self_weight_material || 'concreto_armado'}
-                    onValueChange={(val) => updateParams({ self_weight_material: val })}
+                    value={structuralMaterial}
+                    onValueChange={(val) => updateParams({
+                      structural_material: val as MestreParams['structural_material'],
+                      self_weight_material: val,
+                    })}
                   >
                     <SelectTrigger className="h-8 text-xs bg-transparent border-primary/10">
                       <SelectValue placeholder="Selecione o material" />
@@ -618,6 +708,8 @@ export function BeamPlayground() {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         </TabsContent>
       </Tabs>

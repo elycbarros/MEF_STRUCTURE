@@ -94,6 +94,9 @@ const DEFAULT_MESTRE_PARAMS: MestreParams = {
   height: 30.0,
   width_x: 12.0,
   include_self_weight: true,
+  beam_analysis_mode: 'real_design',
+  structural_material: 'concreto_armado',
+  n_elements: 40,
 };
 
 const MODULE_PARAM_PRESETS: Partial<Record<MestreElementType, Partial<MestreParams>>> = {
@@ -103,6 +106,9 @@ const MODULE_PARAM_PRESETS: Partial<Record<MestreElementType, Partial<MestrePara
     h: 0.50,
     q: 20.0,
     include_self_weight: true,
+    beam_analysis_mode: 'real_design',
+    structural_material: 'concreto_armado',
+    n_elements: 40,
     supports: [{ x: 0, type: 'pinned' }, { x: 6.0, type: 'pinned' }],
     distributed_loads: [],
     point_loads: [],

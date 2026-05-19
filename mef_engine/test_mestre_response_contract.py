@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import pathlib
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -13,6 +14,7 @@ from routes.mestre_frame import MestreFrameRequest, analyze_mestre_frame
 from routes.special import SpecialElementRequest, calculate_special, calculate_spt, calculate_stability_mestre
 from routes.wind import calculate_wind
 from schemas.wind import WindRequest
+from professional_pdf import generate_professional_memorial
 
 
 REQUIRED_KEYS = {
@@ -76,6 +78,50 @@ class TestMestreResponseContract(unittest.TestCase):
             with self.subTest(element_type=element_type):
                 payload = run(calculate_special(SpecialElementRequest(type=element_type, params=params)))
                 assert_contract(self, payload, element_type)
+
+    def test_beam_force_model_disables_self_weight_and_rebar_detailing(self):
+        payload = run(calculate_special(SpecialElementRequest(type="beam", params={
+            "beam_analysis_mode": "force_model",
+            "L": 6.0,
+            "q": 20.0,
+            "supports": [{"x": 0.0, "type": "pinned"}, {"x": 6.0, "type": "pinned"}],
+            "distributed_loads": [{"x_start": 0.0, "x_end": 6.0, "q_start": 20.0, "q_end": 20.0}],
+            "point_loads": [],
+            "include_self_weight": True,
+            "structural_material": "concreto_armado",
+            "n_elements": 7,
+        })))
+        assert_contract(self, payload, "beam")
+
+        result = payload["result"]
+        summary = payload["summary"]
+        self.assertEqual(summary["beam_analysis_mode"], "force_model")
+        self.assertFalse(summary["include_self_weight"])
+        self.assertFalse(summary["design_requires_rebar"])
+        self.assertEqual(summary["n_elements"], 7)
+        self.assertEqual(result["model_info"]["n_elements"], 7)
+        self.assertEqual(len(result["diagrams"]["moment"]), 7)
+        self.assertAlmostEqual(result["diagrams"]["shear"][0]["x"], 0.0)
+        self.assertAlmostEqual(result["diagrams"]["shear"][0]["y"], 0.0, places=6)
+        self.assertAlmostEqual(result["diagrams"]["shear"][-1]["x"], 6.0)
+        self.assertAlmostEqual(result["diagrams"]["shear"][-1]["y"], 0.0, places=3)
+        self.assertNotIn("detailing", result)
+
+        steps = payload["pedagogical_steps"].get("steps", payload["pedagogical_steps"])
+        step_text = " ".join(f"{step.get('id', '')} {step.get('title', '')}".lower() for step in steps)
+        self.assertNotIn("armadura", step_text)
+        self.assertIn("escopo da análise", step_text)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = pathlib.Path(tmp) / "beam_force_model.pdf"
+            generate_professional_memorial(str(output), result, {
+                "obra": "Teste Modelo de Forças",
+                "local": "Laboratório",
+                "responsavel": "ATLAS",
+                "registro": "N/A",
+            })
+            self.assertTrue(output.exists())
+            self.assertGreater(output.stat().st_size, 1000)
 
     def test_frame_and_truss_follow_contract(self):
         frame_payload = MestreFrameRequest(

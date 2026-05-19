@@ -168,7 +168,13 @@ async def calculate_special(req: SpecialElementRequest):
         trace.update(solver_module="beam_solver.run_beam_analysis", blackboard_builder="build_beam_blackboard", classical_check=True, mef_check=True)
         from beam_solver import run_beam_analysis
         L = params.get('L', 6.0)
-        self_weight_material = params.get('self_weight_material', 'concreto_armado')
+        beam_analysis_mode = params.get('beam_analysis_mode', 'real_design')
+        if beam_analysis_mode not in ('force_model', 'real_design'):
+            beam_analysis_mode = 'real_design'
+        structural_material = params.get('structural_material') or params.get('self_weight_material', 'concreto_armado')
+        design_requires_rebar = beam_analysis_mode == 'real_design' and structural_material == 'concreto_armado'
+        include_self_weight = bool(params.get('include_self_weight', True)) if beam_analysis_mode == 'real_design' else False
+        self_weight_material = structural_material
         material_densities = {
             'concreto_armado': 25.0,
             'concreto_simples': 24.0,
@@ -180,6 +186,10 @@ async def calculate_special(req: SpecialElementRequest):
         dloads = params.get('distributed_loads')
         if dloads is None:
             dloads = [{'x_start': 0, 'x_end': L, 'q_start': params.get('q', 20.0), 'q_end': params.get('q', 20.0)}]
+        try:
+            n_elements = max(1, int(params.get('n_elements', 40)))
+        except (TypeError, ValueError):
+            n_elements = 40
 
         res = run_beam_analysis(
             L=L,
@@ -194,31 +204,69 @@ async def calculate_special(req: SpecialElementRequest):
             caa=params.get('caa', 2),
             cover=params.get('cover_mm', None),
             asymmetric_offset=params.get('asymmetric_offset', 0.0),
-            include_self_weight=params.get('include_self_weight', True),
+            include_self_weight=include_self_weight,
             self_weight_density=self_weight_density,
             self_weight_material=self_weight_material,
             nonlinear=False,  # Análise linear para resposta rápida no modo Mestre
-            n_elements=20,    # Discretização reduzida — adequada para pedagógico
+            n_elements=n_elements,
         )
+        res.setdefault('summary', {})
+        res['summary'].update({
+            'beam_analysis_mode': beam_analysis_mode,
+            'structural_material': structural_material,
+            'design_requires_rebar': design_requires_rebar,
+            'include_self_weight': include_self_weight,
+            'n_elements': n_elements,
+        })
+        res['beam_analysis_mode'] = beam_analysis_mode
+        res['structural_material'] = structural_material
+        res['design_requires_rebar'] = design_requires_rebar
+        if not design_requires_rebar:
+            res.pop('detailing', None)
+            res['design_skipped_reason'] = (
+                "Modo de forças sem dimensionamento físico."
+                if beam_analysis_mode == 'force_model'
+                else f"Material '{structural_material}' não usa detalhamento de armadura de concreto armado."
+            )
         
-        # Injetar Detalhamento Módulo 6-7
-        det_summary = BeamDetailer.generate_detailing_summary(
-            res, 
-            b_m=params.get('b', 0.20), 
-            h_m=params.get('h', 0.50), 
-            fck=params.get('fck', 30.0)
-        )
-        res['detailing'] = det_summary
+        det_summary = None
+        if design_requires_rebar:
+            # Injetar Detalhamento Módulo 6-7 apenas para viga real de concreto armado
+            det_summary = BeamDetailer.generate_detailing_summary(
+                res,
+                b_m=params.get('b', 0.20),
+                h_m=params.get('h', 0.50),
+                fck=params.get('fck', 30.0)
+            )
+            res['detailing'] = det_summary
         audit_duel = (res.get("forensic_audit") or {}).get("duel")
         if audit_duel:
             res["duel"] = audit_duel
         
         # Blackboard de Dimensionamento + Blackboard de Detalhamento
         bb_dim = build_beam_blackboard(res, params)
-        bb_det = build_column_detailing_blackboard(det_summary) # Reusando p/ exemplo
+        bb_det = build_column_detailing_blackboard(det_summary) if det_summary else None # Reusando p/ exemplo
         
         # Unificar passos
         blackboard = bb_dim
+        if not design_requires_rebar and isinstance(blackboard, dict):
+            blocked_tokens = (
+                'armadura', 'dimensionamento', 'ductilidade', 'fissuras',
+                'branson', 'biela', 'estribos', 'whitney'
+            )
+            blackboard['steps'] = [
+                step for step in blackboard.get('steps', [])
+                if not any(token in f"{step.get('id', '')} {step.get('title', '')}".lower() for token in blocked_tokens)
+            ]
+            blackboard['steps'].append({
+                "id": "beam-design-scope",
+                "title": "Escopo da Análise",
+                "formula": r"\text{Dimensionamento de armadura não aplicado}",
+                "substitution": rf"\text{{modo}} = {beam_analysis_mode}, \quad \text{{material}} = {structural_material}",
+                "result": r"\text{Saída focada em equilíbrio, reações e diagramas}",
+                "explanation": res['design_skipped_reason'],
+                "norm": "Critério de escopo do Modo Mestre",
+            })
         if bb_det:
             # Adicionar título separador se bb_dim existir
             blackboard['steps'].append({

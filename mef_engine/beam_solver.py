@@ -890,6 +890,65 @@ def _durability_params(caa: int, member_type: str) -> dict:
     return {'caa': caa_int, 'cover_m': cover_mm / 1000.0, 'cover_mm': cover_mm, 'wk_limit_mm': wk_limits[caa_int]}
 
 
+def _distributed_load_integral_to_x(load: DistributedLoad, x: float) -> float:
+    """Integral da carga distribuida ate a secao x, em N."""
+    if x <= load.x_start:
+        return 0.0
+
+    x_end = min(x, load.x_end)
+    length = x_end - load.x_start
+    if length <= 0:
+        return 0.0
+
+    total_length = max(load.x_end - load.x_start, 1e-12)
+    q_slope = (load.q_end - load.q_start) / total_length
+    return load.q_start * length + 0.5 * q_slope * length**2
+
+
+def _build_engineering_shear_diagram(model: BeamModel, reactions: dict) -> list[dict[str, float]]:
+    """Serie V(x) para desenho: inclui saltos de reacao nos apoios."""
+    reaction_items = sorted(
+        ((float(x), float(data.get("R", 0.0)) * 1000.0) for x, data in reactions.items()),
+        key=lambda item: item[0],
+    )
+
+    def shear_at(x: float, include_reaction_at_x: bool) -> float:
+        tol = 1e-9
+        value = 0.0
+
+        for xr, reaction_n in reaction_items:
+            if xr < x - tol or (include_reaction_at_x and abs(xr - x) <= tol):
+                value += reaction_n
+
+        for load in model.distributed_loads:
+            value -= _distributed_load_integral_to_x(load, x)
+
+        for load in model.point_loads:
+            if load.x < x - tol or (include_reaction_at_x and abs(load.x - x) <= tol):
+                value -= load.P
+
+        return value / 1000.0
+
+    x_values = {0.0, float(model.L)}
+    x_values.update(float(x) for x in np.linspace(0.0, model.L, model.n_elements + 1))
+    x_values.update(x for x, _ in reaction_items)
+    x_values.update(float(load.x) for load in model.point_loads)
+    x_values.update(float(load.x_start) for load in model.distributed_loads)
+    x_values.update(float(load.x_end) for load in model.distributed_loads)
+
+    points: list[dict[str, float]] = []
+    for x in sorted(x_values):
+        has_reaction = any(abs(xr - x) <= 1e-9 for xr, _ in reaction_items)
+        before = shear_at(x, include_reaction_at_x=False)
+        if has_reaction:
+            points.append({"x": float(x), "y": float(before)})
+            points.append({"x": float(x), "y": float(shear_at(x, include_reaction_at_x=True))})
+        else:
+            points.append({"x": float(x), "y": float(before)})
+
+    return points
+
+
 def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0.20, h=0.50, fck=30.0, bf=0.0, hf=0.0, n_elements=40, nonlinear=True, redistribution_delta=0.90, caa=2, cover=None, include_self_weight=True, self_weight_density=25.0, self_weight_material='concreto_armado', gamma_f=1.4, asymmetric_offset=0.0):
     # --- Hardening e Sanitização de Inputs ---
     try:
@@ -952,6 +1011,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
                       point_loads=[PointLoad(**pl) for pl in proc_points], 
                       caa=durability['caa'], 
                       wk_limit_mm=durability['wk_limit_mm'],
+                      n_elements=n_elements,
                       include_self_weight=include_self_weight,
                       self_weight_density=self_weight_density,
                       gamma_f=gamma_f)
@@ -1070,7 +1130,7 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
         'reactions': reactions_dict,
         'overall_status': design.get('overall_status', 'ATENDE'),
         'diagrams': {
-            'shear': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x_elem, result.V / 1000.0)],
+            'shear': _build_engineering_shear_diagram(model, result.reactions),
             'moment': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x_elem, result.M / 1000.0)],
             'deflection': [{'x': float(x), 'y': float(y)} for x, y in zip(result.x, result.w * 1000.0)]
         },
@@ -1083,6 +1143,6 @@ def run_beam_analysis(L, supports, distributed_loads=None, point_loads=None, b=0
             'citation': "NBR 6118:2023, 17.5 / Libânio Módulo 22"
         },
         'model_info': {
-            'L': L, 'fck': fck, 'bw': b, 'h': h, 'd': round(section.d, 3), 'EI': float(section.EI)
+            'L': L, 'fck': fck, 'bw': b, 'h': h, 'd': round(section.d, 3), 'EI': float(section.EI), 'n_elements': n_elements
         }
     }

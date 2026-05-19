@@ -19,12 +19,54 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     d = float(summary.get("d_m", h - 0.04))
     caa = int(summary.get("caa", payload.get("caa", 2)))
     cover = int(summary.get("cover_mm", payload.get("cover_mm", 30)))
+    beam_analysis_mode = summary.get("beam_analysis_mode", payload.get("beam_analysis_mode", "real_design"))
+    structural_material = summary.get("structural_material", payload.get("structural_material", "concreto_armado"))
+    design_requires_rebar = bool(summary.get(
+        "design_requires_rebar",
+        beam_analysis_mode == "real_design" and structural_material == "concreto_armado",
+    ))
+    is_force_model = beam_analysis_mode == "force_model"
     
-    me = MemorialEngine("Memorial de Cálculo: Viga de Concreto Armado", "beam")
+    if is_force_model:
+        title = "Memorial de Estática: Modelo de Forças em Viga"
+    elif design_requires_rebar:
+        title = "Memorial de Cálculo: Viga Real de Concreto Armado"
+    else:
+        material_label = str(structural_material).replace("_", " ").title()
+        title = f"Memorial de Análise: Viga Real em {material_label}"
+    me = MemorialEngine(title, "beam")
     fmt = me._fmt
     
     # 1. Informações Normativas e Materiais
-    me.add_standard_info()
+    if design_requires_rebar:
+        me.add_standard_info()
+    else:
+        me.add_step(
+            id="structural-mechanics-base",
+            title="Base Teórica da Análise",
+            formula=r"\sum F = 0, \quad \sum M = 0, \quad V'(x) = -q(x), \quad M'(x) = V(x)",
+            substitution=r"\text{Equilíbrio global e relações diferenciais de esforços}",
+            result=r"\text{Modelo estrutural validado por estática e diagramas}",
+            explanation="Este memorial prioriza equilíbrio, reações de apoio e diagramas de cortante e momento, sem aplicar verificações normativas de armadura de concreto armado.",
+            norm="Mecânica Estrutural"
+        )
+    me.add_step(
+        id="beam-analysis-scope",
+        title="Caminho de Análise Selecionado",
+        formula=r"\text{Escopo} = \text{modelo de forças} \; \text{ou} \; \text{viga real}",
+        substitution=rf"\text{{modo}} = {beam_analysis_mode}, \quad \text{{material}} = {structural_material}, \quad n_{{MEF}} = {int(summary.get('n_elements', result.get('n_elements', 40)))}",
+        result=(
+            r"\text{Saída: equilíbrio, reações e diagramas}"
+            if is_force_model
+            else r"\text{Saída: análise física da viga real}"
+        ),
+        explanation=(
+            "Neste caminho a viga é uma barra ideal: entram comprimento, apoios e ações externas; não entram peso próprio, seção transversal, cobrimento ou armadura."
+            if is_force_model
+            else "Neste caminho a viga é tratada como elemento físico, com geometria, material e peso próprio quando ativado."
+        ),
+        norm="Critério de escopo do Modo Mestre"
+    )
     
     # Diagramas de Esforços (Duelo Analítico: MEF vs Clássico)
     diagrams = result.get("classical_diagrams", {})
@@ -76,7 +118,11 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
             formula=r"M(x) = \int V(x) dx",
             substitution=r"\text{Duelo Analítico: MEF (Rigidez) vs Clássico (Macaulay)}",
             result=rf"M_{{max}} = {fmt(max(abs(m) for m in m_mef), 2)}\,kNm",
-            explanation="O DMF define o posicionamento das armaduras longitudinais. A convergência entre os modelos garante a segurança do dimensionamento.",
+            explanation=(
+                "O DMF mostra a interação de momentos ao longo da barra ideal e apoia a leitura das regiões críticas de equilíbrio."
+                if is_force_model
+                else "O DMF define regiões críticas de flexão. Em concreto armado, ele orienta o posicionamento das armaduras longitudinais."
+            ),
             norm="Mecânica Estrutural",
             chartData={
                 "type": "moment",
@@ -90,22 +136,34 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
             }
         )
 
-    # 1.1 Materiais e Resistências de Cálculo
+    Ecs = 0.0
     fcd = fck / 1.4
     fyd = 500 / 1.15 # MPa
-    Eci = 5600 * math.sqrt(fck) if fck <= 50 else 21500 * (fck/10 + 1.25)**(1/3)
-    alpha_e = 0.8 + 0.2 * fck / 80.0 if fck > 50 else 0.85
-    Ecs = alpha_e * Eci
-    
-    me.add_step(
-        id="beam-materials-meticulous",
-        title="Materiais e Resistências de Cálculo",
-        formula=r"f_{cd} = \frac{f_{ck}}{\gamma_c}, \quad f_{yd} = \frac{f_{yk}}{\gamma_s}, \quad E_{cs} = \alpha_e \cdot 5600 \sqrt{f_{ck}}",
-        substitution=rf"f_{{cd}} = \frac{{{fck}}}{{1,4}}, \quad f_{{yd}} = \frac{{500}}{{1,15}}, \quad E_{{cs}} = {fmt(alpha_e, 2)} \cdot 5600 \sqrt{{{fck}}}",
-        result=rf"f_{{cd}} = {fmt(fcd, 2)}\,MPa, \quad f_{{yd}} = {fmt(fyd, 2)}\,MPa, \quad E_{{cs}} = {fmt(Ecs, 0)}\,MPa",
-        explanation="As resistências de cálculo (design values) são obtidas aplicando-se os coeficientes de segurança ponderadores.",
-        norm="NBR 6118:2023, 12.3.3"
-    )
+    if design_requires_rebar:
+        # 1.1 Materiais e Resistências de Cálculo
+        Eci = 5600 * math.sqrt(fck) if fck <= 50 else 21500 * (fck/10 + 1.25)**(1/3)
+        alpha_e = 0.8 + 0.2 * fck / 80.0 if fck > 50 else 0.85
+        Ecs = alpha_e * Eci
+        
+        me.add_step(
+            id="beam-materials-meticulous",
+            title="Materiais e Resistências de Cálculo",
+            formula=r"f_{cd} = \frac{f_{ck}}{\gamma_c}, \quad f_{yd} = \frac{f_{yk}}{\gamma_s}, \quad E_{cs} = \alpha_e \cdot 5600 \sqrt{f_{ck}}",
+            substitution=rf"f_{{cd}} = \frac{{{fck}}}{{1,4}}, \quad f_{{yd}} = \frac{{500}}{{1,15}}, \quad E_{{cs}} = {fmt(alpha_e, 2)} \cdot 5600 \sqrt{{{fck}}}",
+            result=rf"f_{{cd}} = {fmt(fcd, 2)}\,MPa, \quad f_{{yd}} = {fmt(fyd, 2)}\,MPa, \quad E_{{cs}} = {fmt(Ecs, 0)}\,MPa",
+            explanation="As resistências de cálculo são obtidas aplicando-se os coeficientes de segurança ponderadores.",
+            norm="NBR 6118:2023, 12.3.3"
+        )
+    elif not is_force_model:
+        me.add_step(
+            id="beam-material-scope",
+            title="Material Estrutural Informado",
+            formula=r"\gamma = \text{peso específico do material}",
+            substitution=rf"\text{{material}} = {structural_material}",
+            result=rf"\text{{peso próprio}} = {'ativado' if summary.get('include_self_weight') else 'desativado'}",
+            explanation="O material é usado para representar a viga real e seu peso próprio. O dimensionamento de armadura de concreto armado não é aplicado a este material.",
+            norm="Critério de escopo do Modo Mestre"
+        )
 
     # Reações e Equilíbrio (UI/UX Requirement)
     reactions_raw = result.get("reactions", {})
@@ -113,24 +171,27 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
     if reactions_list:
         me.add_reactions_step(reactions_list)
 
-    me.add_durability_step(caa, cover)
-    me.add_geometry_step(b, h, d)
+    if design_requires_rebar:
+        me.add_durability_step(caa, cover)
+    if not is_force_model:
+        me.add_geometry_step(b, h, d)
     
     # 1.2 Propriedades de Inércia
     Ic = (b * h**3) / 12.0 # m4
-    me.add_step(
-        id="beam-inertia-elite",
-        title="Propriedades Geométricas e Rigidez",
-        formula=r"I_c = \frac{b \cdot h^3}{12}, \quad EI = E_{cs} \cdot I_c",
-        substitution=rf"I_c = \frac{{{fmt(b, 2)} \cdot {fmt(h, 2)}^3}}{{12}}, \quad EI = {fmt(Ecs, 0)} \cdot {fmt(Ic, 7)}",
-        result=rf"I_c = {fmt(Ic, 7)}\,m^4, \quad EI = {fmt(Ecs * 1000 * Ic, 0)}\,kN \cdot m^2",
-        explanation="Propriedades utilizadas na matriz de rigidez global para o solver de elementos finitos Euler-Bernoulli.",
-        norm="NBR 6118, 14.7"
-    )
+    if design_requires_rebar:
+        me.add_step(
+            id="beam-inertia-elite",
+            title="Propriedades Geométricas e Rigidez",
+            formula=r"I_c = \frac{b \cdot h^3}{12}, \quad EI = E_{cs} \cdot I_c",
+            substitution=rf"I_c = \frac{{{fmt(b, 2)} \cdot {fmt(h, 2)}^3}}{{12}}, \quad EI = {fmt(Ecs, 0)} \cdot {fmt(Ic, 7)}",
+            result=rf"I_c = {fmt(Ic, 7)}\,m^4, \quad EI = {fmt(Ecs * 1000 * Ic, 0)}\,kN \cdot m^2",
+            explanation="Propriedades utilizadas na matriz de rigidez global para o solver de elementos finitos Euler-Bernoulli.",
+            norm="NBR 6118, 14.7"
+        )
 
     # 1.3 Matriz de Rigidez Local (Prova Pedagógica Mestre)
     pedagogical_data = result.get("pedagogical_proofs", {})
-    if "sample_k_local" in pedagogical_data:
+    if design_requires_rebar and "sample_k_local" in pedagogical_data:
         m_id = pedagogical_data.get("sample_member_id", "0")
         le_val = L / result.get("n_elements", 40)
         me.add_step(
@@ -166,7 +227,11 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         formula=r"F_{total} = \sum P_i + \int q(x) dx + P_p, \quad \sum R_v = F_{total}",
         substitution=rf"F_{{total}} = {fmt(total_point_kn, 1)} + {fmt(total_distributed_kn, 1)} + {fmt(self_weight_kn, 1)}",
         result=rf"F_{{total}} = {fmt(total_actions_kn, 2)}\,kN \approx \sum R = {fmt(total_reaction, 2)}\,kN",
-        explanation="O equilíbrio estático global considera cargas informadas, cargas pontuais e peso próprio quando ativado no solver.",
+        explanation=(
+            "O equilíbrio estático global considera somente as ações externas informadas neste modelo idealizado."
+            if is_force_model
+            else "O equilíbrio estático global considera cargas informadas, cargas pontuais e peso próprio quando ativado no solver."
+        ),
         norm="Mecânica Estrutural"
     )
     
@@ -189,16 +254,30 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
             norm="Resistência dos Materiais"
         )
         
-        # --- PTV (Princípio dos Trabalhos Virtuais) ---
-        me.add_step(
-            id="beam-ptv",
-            title="Deformação via Princípio dos Trabalhos Virtuais (PTV)",
-            formula=r"\delta = \int_0^L \frac{M(x) \cdot \overline{m}(x)}{EI} dx",
-            substitution=r"\text{Cálculo analítico integrado vs Matriz de Rigidez (MEF)}",
-            result=rf"\delta_{{max}} = {fmt(summary.get('max_deflection_mm', 0.0), 2)}\,mm",
-            explanation="Enquanto o MEF utiliza matrizes de rigidez $[K]\{U\} = \{F\}$, a Resistência dos Materiais pura (PTV) integra o momento fletor real $M(x)$ com um momento virtual $\overline{m}(x)$ para obter a flecha exata.",
-            norm="Mecânica dos Sólidos"
-        )
+        if not is_force_model:
+            # --- PTV (Princípio dos Trabalhos Virtuais) ---
+            me.add_step(
+                id="beam-ptv",
+                title="Deformação via Princípio dos Trabalhos Virtuais (PTV)",
+                formula=r"\delta = \int_0^L \frac{M(x) \cdot \overline{m}(x)}{EI} dx",
+                substitution=r"\text{Cálculo analítico integrado vs Matriz de Rigidez (MEF)}",
+                result=rf"\delta_{{max}} = {fmt(summary.get('max_deflection_mm', 0.0), 2)}\,mm",
+                explanation="Enquanto o MEF utiliza matrizes de rigidez $[K]\{U\} = \{F\}$, a Resistência dos Materiais pura (PTV) integra o momento fletor real $M(x)$ com um momento virtual $\overline{m}(x)$ para obter a flecha.",
+                norm="Mecânica dos Sólidos"
+            )
+
+    # Comparação Cross-Validation comum aos dois caminhos
+    classical_moments = diagrams.get("M_kNm", [])
+    if classical_moments:
+        m_classic = max(abs(float(m)) for m in classical_moments)
+    else:
+        m_classic = float(summary.get("max_moment_classic", (total_actions_kn * L / 8) if total_actions_kn > 0 else 0))
+    m_mef = float(summary.get("max_moment_kNm", 0.0))
+    me.add_comparison_step(m_classic, m_mef)
+
+    if not design_requires_rebar:
+        me.add_bibliography_step()
+        return me.build()
 
     # 3. Verificação ELU (Flexão e Ductilidade)
     flex = design.get("flexure_bottom", {})
@@ -315,15 +394,6 @@ def build_beam_blackboard(result: dict[str, Any], payload: dict[str, Any]) -> di
         norm="NBR 6118, 17.3.2"
     )
 
-    # 6. Comparação Cross-Validation (UI/UX Requirement)
-    classical_moments = diagrams.get("M_kNm", [])
-    if classical_moments:
-        m_classic = max(abs(float(m)) for m in classical_moments)
-    else:
-        m_classic = float(summary.get("max_moment_classic", (total_actions_kn * L / 8) if total_actions_kn > 0 else 0))
-    m_mef = float(summary.get("max_moment_kNm", 0.0))
-    me.add_comparison_step(m_classic, m_mef)
-    
     # 7. Bibliografia (Elite Pedagogical)
     me.add_bibliography_step()
     
