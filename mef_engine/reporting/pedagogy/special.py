@@ -507,3 +507,100 @@ def build_exam_auditor_blackboard(res: dict, payload: dict = None) -> dict:
         )
         
     return me.build()
+
+def build_pillar_wall_blackboard(res: dict, payload: dict = None) -> dict:
+    me = MemorialEngine("Roteiro Didático: Pilares-Parede", "pillar_wall")
+    fmt = me._fmt
+    
+    me.add_standard_info()
+    
+    b_m = res.get("b_m", 0.15)
+    h_m = res.get("h_m", 0.80)
+    b_cm = b_m * 100
+    h_cm = h_m * 100
+    ratio = res.get("ratio", 5.33)
+    gamma_n = res.get("gamma_n", 1.2)
+    nd = res.get("Nd_kN", 1000.0)
+    nd_adj = res.get("nd_adjusted_kN", 1200.0)
+    
+    # 1. Verificação geométrica de pilar-parede
+    me.add_step(
+        id="pw-geometry",
+        title="Classificação Geométrica (NBR 6118, 14.4.2.4)",
+        formula=r"\text{Pilar-Parede se } h/b \ge 5",
+        substitution=rf"{fmt(h_cm, 1)} / {fmt(b_cm, 1)} = {fmt(ratio, 2)}",
+        result=r"\text{Pilar-Parede Validado}" if res.get("is_pillar_wall") else r"\text{Pilar Convencional (h/b < 5)}",
+        explanation=f"A relação entre a maior dimensão ({fmt(h_cm, 1)} cm) e a menor ({fmt(b_cm, 1)} cm) é {fmt(ratio, 2)}.",
+        norm="NBR 6118, 14.4.2.4"
+    )
+    
+    # 2. Coeficiente de ajuste para pequenas dimensões
+    me.add_step(
+        id="pw-gamman",
+        title="Coeficiente de Ajuste Dimensional (γ_n)",
+        formula=r"\gamma_n = 1,95 - 0,05 \cdot b_{cm} \quad (14 \le b_{cm} < 19)",
+        substitution=rf"\gamma_n = 1,95 - 0,05 \cdot {fmt(b_cm, 1)}",
+        result=rf"\gamma_n = {fmt(gamma_n, 3)}",
+        explanation=f"Para dimensões menores que 19 cm, aplica-se o coeficiente de majoração γ_n. Carga axial ajustada: {fmt(nd_adj, 1)} kN.",
+        norm="NBR 6118, 13.2.4"
+    )
+    
+    # 3. Verificação de esbeltez e segunda ordem out-of-plane
+    slend = res.get("slenderness", {})
+    if slend:
+        lambda_x = slend.get("lambda_x", 0.0)
+        limit = slend.get("limit", 35.0)
+        me.add_step(
+            id="pw-slenderness",
+            title="Índice de Esbeltez (Out-of-Plane)",
+            formula=r"\lambda = \frac{l_e \cdot \sqrt{12}}{b}",
+            substitution=rf"\lambda = {fmt(lambda_x, 2)} \quad (\text{{Limite}} = 35)",
+            result=r"\text{Efeitos de 2ª Ordem Importantes}" if lambda_x > limit else r"\text{Esbeltez Baixa}",
+            explanation="A esbeltez é calculada na direção da menor espessura, onde ocorre o risco de flambagem fora do plano.",
+            norm="NBR 6118, 15.8"
+        )
+        
+    # 4. Detalhamento longitudinal
+    det = res.get("detailing", {})
+    if det:
+        longit = det.get("longitudinal", {})
+        phi_mm = longit.get("phi_mm", 10.0)
+        count = longit.get("count", 8)
+        as_prov = longit.get("As_provided_cm2", 6.28)
+        
+        me.add_step(
+            id="pw-reinforcement-vert",
+            title="Distribuição da Armadura Vertical",
+            formula=r"s_{max} = \min(2b, 40\text{ cm})",
+            substitution=rf"s_{{max}} = \min(2 \cdot {fmt(b_cm, 1)}, 40) = {fmt(res.get('s_max_vertical_cm', 30.0), 1)}\text{{ cm}}",
+            result=rf"{count}\phi{fmt(phi_mm, 1)} \Rightarrow A_{{s,ef}} = {fmt(as_prov, 2)}\text{{ cm}}^2",
+            explanation="Barras verticais distribuídas uniformemente em ambas as faces para conter a flambagem localizada e flexo-compressão.",
+            norm="NBR 6118, 18.2.5",
+            detailingData={
+                "type": "column_section",
+                "b": b_m,
+                "h": h_m,
+                "cover": res.get("durability", {}).get("cover_adopted_mm", 30.0) / 1000.0,
+                "layers": [
+                    {"position": "bottom", "bars": [{"count": count // 2, "diameter": phi_mm}]},
+                    {"position": "top", "bars": [{"count": count - (count // 2), "diameter": phi_mm}]}
+                ]
+            }
+        )
+        
+        # 5. Estribos/Cintas horizontais
+        trans = det.get("transverse", {})
+        phi_est = trans.get("phi_mm", 6.3)
+        spacing_est = trans.get("spacing_cm", 15)
+        me.add_step(
+            id="pw-stirrups",
+            title="Cintas e Estribos Horizontais",
+            formula=r"s_h \le \min(12\phi_l, b, 20\text{ cm})",
+            substitution=rf"s_h \le \min(12 \cdot {fmt(phi_mm/10.0, 1)}, {fmt(b_cm, 1)}, 20)",
+            result=rf"\phi{fmt(phi_est, 1)} \text{{ c/}} {spacing_est}\text{{ cm}}",
+            explanation="Estribos horizontais para amarrar as armaduras longitudinais e impedir sua flambagem localizada.",
+            norm="NBR 6118, 18.2.5"
+        )
+        
+    return me.build()
+

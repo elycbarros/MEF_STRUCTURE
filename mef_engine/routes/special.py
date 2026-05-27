@@ -43,7 +43,8 @@ async def calculate_special(req: SpecialElementRequest):
         build_gerber_tooth_blackboard,
         build_deep_beam_blackboard,
         build_helical_stairs_blackboard,
-        build_tension_pro_blackboard
+        build_tension_pro_blackboard,
+        build_pillar_wall_blackboard
     )
     from beam_detailing import BeamDetailer
     
@@ -336,6 +337,20 @@ async def calculate_special(req: SpecialElementRequest):
             fck=params.get('fck', 30.0)
         )
         blackboard = build_concrete_wall_blackboard(res)
+
+    elif type == "pillar_wall":
+        trace.update(solver_module="SpecialElementsSolver.solve_pillar_wall", blackboard_builder="build_pillar_wall_blackboard", classical_check=True, mef_check=False)
+        res = solver.solve_pillar_wall(
+            b=params.get('b', 0.15),
+            h=params.get('h', 0.80),
+            Nd_kN=params.get('Nd', 1000.0),
+            fck=params.get('fck', 30.0),
+            L_free=params.get('L_free', 3.0),
+            Mxd_kNm=params.get('Mxd', 20.0),
+            Myd_kNm=params.get('Myd', 10.0),
+            caa=params.get('caa', 2)
+        )
+        blackboard = build_pillar_wall_blackboard(res)
 
     elif type == "retaining_wall":
         trace.update(solver_module="SpecialElementsSolver.solve_retaining_wall", blackboard_builder="build_retaining_wall_blackboard", classical_check=True, mef_check=False)

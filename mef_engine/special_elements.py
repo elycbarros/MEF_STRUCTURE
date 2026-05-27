@@ -82,6 +82,12 @@ class SpecialElementsSolver:
         return solve_column_section(sec, loads)
 
     @staticmethod
+    def solve_pillar_wall(b: float, h: float, Nd_kN: float, fck: float, L_free: float, Mxd_kNm: float = 0.0, Myd_kNm: float = 0.0, caa: int = 2) -> dict:
+        """Solução profissional para pilares-parede conforme NBR 6118."""
+        from engines.column_engine import ColumnEngine
+        return ColumnEngine.solve_pillar_wall(nd_kN=Nd_kN, mdx_kNm=Mxd_kNm, mdy_kNm=Myd_kNm, h=h, b=b, l_e=L_free, fck=fck, caa=caa)
+
+    @staticmethod
     def solve_building_core(n_floors: int = 40, building_Lx: float = 24.0, building_Ly: float = 24.0, fck: float = 35.0) -> dict:
         """Solução Elite para núcleos de rigidez e estabilidade global."""
         from building_core import run_core_analysis

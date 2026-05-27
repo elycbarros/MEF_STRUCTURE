@@ -24,7 +24,8 @@ from reporting.pedagogy.special import (
     build_pile_cap_blackboard,
     build_beam_opening_blackboard,
     build_tension_pro_blackboard,
-    build_exam_auditor_blackboard
+    build_exam_auditor_blackboard,
+    build_pillar_wall_blackboard
 )
 from reporting.pedagogy.slab import build_lajes_blackboard
 from reporting.pedagogy.frame import build_frame_blackboard
@@ -48,6 +49,7 @@ PedagogyRegistry._builders["gerber_tooth"] = build_gerber_tooth_blackboard
 PedagogyRegistry._builders["deep_beam"] = build_deep_beam_blackboard
 PedagogyRegistry._builders["helical_stairs"] = build_helical_stairs_blackboard
 PedagogyRegistry._builders["concrete_wall"] = build_concrete_wall_blackboard
+PedagogyRegistry._builders["pillar_wall"] = build_pillar_wall_blackboard
 PedagogyRegistry._builders["pile_cap"] = build_pile_cap_blackboard
 PedagogyRegistry._builders["beam_opening"] = build_beam_opening_blackboard
 PedagogyRegistry._builders["tension_pro"] = build_tension_pro_blackboard

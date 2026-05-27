@@ -3,7 +3,7 @@ import { calculateSpecialElement } from '@/lib/api-mestre';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Loader2, Calculator, Brain, Settings2, Info, Ruler, Waves, Layers, Maximize2, TriangleAlert } from 'lucide-react';
+import { Loader2, Calculator, Brain, Settings2, Info, Ruler, Waves, Layers, Maximize2, TriangleAlert, Columns } from 'lucide-react';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
 import { useState, useCallback } from 'react';
 import { type MestreParams } from '@/lib/mestre-types';
@@ -166,6 +166,49 @@ export function SpecialPlayground() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] text-muted-foreground uppercase">fck (MPa)</Label>
                 <Input type="number" value={params.fck || 30} onChange={(e) => updateParam('fck', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+            </div>
+          </>
+        ));
+      case 'pillar_wall':
+        return renderSection("Pilar Parede (NBR 6118)", Columns, (
+          <>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Carga Nd (kN)</Label>
+                <Input type="number" value={params.Nd || 1000} onChange={(e) => updateParam('Nd', Number(e.target.value))} className="h-9 bg-background/50 font-bold text-primary" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Mxd (kNm)</Label>
+                <Input type="number" value={params.Mxd || 20} onChange={(e) => updateParam('Mxd', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Myd (kNm)</Label>
+                <Input type="number" value={params.Myd || 10} onChange={(e) => updateParam('Myd', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Espessura b (m)</Label>
+                <Input type="number" step="0.01" value={params.b || 0.15} onChange={(e) => updateParam('b', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Comprimento h (m)</Label>
+                <Input type="number" step="0.05" value={params.h || 0.80} onChange={(e) => updateParam('h', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">H Livre L_free (m)</Label>
+                <Input type="number" step="0.1" value={params.L_free || 3.0} onChange={(e) => updateParam('L_free', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">fck (MPa)</Label>
+                <Input type="number" value={params.fck || 30} onChange={(e) => updateParam('fck', Number(e.target.value))} className="h-9 bg-background/50" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground uppercase">Classe Agressiv. (CAA)</Label>
+                <Input type="number" min="1" max="4" value={params.caa || 2} onChange={(e) => updateParam('caa', Number(e.target.value))} className="h-9 bg-background/50" />
               </div>
             </div>
           </>

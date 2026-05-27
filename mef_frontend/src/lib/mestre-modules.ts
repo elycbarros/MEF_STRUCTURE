@@ -74,6 +74,7 @@ export const MESTRE_MODULES: MestreModuleDefinition[] = [
   { id: 'stair', label: 'Escada', icon: ArrowUpRight, category: 'Elementos NBR 6118', component: SpecialPlayground },
   { id: 'helical_stairs', label: 'Escada Helicoidal', icon: ArrowUpRight, category: 'Elementos NBR 6118', component: SpecialPlayground },
   { id: 'concrete_wall', label: 'Parede de Concreto', icon: Columns, category: 'Elementos NBR 6118', component: SpecialPlayground },
+  { id: 'pillar_wall', label: 'Pilar Parede', icon: Columns, category: 'Elementos NBR 6118', component: SpecialPlayground },
   { id: 'corbel', label: 'Consolo Curto', icon: Layout, category: 'Elementos NBR 6118', component: SpecialPlayground },
   { id: 'gerber_tooth', label: 'Dente Gerber', icon: Activity, category: 'Elementos NBR 6118', component: SpecialPlayground },
   { id: 'deep_beam', label: 'Viga Parede', icon: Maximize2, category: 'Elementos NBR 6118', component: SpecialPlayground },

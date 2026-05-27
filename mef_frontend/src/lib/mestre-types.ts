@@ -10,6 +10,7 @@ export type MestreElementType =
   | "helical_stairs"
   | "retaining_wall"
   | "concrete_wall"
+  | "pillar_wall"
   | "reservoir"
   | "corbel"
   | "gerber_tooth"
