@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
-import type { ReactNode } from 'react';
-import { Calculator, Columns, Crosshair, RotateCw, ShieldCheck, Activity } from 'lucide-react';
+import { Calculator, Columns, Crosshair, RotateCw, ShieldCheck } from 'lucide-react';
 
 import { calculateSpecialElement } from '@/lib/api-mestre';
 import { type MestreParams } from '@/lib/mestre-types';
@@ -16,21 +15,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import { MestreFiberMap, MestreInteractionDiagram } from './MestreDiagram';
-import { SectionSketch } from './SectionSketch';
-import { SteelTableView } from './SteelTableView';
-import { StructuralDuel } from './StructuralDuel';
-
 export function ColumnPlayground() {
-  const { 
-    params, 
-    updateParams, 
-    setIsLoading, 
-    setError, 
+  const {
+    params,
+    updateParams,
+    setIsLoading,
+    setError,
     applyMestreResponse,
-    fullResults,
-    isLoading, 
-    error 
+    isLoading,
+    error
   } = useMestreStore();
 
   const handleCalculate = useCallback(async (currentParams: MestreParams) => {
@@ -144,94 +137,12 @@ export function ColumnPlayground() {
         {isLoading ? 'Verificando...' : 'Dimensionar Pilar'}
       </Button>
 
-      {fullResults?.fiber_results?.interaction_diagram_x && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <MestreInteractionDiagram 
-            envelope={fullResults.fiber_results.interaction_diagram_x}
-            solicitant={{ n: fullResults.Nd_kN, m: fullResults.Md_x_total_kNm }}
-            title="Interação N x Mx (Biaxial X)"
-          />
-          <MestreInteractionDiagram 
-            envelope={fullResults.fiber_results.interaction_diagram_y}
-            solicitant={{ n: fullResults.Nd_kN, m: fullResults.Md_y_total_kNm }}
-            title="Interação N x My (Biaxial Y)"
-          />
-        </div>
-      )}
-
-      {fullResults?.slenderness && (
-        <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-            <Activity className="w-3 h-3" />
-            Análise de 2ª Ordem e Esbeltez
-          </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <MetricCard label="λx (Esbeltez)" value={fullResults.slenderness.lambda_x} />
-            <MetricCard label="λy (Esbeltez)" value={fullResults.slenderness.lambda_y} />
-            <MetricCard label="Mx Total" value={`${fullResults.Md_x_total_kNm} kNm`} />
-            <MetricCard label="My Total" value={`${fullResults.Md_y_total_kNm} kNm`} />
-          </div>
-          <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2 px-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-            Método: {fullResults.moments_2nd_order?.method || 'Pilar Padrão (NBR 6118)'}
-          </div>
-        </div>
-      )}
-
-      {fullResults?.detailing && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <SectionSketch 
-            b_m={params.b} 
-            h_m={params.h} 
-            rebars={fullResults.detailing.executive?.rebar_coords || []} 
-            phi_mm={fullResults.detailing.longitudinal?.phi_mm || 10.0} 
-            label="Pilar P1"
-          />
-          <SteelTableView 
-            data={[{
-              pos: "N1",
-              phi_mm: fullResults.detailing.longitudinal?.phi_mm || 10.0,
-              count: fullResults.detailing.longitudinal?.count || 4,
-              length_m: 3.0,
-              total_length_m: (fullResults.detailing.longitudinal?.count || 4) * 3.0,
-              weight_kg: fullResults.detailing.steel_ca50_kg || 0,
-              type: "CA-50"
-            }]}
-            totals={{
-              total_ca50_kg: fullResults.detailing.steel_ca50_kg || 0,
-              total_ca60_kg: 0,
-              grand_total_kg: fullResults.detailing.steel_ca50_kg || 0
-            }}
-          />
-        </div>
-      )}
-
-      {fullResults?.fiber_results?.fibers && (
-        <MestreFiberMap 
-          fibers={fullResults.fiber_results.fibers}
-          b={params.b}
-          h={params.h}
-          title="Mapa de Tensões na Seção"
-        />
-      )}
-
-      <StructuralDuel />
-
       {error && (
-        <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive">
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive animate-in fade-in duration-300">
           <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
           <p className="text-xs font-medium leading-relaxed">{error}</p>
         </div>
       )}
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="p-3 rounded-xl bg-background/50 border border-border/50">
-      <p className="text-[8px] uppercase font-black text-muted-foreground tracking-tighter">{label}</p>
-      <p className="mt-1 text-sm font-black text-foreground">{value}</p>
     </div>
   );
 }

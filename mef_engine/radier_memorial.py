@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
-
-from platform_core import build_module_identity, build_professional_context
-from radier_mode_evaluator import build_mode_specific_assessment
-from standards_profiles import get_combination_set, get_international_reference_profiles, get_standard_profile
-from structural_platform import RADIER_MODULE, LAJE_MODULE
-from structural_research import build_research_insights
-from radier_geotech_reference_matrix import get_calibration_reference_matrix
-from radier_utils import write_json
-from radier_design_v2 import calculate_reinforcement_metrics
 import master_pedagogy
+import pandas as pd
+from platform_core import build_module_identity, build_professional_context
+from radier_design_v2 import calculate_reinforcement_metrics
+from radier_mode_evaluator import build_mode_specific_assessment
+from radier_utils import write_json
+from standards_profiles import get_combination_set, get_international_reference_profiles, get_standard_profile
+from structural_platform import LAJE_MODULE, RADIER_MODULE
+from structural_research import build_research_insights
 
 SETTLEMENT_SERVICE_LIMITS = {
     'w_total_mm': 50.0,
@@ -177,15 +174,17 @@ def _build_professional_readiness_checklist(memorial: dict) -> dict:
             'id': 'recalque_servico_ok',
             'description': 'Checagens de recalque e distorcao angular atendem aos limites orientativos',
             'pass': bool(service.get('criterios_recalque', {}).get('atende_global', False)),
-        }
+        },
     ]
 
-    items.append({
-        'id': 'benchmark_minimo_ok',
-        'description': 'Suite benchmark interna passou nas tolerancias',
-        'pass': bool(not benchmark_blocks),
-        'applicability': benchmark.get('applicability', 'reference_regression'),
-    })
+    items.append(
+        {
+            'id': 'benchmark_minimo_ok',
+            'description': 'Suite benchmark interna passou nas tolerancias',
+            'pass': bool(not benchmark_blocks),
+            'applicability': benchmark.get('applicability', 'reference_regression'),
+        }
+    )
 
     blocking_ids = {
         'geotecnia_ok',
@@ -221,109 +220,123 @@ def _build_normative_checklist_detailed(memorial: dict) -> list[dict]:
     geotech = memorial['verificacoes_geotecnicas']
 
     items = []
-    
-    if not is_laje:
-        items.append({
-            'id': 'NBR6118_NBR6122_PRESSAO_SOLO',
-            'theme': 'Geotecnia de contato',
-            'reference': 'ABNT NBR 6122:2019 + ABNT NBR 6118:2023 (compatibilizacao fundacao-estrutura)',
-            'status': 'ATENDE' if geotech['atende_pressao_max_modelo'] else 'NAO_ATENDE',
-            'method': 'Pressao media e maxima do modelo versus tensao admissivel informada',
-            'input_key': 'q_uniforme_Pa, cargas de pilares, sigma_adm_kPa',
-            'output_key': 'pressao_media_kPa, pressao_max_modelo_kPa',
-        })
-
-    items.extend([
-        {
-            'id': 'NBR6118_ELU_FLEXAO',
-            'theme': 'Dimensionamento a flexao',
-            'reference': 'ABNT NBR 6118:2023 (ELU em secoes de concreto armado)',
-            'status': 'ATENDE' if structural['flexao'] else 'PARCIAL',
-            'method': 'Flexao ELU por faces com Wood-Armer simplificado e armadura minima',
-            'input_key': 'mx,my,mxy,fck,fyk,h,cobrimento',
-            'output_key': 'Asx/Asy superior e inferior requeridas e adotadas',
-        },
-        {
-            'id': 'NBR6118_ELU_PUNCAO',
-            'theme': 'Punção em laje' + ('' if is_laje else ' de fundacao'),
-            'reference': 'ABNT NBR 6118:2023 (punção, contornos C e C\')',
-            'status': 'NAO_APLICAVEL' if structural['puncao'].get('status') == 'nao_aplicavel_sem_pilares' else ('ATENDE' if structural['puncao'].get('atende') else 'NAO_ATENDE'),
-            'method': 'Formulação completa com fator beta (efeito de momentos) e Wp para pilar interior/borda/canto; não aplicável quando não há pilares/cargas concentradas.',
-            'input_key': 'p, mx, my, bx, by, x, y, h, fck, armadura local',
-            'output_key': 'beta, tau_sd, tau_rd1, ratio, local critico',
-        },
-        {
-            'id': 'NBR6118_ELS_FISSURACAO',
-            'theme': 'Estado limite de servico - fissuracao',
-            'reference': 'ABNT NBR 6118:2023 (controle de abertura de fissuras)',
-            'status': 'ATENDE' if (service.get('wk_x_ok') and service.get('wk_y_ok')) else 'PARCIAL',
-            'method': 'Estimativa de wk por tensao no aco, diametro e taxa efetiva',
-            'input_key': 'momentos de servico, As adotada, phi, cobrimento, eta1',
-            'output_key': 'wk_est_x_mm, wk_est_y_mm, wk_limit_mm',
-        },
-    ])
 
     if not is_laje:
-        items.extend([
+        items.append(
             {
-                'id': 'NBR6122_ELS_DISTORCAO',
-                'theme': 'Estado limite de servico - distorcao angular',
-                'reference': 'ABNT NBR 6122:2022 (anexo J / literatura tecnica)',
-                'status': 'ATENDE' if _get_service_check_pass(service, 'distorcao_angular') else 'ALERTA',
-                'method': 'Calculo de delta_w / L entre todos os pilares vizinhos via Delaunay',
-                'input_key': 'recalques nos pilares, distancias L entre pilares',
-                'output_key': 'beta_max, beta_inv_min, conexao critica',
+                'id': 'NBR6118_NBR6122_PRESSAO_SOLO',
+                'theme': 'Geotecnia de contato',
+                'reference': 'ABNT NBR 6122:2019 + ABNT NBR 6118:2023 (compatibilizacao fundacao-estrutura)',
+                'status': 'ATENDE' if geotech['atende_pressao_max_modelo'] else 'NAO_ATENDE',
+                'method': 'Pressao media e maxima do modelo versus tensao admissivel informada',
+                'input_key': 'q_uniforme_Pa, cargas de pilares, sigma_adm_kPa',
+                'output_key': 'pressao_media_kPa, pressao_max_modelo_kPa',
+            }
+        )
+
+    items.extend(
+        [
+            {
+                'id': 'NBR6118_ELU_FLEXAO',
+                'theme': 'Dimensionamento a flexao',
+                'reference': 'ABNT NBR 6118:2023 (ELU em secoes de concreto armado)',
+                'status': 'ATENDE' if structural['flexao'] else 'PARCIAL',
+                'method': 'Flexao ELU por faces com Wood-Armer simplificado e armadura minima',
+                'input_key': 'mx,my,mxy,fck,fyk,h,cobrimento',
+                'output_key': 'Asx/Asy superior e inferior requeridas e adotadas',
             },
             {
-                'id': 'NBR6122_ELS_RECALQUES',
-                'theme': 'Estado limite de servico - recalques',
-                'reference': 'ABNT NBR 6122:2019/2022 (criterios de deformabilidade)',
-                'status': 'ATENDE' if service.get('criterios_recalque', {}).get('atende_global') else 'ALERTA',
-                'method': 'Comparacao de recalque total e diferencial com limites orientativos de servico',
-                'input_key': 'w_max_mm, w_diff_mm, beta_max',
-                'output_key': 'criterios_recalque',
+                'id': 'NBR6118_ELU_PUNCAO',
+                'theme': 'Punção em laje' + ('' if is_laje else ' de fundacao'),
+                'reference': "ABNT NBR 6118:2023 (punção, contornos C e C')",
+                'status': 'NAO_APLICAVEL'
+                if structural['puncao'].get('status') == 'nao_aplicavel_sem_pilares'
+                else ('ATENDE' if structural['puncao'].get('atende') else 'NAO_ATENDE'),
+                'method': 'Formulação completa com fator beta (efeito de momentos) e Wp para pilar interior/borda/canto; não aplicável quando não há pilares/cargas concentradas.',
+                'input_key': 'p, mx, my, bx, by, x, y, h, fck, armadura local',
+                'output_key': 'beta, tau_sd, tau_rd1, ratio, local critico',
             },
-        ])
+            {
+                'id': 'NBR6118_ELS_FISSURACAO',
+                'theme': 'Estado limite de servico - fissuracao',
+                'reference': 'ABNT NBR 6118:2023 (controle de abertura de fissuras)',
+                'status': 'ATENDE' if (service.get('wk_x_ok') and service.get('wk_y_ok')) else 'PARCIAL',
+                'method': 'Estimativa de wk por tensao no aco, diametro e taxa efetiva',
+                'input_key': 'momentos de servico, As adotada, phi, cobrimento, eta1',
+                'output_key': 'wk_est_x_mm, wk_est_y_mm, wk_limit_mm',
+            },
+        ]
+    )
+
+    if not is_laje:
+        items.extend(
+            [
+                {
+                    'id': 'NBR6122_ELS_DISTORCAO',
+                    'theme': 'Estado limite de servico - distorcao angular',
+                    'reference': 'ABNT NBR 6122:2022 (anexo J / literatura tecnica)',
+                    'status': 'ATENDE' if _get_service_check_pass(service, 'distorcao_angular') else 'ALERTA',
+                    'method': 'Calculo de delta_w / L entre todos os pilares vizinhos via Delaunay',
+                    'input_key': 'recalques nos pilares, distancias L entre pilares',
+                    'output_key': 'beta_max, beta_inv_min, conexao critica',
+                },
+                {
+                    'id': 'NBR6122_ELS_RECALQUES',
+                    'theme': 'Estado limite de servico - recalques',
+                    'reference': 'ABNT NBR 6122:2019/2022 (criterios de deformabilidade)',
+                    'status': 'ATENDE' if service.get('criterios_recalque', {}).get('atende_global') else 'ALERTA',
+                    'method': 'Comparacao de recalque total e diferencial com limites orientativos de servico',
+                    'input_key': 'w_max_mm, w_diff_mm, beta_max',
+                    'output_key': 'criterios_recalque',
+                },
+            ]
+        )
     else:
-        items.append({
-            'id': 'NBR6118_ELS_FLECHAS',
-            'theme': 'Estado limite de servico - deformacoes',
-            'reference': 'ABNT NBR 6118:2023 (flechas em lajes)',
-            'status': 'ATENDE' if service.get('criterios_recalque', {}).get('atende_global') else 'ALERTA',
-            'method': 'Comparacao de flecha elastica e diferida (Branson) com limites normativos L/250',
-            'input_key': 'w_max_mm, w_max_mm_total, L_vão',
-            'output_key': 'criterios_flecha',
-        })
+        items.append(
+            {
+                'id': 'NBR6118_ELS_FLECHAS',
+                'theme': 'Estado limite de servico - deformacoes',
+                'reference': 'ABNT NBR 6118:2023 (flechas em lajes)',
+                'status': 'ATENDE' if service.get('criterios_recalque', {}).get('atende_global') else 'ALERTA',
+                'method': 'Comparacao de flecha elastica e diferida (Branson) com limites normativos L/250',
+                'input_key': 'w_max_mm, w_max_mm_total, L_vão',
+                'output_key': 'criterios_flecha',
+            }
+        )
 
-    items.extend([
-        {
-            'id': 'NBR6123_VENTO',
-            'theme': 'Ações de vento',
-            'reference': f"ABNT NBR 6123:1988 (forças devidas ao vento){' | Força Base = ' + str(round(memorial.get('acoes_de_vento', {}).get('summary', {}).get('total_force_kN', 0), 1)) + ' kN' if memorial.get('acoes_de_vento') else ''}",
-            'status': 'ATENDE' if memorial.get('acoes_de_vento') else 'NAO_APLICAVEL',
-            'method': 'Calculo de pressoes dinamicas e forcas por nivel com modelo discreto (Cap. 9)',
-            'input_key': 'v0, s1, s2, s3, categoria, classe, f1, zeta',
-            'output_key': 'forca_total_kN, momento_base_kNm, perfil_pressoes',
-        },
-        {
-            'id': 'NBR6118_ESTABILIDADE_GLOBAL',
-            'theme': 'Estabilidade global e efeitos de 2a ordem',
-            'reference': f"ABNT NBR 6118:2023 (item 15.5){' | Gama-Z = ' + str(round(memorial.get('estabilidade_global', {}).get('gamma_z', 0), 3)) + ' (Limite: 1.10)' if memorial.get('estabilidade_global', {}).get('gamma_z') else ''}",
-            'status': 'ATENDE' if memorial.get('estabilidade_global', {}).get('is_stable') else ('NAO_ATENDE' if memorial.get('estabilidade_global') else 'NAO_APLICAVEL'),
-            'method': 'Analise de Gama-Z e P-Delta iterativo para verificacao de estabilidade',
-            'input_key': 'altura, carga_vertical_total, momento_vento_base',
-            'output_key': 'gamma_z, p_delta_factor, status_estabilidade',
-        },
-        {
-            'id': 'NBR6118_RASTREABILIDADE',
-            'theme': 'Rastreabilidade tecnica',
-            'reference': 'Boas praticas de auditoria tecnica',
-            'status': 'ATENDE',
-            'method': 'Memorial + relatorio + manifesto de artefatos',
-            'input_key': 'configuracao, resultados, arquivos gerados',
-            'output_key': 'memorial_summary, report, artifacts',
-        }
-    ])
+    items.extend(
+        [
+            {
+                'id': 'NBR6123_VENTO',
+                'theme': 'Ações de vento',
+                'reference': f'ABNT NBR 6123:1988 (forças devidas ao vento){" | Força Base = " + str(round(memorial.get("acoes_de_vento", {}).get("summary", {}).get("total_force_kN", 0), 1)) + " kN" if memorial.get("acoes_de_vento") else ""}',
+                'status': 'ATENDE' if memorial.get('acoes_de_vento') else 'NAO_APLICAVEL',
+                'method': 'Calculo de pressoes dinamicas e forcas por nivel com modelo discreto (Cap. 9)',
+                'input_key': 'v0, s1, s2, s3, categoria, classe, f1, zeta',
+                'output_key': 'forca_total_kN, momento_base_kNm, perfil_pressoes',
+            },
+            {
+                'id': 'NBR6118_ESTABILIDADE_GLOBAL',
+                'theme': 'Estabilidade global e efeitos de 2a ordem',
+                'reference': f'ABNT NBR 6118:2023 (item 15.5){" | Gama-Z = " + str(round(memorial.get("estabilidade_global", {}).get("gamma_z", 0), 3)) + " (Limite: 1.10)" if memorial.get("estabilidade_global", {}).get("gamma_z") else ""}',
+                'status': 'ATENDE'
+                if memorial.get('estabilidade_global', {}).get('is_stable')
+                else ('NAO_ATENDE' if memorial.get('estabilidade_global') else 'NAO_APLICAVEL'),
+                'method': 'Analise de Gama-Z e P-Delta iterativo para verificacao de estabilidade',
+                'input_key': 'altura, carga_vertical_total, momento_vento_base',
+                'output_key': 'gamma_z, p_delta_factor, status_estabilidade',
+            },
+            {
+                'id': 'NBR6118_RASTREABILIDADE',
+                'theme': 'Rastreabilidade tecnica',
+                'reference': 'Boas praticas de auditoria tecnica',
+                'status': 'ATENDE',
+                'method': 'Memorial + relatorio + manifesto de artefatos',
+                'input_key': 'configuracao, resultados, arquivos gerados',
+                'output_key': 'memorial_summary, report, artifacts',
+            },
+        ]
+    )
     return items
 
 
@@ -379,7 +392,7 @@ def build_pressure_text_map(nodes_df: pd.DataFrame, Lx: float, Ly: float) -> str
         grid_size = 5
         dx = Lx / grid_size
         dy = Ly / grid_size
-        
+
         rows = []
         for j in range(grid_size - 1, -1, -1):
             row_vals = []
@@ -388,28 +401,30 @@ def build_pressure_text_map(nodes_df: pd.DataFrame, Lx: float, Ly: float) -> str
             for i in range(grid_size):
                 x_min = i * dx
                 x_max = (i + 1) * dx
-                
+
                 quad = nodes_df[
-                    (nodes_df['x_m'] >= x_min) & (nodes_df['x_m'] <= x_max) &
-                    (nodes_df['y_m'] >= y_min) & (nodes_df['y_m'] <= y_max)
+                    (nodes_df['x_m'] >= x_min)
+                    & (nodes_df['x_m'] <= x_max)
+                    & (nodes_df['y_m'] >= y_min)
+                    & (nodes_df['y_m'] <= y_max)
                 ]
-                
+
                 if not quad.empty and 'qsoil_Pa' in quad.columns:
-                    q_avg = quad['qsoil_Pa'].mean() / 1000.0 # kPa
+                    q_avg = quad['qsoil_Pa'].mean() / 1000.0  # kPa
                 else:
                     q_avg = 0.0
-                row_vals.append(f"{q_avg:.1f}")
+                row_vals.append(f'{q_avg:.1f}')
             rows.append(row_vals)
-            
-        md = "| Y \\ X | 0-20% | 20-40% | 40-60% | 60-80% | 80-100% |\n"
-        md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+
+        md = '| Y \\ X | 0-20% | 20-40% | 40-60% | 60-80% | 80-100% |\n'
+        md += '| :---: | :---: | :---: | :---: | :---: | :---: |\n'
         for idx, r in enumerate(rows):
             y_pct = 100 - idx * 20
-            y_label = f"{y_pct-20}-{y_pct}%"
-            md += f"| **{y_label}** | " + " kPa | ".join(r) + " kPa |\n"
+            y_label = f'{y_pct - 20}-{y_pct}%'
+            md += f'| **{y_label}** | ' + ' kPa | '.join(r) + ' kPa |\n'
         return md
     except Exception as e:
-        return f"Erro ao gerar mapa de pressões: {str(e)}"
+        return f'Erro ao gerar mapa de pressões: {str(e)}'
 
 
 def build_memorial_summary(
@@ -428,7 +443,7 @@ def build_memorial_summary(
     total_service_load_kN = deterministic_summary['loads_total_kN']
     q_med_kPa = total_service_load_kN / max(area_m2, 1e-9)
     q_max_kPa = deterministic_summary['qsoil_max_kPa']
-    
+
     # Se for laje, sigma_adm_kPa pode não existir no config
     sigma_adm = getattr(config, 'sigma_adm_kPa', 0.0)
     h_ref_m = _preliminary_thickness_reference(total_service_load_kN, area_m2, sigma_adm)
@@ -439,7 +454,7 @@ def build_memorial_summary(
     nodes_path = Path(paths.get('nodes', out / 'radier_v2_nodes.csv'))
     serviceability_path = Path(paths.get('serviceability', out / 'radier_serviceability_check_v2.csv'))
     distortion_path = Path(paths.get('distortion', out / 'radier_angular_distortion_v2.csv'))
-    
+
     is_laje = getattr(config, 'module_name', 'radier') in ['laje', 'lajes']
 
     punching_max_ratio = None
@@ -458,7 +473,9 @@ def build_memorial_summary(
             critical_row = punching_df.sort_values('ratio', ascending=False).iloc[0]
             punching_summary = {
                 'ratio_max': punching_max_ratio,
-                'ratio_gross_max': float(punching_df['Ved_gross_kN'].max() / punching_df['VRd1_kN'].max()), # Aproximado se VRd varia
+                'ratio_gross_max': float(
+                    punching_df['Ved_gross_kN'].max() / punching_df['VRd1_kN'].max()
+                ),  # Aproximado se VRd varia
                 'beta_max': float(punching_df['beta'].max()),
                 'ratio_face_max': float(punching_df['ratio_face'].max()),
                 'atende': punching_max_ratio <= 1.0 or bool(critical_row.get('Asw_req_cm2', 0) > 0),
@@ -478,7 +495,7 @@ def build_memorial_summary(
                 'beta_max': float(dist_df['beta'].max()),
                 'beta_inv_min': float(dist_df['beta_inv'].min()) if dist_df['beta'].max() > 0 else 99999,
                 'atende': bool(dist_df['ok'].all()),
-                'critical_pair': f"{crit_dist['p1_id']} <-> {crit_dist['p2_id']}",
+                'critical_pair': f'{crit_dist["p1_id"]} <-> {crit_dist["p2_id"]}',
             }
 
     flexure_summary = {}
@@ -500,7 +517,7 @@ def build_memorial_summary(
                 'sugestao_x_sup': str(flexure_df.loc[flexure_df['Asx_top_adot_cm2_m'].idxmax(), 'detalhe_x_sup']),
                 'sugestao_y_inf': str(flexure_df.loc[flexure_df['Asy_bottom_adot_cm2_m'].idxmax(), 'detalhe_y_inf']),
                 'sugestao_y_sup': str(flexure_df.loc[flexure_df['Asy_top_adot_cm2_m'].idxmax(), 'detalhe_y_sup']),
-                'metrics': calculate_reinforcement_metrics(flexure_df, config.h, config.Lx, config.Ly)
+                'metrics': calculate_reinforcement_metrics(flexure_df, config.h, config.Lx, config.Ly),
             }
 
     service_summary = {}
@@ -521,18 +538,20 @@ def build_memorial_summary(
         pressure_text_map = build_pressure_text_map(nodes_df, config.Lx, config.Ly)
     else:
         active_springs = int(deterministic_summary.get('active_springs', total_nodes))
-        
+
     contact_loss_pct = 0.0 if is_laje else max(0.0, 100.0 - (active_springs / max(total_nodes, 1) * 100.0))
 
     if serviceability_path.exists():
         ser_df = pd.read_csv(serviceability_path)
-        service_summary.update({
-            'wk_x_max_mm': float(ser_df['wk_est_x_mm'].max()),
-            'wk_y_max_mm': float(ser_df['wk_est_y_mm'].max()),
-            'wk_limit_mm': float(ser_df['wk_limit_mm'].max()),
-            'wk_x_ok': bool(ser_df['wk_x_ok'].all()),
-            'wk_y_ok': bool(ser_df['wk_y_ok'].all()),
-        })
+        service_summary.update(
+            {
+                'wk_x_max_mm': float(ser_df['wk_est_x_mm'].max()),
+                'wk_y_max_mm': float(ser_df['wk_est_y_mm'].max()),
+                'wk_limit_mm': float(ser_df['wk_limit_mm'].max()),
+                'wk_x_ok': bool(ser_df['wk_x_ok'].all()),
+                'wk_y_ok': bool(ser_df['wk_y_ok'].all()),
+            }
+        )
     service_summary['criterios_recalque'] = _build_settlement_service_checks(service_summary, distortion_summary)
 
     # Detect system type
@@ -550,11 +569,15 @@ def build_memorial_summary(
             'combinacoes_adotadas': combinations,
             'matriz_de_verificacoes': {
                 'automatizado_no_modulo': [
-                    'flechas imediatas e diferidas (Branson)' if is_laje else 'pressao media e maxima de contato no solo',
+                    'flechas imediatas e diferidas (Branson)'
+                    if is_laje
+                    else 'pressao media e maxima de contato no solo',
                     'pre-dimensionamento orientativo da espessura',
                     'flexao ELU por faces com Wood-Armer e redistribuição',
                     'punção ELU completa (NBR 6118) com fator beta (momentos) e Wp',
-                    'analise de reacoes de apoio nodais' if is_laje else 'interação solo-estrutura (SSI) avançada com rigidez da superestrutura',
+                    'analise de reacoes de apoio nodais'
+                    if is_laje
+                    else 'interação solo-estrutura (SSI) avançada com rigidez da superestrutura',
                     'detalhamento automático de armaduras em bitolas comerciais',
                     'geração de pranchas técnicas em DXF',
                     'indicadores de servico por flecha' if is_laje else 'indicadores de servico por recalque',
@@ -591,7 +614,9 @@ def build_memorial_summary(
             'modelo': 'Apoios Discretos' if is_laje else 'Winkler vertical',
             'tensionless': config.tensionless,
             'perfil_geotecnico': geotechnical_profile or {'source': 'uniform_default'},
-        } if not is_laje else {},
+        }
+        if not is_laje
+        else {},
         'verificacoes_geotecnicas': {
             'pressao_media_kPa': q_med_kPa,
             'pressao_max_modelo_kPa': q_max_kPa,
@@ -599,28 +624,34 @@ def build_memorial_summary(
             'atende_pressao_media': q_med_kPa <= config.sigma_adm_kPa if not is_laje else True,
             'atende_pressao_max_modelo': q_max_kPa <= config.sigma_adm_kPa if not is_laje else True,
             'contact_loss_pct': contact_loss_pct,
-            'contact_loss_status': 'EXCELENTE' if contact_loss_pct < 1.0 else ('ATENCAO' if contact_loss_pct <= 5.0 else 'CRITICO'),
+            'contact_loss_status': 'EXCELENTE'
+            if contact_loss_pct < 1.0
+            else ('ATENCAO' if contact_loss_pct <= 5.0 else 'CRITICO'),
             'parecer_contato': (
-                "Aderência plena do radier ao solo (perda de contato inferior a 1%). Estabilidade de contato atendida."
-                if contact_loss_pct < 1.0 else
-                f"Perda parcial de contato detectada ({contact_loss_pct:.2f}%) na base elástica. Admissível se estável ao tombamento."
-                if contact_loss_pct <= 5.0 else
-                f"Perda significativa de contato solo-radier ({contact_loss_pct:.2f}%). Recomenda-se aumentar as dimensões da base."
+                'Aderência plena do radier ao solo (perda de contato inferior a 1%). Estabilidade de contato atendida.'
+                if contact_loss_pct < 1.0
+                else f'Perda parcial de contato detectada ({contact_loss_pct:.2f}%) na base elástica. Admissível se estável ao tombamento.'
+                if contact_loss_pct <= 5.0
+                else f'Perda significativa de contato solo-radier ({contact_loss_pct:.2f}%). Recomenda-se aumentar as dimensões da base.'
             ),
             'status': 'nao_aplicavel_sistema_elevado' if is_laje else 'avaliado',
-        } if not is_laje else {},
+        }
+        if not is_laje
+        else {},
         'pre_dimensionamento': {
             'espessura_referencia_m': h_ref_m,
             'espessura_adotada_m': config.h,
             'atende_referencia_preliminar': config.h >= h_ref_m,
         },
         'modelo_estrutural': {
-            'tipo': 'placa Mindlin-Reissner sobre apoios discretos' if is_laje else 'placa Mindlin-Reissner sobre base elastica de Winkler',
+            'tipo': 'placa Mindlin-Reissner sobre apoios discretos'
+            if is_laje
+            else 'placa Mindlin-Reissner sobre base elastica de Winkler',
             'graus_de_liberdade_por_no': 3,
             'malha_elementos': (config.nx - 1) * (config.ny - 1),
             'nlf_audit': deterministic_summary.get('nlf_audit'),
             'analise_longo_prazo': config.service_mode == 'verificacao_servico',
-            'coeficiente_fluencia_phi': 2.0 if config.service_mode == 'verificacao_servico' else 0.0
+            'coeficiente_fluencia_phi': 2.0 if config.service_mode == 'verificacao_servico' else 0.0,
         },
         'verificacoes_estruturais': {
             'momentos': {
@@ -632,7 +663,7 @@ def build_memorial_summary(
             'distorcao_angular': distortion_summary,
             'detalhamento_cad': {
                 'dxf_file': paths.get('dxf_detailing_file', 'n/d'),
-                'status': 'GERADO' if paths.get('dxf_detailing_file') else 'NAO_GERADO'
+                'status': 'GERADO' if paths.get('dxf_detailing_file') else 'NAO_GERADO',
             },
             'equilibrio_global': {
                 'residual_ratio': deterministic_summary['residual_ratio'],
@@ -640,8 +671,11 @@ def build_memorial_summary(
             },
             'fundacao_profunda': {
                 'reacao_total_estacas_kN': deterministic_summary.get('pile_reactions_total_kN', 0.0),
-                'percentual_carga_estacas': (deterministic_summary.get('pile_reactions_total_kN', 0.0) / max(total_service_load_kN, 1.0)) * 100.0,
-            }
+                'percentual_carga_estacas': (
+                    deterministic_summary.get('pile_reactions_total_kN', 0.0) / max(total_service_load_kN, 1.0)
+                )
+                * 100.0,
+            },
         },
         'verificacoes_de_servico': service_summary,
         'pressure_text_map': pressure_text_map,
@@ -657,7 +691,9 @@ def build_memorial_summary(
             'armadura_superior': 'concentrar sobre pilares, bordas e regioes de momento negativo',
             'reforcos_locais': 'avaliar sob pilares, bordas e aberturas',
         },
-        'conceito_projeto': 'laje elevada sobre apoios rigidos/elasticos com foco em flexao, flechas e reacoes de apoio' if is_laje else 'radier como laje de fundacao apoiada no solo, com foco principal em pressao de contato, flexao, puncao e desempenho em servico',
+        'conceito_projeto': 'laje elevada sobre apoios rigidos/elasticos com foco em flexao, flechas e reacoes de apoio'
+        if is_laje
+        else 'radier como laje de fundacao apoiada no solo, com foco principal em pressao de contato, flexao, puncao e desempenho em servico',
     }
     memorial['benchmark_evidences'] = _build_benchmark_evidence(deterministic_summary, config)
     memorial['base_normativa']['checklist_detalhado'] = _build_normative_checklist_detailed(memorial)
@@ -666,144 +702,206 @@ def build_memorial_summary(
     memorial['pesquisa_e_melhoria'] = build_research_insights(config, memorial)
     memorial['leitura_orientada_por_modo'] = _build_mode_guidance(memorial)
     memorial['avaliacao_tecnica_por_modo'] = build_mode_specific_assessment(memorial)
-    
+
     # Replicando rigor do Engine MESTRE para o ambiente UFO
     memorial['trilha_auditoria_numérica'] = master_pedagogy.build_structural_audit_trail(config, memorial)
     memorial['parecer_tecnico_mestre'] = memorial['trilha_auditoria_numérica']['summary']['opinion']
-    
+
+    # Build recommendations and decisions dynamically to be saved in JSON and used by reports
+    try:
+        from routes.core_helpers import (
+            build_executive_decision_summary,
+            build_field_risk_summary,
+            build_foundation_recommendation,
+            build_regional_reinforcement_map,
+            build_reinforcement_summary,
+            build_solution_comparison,
+            build_thermal_checklist,
+            build_winkler_consistency,
+        )
+        from schemas.core import ConfigInput
+
+        # Safe mapping from config to ConfigInput
+        config_dict = {}
+        for key in ConfigInput.__fields__:
+            val = getattr(config, key, None)
+            if val is not None:
+                config_dict[key] = val
+
+        # Compatibility & conversions
+        config_dict['system_type'] = 'laje' if is_laje else 'radier'
+        if 'kv' in config_dict and config_dict['kv'] < 1.0e5:
+            config_dict['kv'] = config_dict['kv'] * 1e6
+        if 'q' in config_dict and config_dict['q'] < 1000.0:
+            config_dict['q'] = config_dict['q'] * 1000.0
+        if 'fck' in config_dict:
+            config_dict['fck'] = float(config_dict['fck'])
+        if 'fyk' in config_dict:
+            config_dict['fyk'] = float(config_dict['fyk'])
+
+        input_data = ConfigInput(**config_dict)
+
+        field_risk = build_field_risk_summary(input_data)
+        winkler = build_winkler_consistency(input_data, deterministic_summary)
+        recommendation = build_foundation_recommendation(
+            input_data, memorial, deterministic_summary, field_risk, winkler
+        )
+        executive_decision = build_executive_decision_summary(recommendation)
+
+        memorial['field_risk_summary'] = field_risk
+        memorial['winkler_consistency'] = winkler
+        memorial['foundation_recommendation'] = recommendation
+        memorial['executive_decision'] = executive_decision
+        memorial['reinforcement_summary'] = build_reinforcement_summary(memorial, input_data)
+        memorial['reinforcement_map'] = build_regional_reinforcement_map(memorial, input_data)
+        memorial['thermal_checklist'] = build_thermal_checklist(input_data)
+        memorial['solution_comparison'] = build_solution_comparison(input_data, recommendation)
+    except Exception as err:
+        memorial['executive_decision_error'] = str(err)
+
     memorial['standard_markdown'] = render_standard_markdown_radier(memorial, config)
     return memorial
 
+
 from memorial_factory import build_unified_memorial
-from platform_core import PLATFORM_VERSION, generate_payload_hash
+from platform_core import PLATFORM_VERSION
+
 
 def render_standard_markdown_radier(radier_results: dict, master_config: dict) -> str:
     """
     Rendeiriza o memorial M4 para Radier/Lajes.
     """
     memorial = radier_results
-    
+
     config = memorial.get('dados_da_obra', {})
     materials_raw = memorial.get('materiais', {})
     geotech = memorial.get('verificacoes_geotecnicas', {})
     structural = memorial.get('verificacoes_estruturais', {})
     service = memorial.get('verificacoes_de_servico', {})
-    
+
     is_laje = memorial.get('system_type') == 'laje'
     system_label = memorial.get('system_label', 'Radier')
-    module_title = "Laje Elevada em Concreto Armado" if is_laje else "Radier em Concreto Armado"
-    
+    module_title = 'Laje Elevada em Concreto Armado' if is_laje else 'Radier em Concreto Armado'
+
     hypotheses = [
-        "Analise de placa Mindlin-Reissner sobre apoios" + (" discretos" if is_laje else " elasticos (Winkler)"),
-        "Interacao solo-estrutura (SSI) via coeficiente de recalque vertical" if not is_laje else "Consideracao de rigidez dos apoios",
-        "Consideracao de rigidez da superestrutura (se aplicavel)",
-        "Modelo linear-elastico para materiais (ELU)"
+        'Analise de placa Mindlin-Reissner sobre apoios' + (' discretos' if is_laje else ' elasticos (Winkler)'),
+        'Interacao solo-estrutura (SSI) via coeficiente de recalque vertical'
+        if not is_laje
+        else 'Consideracao de rigidez dos apoios',
+        'Consideracao de rigidez da superestrutura (se aplicavel)',
+        'Modelo linear-elastico para materiais (ELU)',
     ]
-    
+
     materials = {
-        "fck": f"{materials_raw.get('fck_MPa')} MPa",
-        "fyk": f"{materials_raw.get('fyk_MPa')} MPa",
-        "E (Modulo Elasticidade)": f"{materials_raw.get('E_Pa', 0)/1e9:.1f} GPa",
-        "Cobrimento": f"{materials_raw.get('cobrimento_m', 0)*1000:.0f} mm"
+        'fck': f'{materials_raw.get("fck_MPa")} MPa',
+        'fyk': f'{materials_raw.get("fyk_MPa")} MPa',
+        'E (Modulo Elasticidade)': f'{materials_raw.get("E_Pa", 0) / 1e9:.1f} GPa',
+        'Cobrimento': f'{materials_raw.get("cobrimento_m", 0) * 1000:.0f} mm',
     }
-    
+
     loads = {
-        "Carga Vertical Total": f"{memorial.get('acoes_e_combinacoes', {}).get('carga_total_servico_kN', 0):.2f} kN",
-        f"Area da {system_label}": f"{config.get('area_radier_m2', 0):.2f} m2",
+        'Carga Vertical Total': f'{memorial.get("acoes_e_combinacoes", {}).get("carga_total_servico_kN", 0):.2f} kN',
+        f'Area da {system_label}': f'{config.get("area_radier_m2", 0):.2f} m2',
     }
     if not is_laje:
-        loads["Pressao Media Estimada"] = f"{geotech.get('pressao_media_kPa', 0):.2f} kPa"
-    
+        loads['Pressao Media Estimada'] = f'{geotech.get("pressao_media_kPa", 0):.2f} kPa'
+
     combinations = [
-        "ELU Fundamental: 1.4*G + 1.4*Q (Padrao NBR 8681)",
-        "ELS Quase Permanente / Frequente para recalques e fissuracao",
-        "Metodologia Prof. Libanio: Verificacao de Flecha Diferida (fluencia) e Inercia de Branson"
+        'ELU Fundamental: 1.4*G + 1.4*Q (Padrao NBR 8681)',
+        'ELS Quase Permanente / Frequente para recalques e fissuracao',
+        'Metodologia Prof. Libanio: Verificacao de Flecha Diferida (fluencia) e Inercia de Branson',
     ]
-    
+
     model_details = {
-        "Elementos de Placa": config.get('malha', {}).get('nx', 0) * config.get('malha', {}).get('ny', 0),
-        "Espessura Adotada": f"{config.get('espessura_adotada_m', 0):.3f} m",
+        'Elementos de Placa': config.get('malha', {}).get('nx', 0) * config.get('malha', {}).get('ny', 0),
+        'Espessura Adotada': f'{config.get("espessura_adotada_m", 0):.3f} m',
     }
     if not is_laje:
-        model_details["Vínculo de Base"] = f"kv = {memorial.get('dados_do_solo', {}).get('kv_N_m3', 0):.2e} N/m3"
+        model_details['Vínculo de Base'] = f'kv = {memorial.get("dados_do_solo", {}).get("kv_N_m3", 0):.2e} N/m3'
     else:
-        model_details["Vínculo de Base"] = "Apoios Discretos"
-    
-    md = ""
-    md += "## 6. Verificações de Serviço (ELS) e Durabilidade\n\n"
-    md += f"Para o controle da fissuração, adotou-se o limite de abertura característica $w_k = {service.get('wk_limit_mm', 0.3):.2f}$ mm, conforme a Classe de Agressividade Ambiental (CAA) do projeto.\n\n"
-    
+        model_details['Vínculo de Base'] = 'Apoios Discretos'
+
+    md = ''
+    md += '## 6. Verificações de Serviço (ELS) e Durabilidade\n\n'
+    md += f'Para o controle da fissuração, adotou-se o limite de abertura característica $w_k = {service.get("wk_limit_mm", 0.3):.2f}$ mm, conforme a Classe de Agressividade Ambiental (CAA) do projeto.\n\n'
+
     if is_laje:
-        md += "### 6.1 Análise de Deformações (Flechas)\n\n"
-        md += "As flechas foram calculadas considerando a rigidez efetiva da seção fissurada através do **Modelo de Branson** (NBR 6118:2023, 17.3.2.1.1):\n\n"
-        md += "$$I_e = (M_r/M_a)^3 I_c + [1-(M_r/M_a)^3] I_{cr}$$\n\n"
-        md += "Adicionalmente, as flechas de longo prazo foram majoradas pelo fator de fluência $\\alpha_f$, considerando uma carga aplicada aos 28 dias e análise para tempo infinito ($t > 70$ meses).\n\n"
+        md += '### 6.1 Análise de Deformações (Flechas)\n\n'
+        md += 'As flechas foram calculadas considerando a rigidez efetiva da seção fissurada através do **Modelo de Branson** (NBR 6118:2023, 17.3.2.1.1):\n\n'
+        md += '$$I_e = (M_r/M_a)^3 I_c + [1-(M_r/M_a)^3] I_{cr}$$\n\n'
+        md += 'Adicionalmente, as flechas de longo prazo foram majoradas pelo fator de fluência $\\alpha_f$, considerando uma carga aplicada aos 28 dias e análise para tempo infinito ($t > 70$ meses).\n\n'
     else:
-        md += "### 6.1 Recalques e Pressão no Solo\n\n"
-        md += "A fundação foi dimensionada para garantir que as pressões de contato permaneçam abaixo da tensão admissível do solo, minimizando recalques diferenciais e distorções angulares.\n\n"
-        
+        md += '### 6.1 Recalques e Pressão no Solo\n\n'
+        md += 'A fundação foi dimensionada para garantir que as pressões de contato permaneçam abaixo da tensão admissível do solo, minimizando recalques diferenciais e distorções angulares.\n\n'
+
         geotech_vals = memorial.get('verificacoes_geotecnicas', {})
         if geotech_vals:
             contact_loss = geotech_vals.get('contact_loss_pct', 0.0)
-            md += f"- **Perda de Contato Solo-Radier**: {contact_loss:.2f}% (Status: {geotech_vals.get('contact_loss_status', 'N/D')})\n"
-            md += f"- **Parecer sobre o Contato**: {geotech_vals.get('parecer_contato', 'N/D')}\n\n"
-            
+            md += f'- **Perda de Contato Solo-Radier**: {contact_loss:.2f}% (Status: {geotech_vals.get("contact_loss_status", "N/D")})\n'
+            md += f'- **Parecer sobre o Contato**: {geotech_vals.get("parecer_contato", "N/D")}\n\n'
+
             pressure_map = memorial.get('pressure_text_map')
             if pressure_map:
-                md += "#### Distribuição Espacial de Pressões de Contato (Mapeamento 5x5)\n\n"
-                md += "Abaixo é apresentada a média das pressões de contato do solo ($q_{soil}$) em kPa para cada quadrante do radier:\n\n"
-                md += pressure_map + "\n\n"
+                md += '#### Distribuição Espacial de Pressões de Contato (Mapeamento 5x5)\n\n'
+                md += 'Abaixo é apresentada a média das pressões de contato do solo ($q_{soil}$) em kPa para cada quadrante do radier:\n\n'
+                md += pressure_map + '\n\n'
 
-    md += "## 7. Parecer Técnico de Engenharia (Criterio Libanio)\n\n"
-    md += f"> {memorial.get('parecer_tecnico_mestre', 'Analise estrutural concluida com base nos criterios normativos vigentes.')}\n\n"
-    
-    md += "---\n"
-    md += f"**Engine:** UFO - Global Analysis System | **Version:** {PLATFORM_VERSION} | **Standards:** NBR 6118:2023, NBR 6120:2019\n"
-    
+    md += '## 7. Parecer Técnico de Engenharia (Criterio Libanio)\n\n'
+    md += f'> {memorial.get("parecer_tecnico_mestre", "Analise estrutural concluida com base nos criterios normativos vigentes.")}\n\n'
+
+    md += '---\n'
+    md += f'**Engine:** UFO - Global Analysis System | **Version:** {PLATFORM_VERSION} | **Standards:** NBR 6118:2023, NBR 6120:2019\n'
+
     results = {
-        "Flecha Maxima" if is_laje else "Recalque Maximo": f"{service.get('w_max_mm', 0):.3f} mm",
-        "Momento Maximo X": f"{structural.get('momentos', {}).get('mx_abs_max_kNm_m', 0):.2f} kNm/m"
+        'Flecha Maxima' if is_laje else 'Recalque Maximo': f'{service.get("w_max_mm", 0):.3f} mm',
+        'Momento Maximo X': f'{structural.get("momentos", {}).get("mx_abs_max_kNm_m", 0):.2f} kNm/m',
     }
     if not is_laje:
-        results["Pressao Maxima de Contato"] = f"{geotech.get('pressao_max_modelo_kPa', 0):.2f} kPa"
-    
+        results['Pressao Maxima de Contato'] = f'{geotech.get("pressao_max_modelo_kPa", 0):.2f} kPa'
+
     verifications = []
     if not is_laje:
-        verifications.extend([
-            {
-                "label": "Pressao no Solo (Media)",
-                "pass": geotech.get('atende_pressao_media', False),
-                "value": f"{geotech.get('pressao_media_kPa', 0):.2f} kPa",
-                "limit": f"{geotech.get('tensao_admissivel_kPa', 0):.2f} kPa"
-            },
-            {
-                "label": "Pressao no Solo (Maxima)",
-                "pass": geotech.get('atende_pressao_max_modelo', False),
-                "value": f"{geotech.get('pressao_max_modelo_kPa', 0):.2f} kPa",
-                "limit": f"{geotech.get('tensao_admissivel_kPa', 0):.2f} kPa"
-            }
-        ])
-    
-    verifications.append({
-        "label": "Puncao (Ratio Max)",
-        "pass": structural.get('puncao', {}).get('atende', False),
-        "value": f"{structural.get('puncao', {}).get('ratio_max', 0):.3f}",
-        "limit": "1.000"
-    })
-    
-    governing_label = "Flecha / Deformacao" if is_laje else "Pressao no Solo"
-    governing_value = service.get('w_max_mm', 0) > 30 or (not is_laje and geotech.get('pressao_max_modelo_kPa', 0) > geotech.get('tensao_admissivel_kPa', 0))
-    
+        verifications.extend(
+            [
+                {
+                    'label': 'Pressao no Solo (Media)',
+                    'pass': geotech.get('atende_pressao_media', False),
+                    'value': f'{geotech.get("pressao_media_kPa", 0):.2f} kPa',
+                    'limit': f'{geotech.get("tensao_admissivel_kPa", 0):.2f} kPa',
+                },
+                {
+                    'label': 'Pressao no Solo (Maxima)',
+                    'pass': geotech.get('atende_pressao_max_modelo', False),
+                    'value': f'{geotech.get("pressao_max_modelo_kPa", 0):.2f} kPa',
+                    'limit': f'{geotech.get("tensao_admissivel_kPa", 0):.2f} kPa',
+                },
+            ]
+        )
+
+    verifications.append(
+        {
+            'label': 'Puncao (Ratio Max)',
+            'pass': structural.get('puncao', {}).get('atende', False),
+            'value': f'{structural.get("puncao", {}).get("ratio_max", 0):.3f}',
+            'limit': '1.000',
+        }
+    )
+
+    governing_label = 'Flecha / Deformacao' if is_laje else 'Pressao no Solo'
+    governing_value = service.get('w_max_mm', 0) > 30 or (
+        not is_laje and geotech.get('pressao_max_modelo_kPa', 0) > geotech.get('tensao_admissivel_kPa', 0)
+    )
+
     governing = {
-        "Criterio Governante": governing_label if governing_value else "Dimensionamento a Flexao",
-        "Pilar Critico (Puncao)": structural.get('puncao', {}).get('critical_local', 'n/d'),
-        "Combinacao Critica": "ELU Fundamental"
+        'Criterio Governante': governing_label if governing_value else 'Dimensionamento a Flexao',
+        'Pilar Critico (Puncao)': structural.get('puncao', {}).get('critical_local', 'n/d'),
+        'Combinacao Critica': 'ELU Fundamental',
     }
-    
+
     return build_unified_memorial(
         module_title=module_title,
-        engine_name="RadierSolverM4",
-        engine_version="2.4.0",
+        engine_name='RadierSolverM4',
+        engine_version='2.4.0',
         hypotheses=hypotheses,
         materials=materials,
         loads=loads,
@@ -813,8 +911,11 @@ def render_standard_markdown_radier(radier_results: dict, master_config: dict) -
         verifications=verifications,
         governing=governing,
         alerts=memorial.get('checklist_profissional', {}).get('failed_ids', []),
-        limitations=["Considera base elastica linear (Winkler)" if not is_laje else "Apoios rigidos", "Nao considera adensamento secundario"],
-        additional_content=md
+        limitations=[
+            'Considera base elastica linear (Winkler)' if not is_laje else 'Apoios rigidos',
+            'Nao considera adensamento secundario',
+        ],
+        additional_content=md,
     )
 
 
@@ -848,13 +949,13 @@ def _build_mode_guidance(memorial: dict) -> dict:
     structural = memorial['verificacoes_estruturais']
     service = memorial['verificacoes_de_servico']
     is_laje = memorial.get('system_type') == 'laje'
-    
+
     if mode == 'dimensionamento':
         critical_checks = [
-            f"Espessura adotada atende referência preliminar: {memorial['pre_dimensionamento']['atende_referencia_preliminar']}",
-            f"Punção atende: {structural['puncao']['atende']}",
-            f"Asx topo adotada máxima (cm²/m): {structural['flexao'].get('Asx_top_adot_max_cm2_m', 'n/d')}",
-            f"Asy topo adotada máxima (cm²/m): {structural['flexao'].get('Asy_top_adot_max_cm2_m', 'n/d')}",
+            f'Espessura adotada atende referência preliminar: {memorial["pre_dimensionamento"]["atende_referencia_preliminar"]}',
+            f'Punção atende: {structural["puncao"]["atende"]}',
+            f'Asx topo adotada máxima (cm²/m): {structural["flexao"].get("Asx_top_adot_max_cm2_m", "n/d")}',
+            f'Asy topo adotada máxima (cm²/m): {structural["flexao"].get("Asy_top_adot_max_cm2_m", "n/d")}',
         ]
         recommended_actions = [
             'Consolidar faixas de armadura inferior e superior.',
@@ -863,9 +964,9 @@ def _build_mode_guidance(memorial: dict) -> dict:
     elif mode == 'analise':
         if is_laje:
             critical_checks = [
-                f"Reação máxima nos apoios (kN): {structural['momentos'].get('mx_abs_max_kNm_m', 0.0):.2f} (Ref)",
-                f"Flecha máxima imediata (mm): {service.get('w_max_mm', 0.0):.3f}",
-                f"Residual ratio: {structural['equilibrio_global']['residual_ratio']:.3e}",
+                f'Reação máxima nos apoios (kN): {structural["momentos"].get("mx_abs_max_kNm_m", 0.0):.2f} (Ref)',
+                f'Flecha máxima imediata (mm): {service.get("w_max_mm", 0.0):.3f}',
+                f'Residual ratio: {structural["equilibrio_global"]["residual_ratio"]:.3e}',
             ]
             recommended_actions = [
                 'Verificar rigidez dos apoios discretos (pilares).',
@@ -873,10 +974,10 @@ def _build_mode_guidance(memorial: dict) -> dict:
             ]
         else:
             critical_checks = [
-                f"Pressão média no solo (kPa): {geotech['pressao_media_kPa']:.3f}",
-                f"Pressão máxima no modelo (kPa): {geotech['pressao_max_modelo_kPa']:.3f}",
-                f"Recalque diferencial estimado (mm): {service.get('w_diff_mm', 'n/d')}",
-                f"Residual ratio: {structural['equilibrio_global']['residual_ratio']:.3e}",
+                f'Pressão média no solo (kPa): {geotech["pressao_media_kPa"]:.3f}',
+                f'Pressão máxima no modelo (kPa): {geotech["pressao_max_modelo_kPa"]:.3f}',
+                f'Recalque diferencial estimado (mm): {service.get("w_diff_mm", "n/d")}',
+                f'Residual ratio: {structural["equilibrio_global"]["residual_ratio"]:.3e}',
             ]
             recommended_actions = [
                 'Comparar cenários de kv e malha para sensibilidade.',
@@ -885,9 +986,9 @@ def _build_mode_guidance(memorial: dict) -> dict:
     elif mode == 'pericia':
         if is_laje:
             critical_checks = [
-                f"Flecha máxima calculada (mm): {service.get('w_max_mm', 0.0):.3f}",
-                f"Abertura de fissuras (wk,max): {service.get('wk_x_max_mm', 0.0):.3f} mm",
-                f"Equilíbrio global atende: {structural['equilibrio_global']['atende']}",
+                f'Flecha máxima calculada (mm): {service.get("w_max_mm", 0.0):.3f}',
+                f'Abertura de fissuras (wk,max): {service.get("wk_x_max_mm", 0.0):.3f} mm',
+                f'Equilíbrio global atende: {structural["equilibrio_global"]["atende"]}',
             ]
             recommended_actions = [
                 'Comparar flechas calculadas com flechas medidas in-loco.',
@@ -895,10 +996,10 @@ def _build_mode_guidance(memorial: dict) -> dict:
             ]
         else:
             critical_checks = [
-                f"Atende pressão máxima modelada: {geotech['atende_pressao_max_modelo']}",
-                f"Recalque máximo (mm): {service.get('w_max_mm', 'n/d')}",
-                f"Recalque diferencial (mm): {service.get('w_diff_mm', 'n/d')}",
-                f"Equilíbrio global atende: {structural['equilibrio_global']['atende']}",
+                f'Atende pressão máxima modelada: {geotech["atende_pressao_max_modelo"]}',
+                f'Recalque máximo (mm): {service.get("w_max_mm", "n/d")}',
+                f'Recalque diferencial (mm): {service.get("w_diff_mm", "n/d")}',
+                f'Equilíbrio global atende: {structural["equilibrio_global"]["atende"]}',
             ]
             recommended_actions = [
                 'Registrar hipóteses, dados de entrada e limitações do modelo para rastreabilidade.',
@@ -906,9 +1007,9 @@ def _build_mode_guidance(memorial: dict) -> dict:
             ]
     else:
         critical_checks = [
-            f"Modelo estrutural adotado: {memorial['modelo_estrutural']['tipo']}",
-            f"Flecha/Recalque Máximo (mm): {service.get('w_max_mm', 0.0):.3f}",
-            f"Punção atende: {structural['puncao']['atende']}",
+            f'Modelo estrutural adotado: {memorial["modelo_estrutural"]["tipo"]}',
+            f'Flecha/Recalque Máximo (mm): {service.get("w_max_mm", 0.0):.3f}',
+            f'Punção atende: {structural["puncao"]["atende"]}',
         ]
         recommended_actions = [
             'Transformar estudos paramétricos em benchmark interno.',

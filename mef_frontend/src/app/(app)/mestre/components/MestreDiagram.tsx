@@ -1,5 +1,4 @@
 import React from 'react';
-import { ArrowDown, Activity } from 'lucide-react';
 
 interface Point {
   x: number;
@@ -40,20 +39,20 @@ export function MestreDiagram({
   const width = 720;
   const padX = 40;
   const padY = 30;
-  
+
   const safeTotalLength = totalLength > 0 ? totalLength : 1;
-  
+
   const yValues = points.map(p => p.y);
   const maxValue = Math.max(...yValues);
   const minValue = Math.min(...yValues);
   const absMax = Math.max(Math.abs(maxValue), Math.abs(minValue), 0.001);
-  
+
   // Scale so that absMax fits in (height/2 - padY)
   const scaleY = (height / 2 - padY) / absMax;
   const zeroY = height / 2;
 
   const xFor = (x: number) => padX + (x / safeTotalLength) * (width - padX * 2);
-  
+
   // Engineering Convention: Positive Moment is drawn DOWNWARDS
   const isMomentDiagram = title.toUpperCase().includes('MOMENTO');
   const yFor = (y: number) => {
@@ -64,46 +63,50 @@ export function MestreDiagram({
   const polyline = points
     .map(p => `${xFor(p.x).toFixed(1)},${yFor(p.y).toFixed(1)}`)
     .join(' ');
-  
+
   const areaPoints = `${padX},${zeroY.toFixed(1)} ${polyline} ${xFor(points[points.length-1].x).toFixed(1)},${zeroY.toFixed(1)}`;
 
   const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ArrowDown className="w-3.5 h-3.5 text-primary" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
+    <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</span>
+          <h4 className="text-sm font-bold text-foreground">Diagrama de Esforços</h4>
         </div>
-        <div className="flex gap-3 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-          <span className="text-primary">MÁX {fmt(maxValue)} {unit}</span>
-          <span className="text-destructive">MÍN {fmt(minValue)} {unit}</span>
+        <div className="flex gap-2">
+          <div className="bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full">
+            <span className="text-[10px] font-mono font-black text-primary">MÁX {fmt(maxValue)} {unit}</span>
+          </div>
+          <div className="bg-destructive/5 border border-destructive/10 px-3 py-1.5 rounded-full">
+            <span className="text-[10px] font-mono font-black text-destructive">MÍN {fmt(minValue)} {unit}</span>
+          </div>
         </div>
       </div>
 
       <div className="relative group">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto drop-shadow-sm">
           {/* Base Line */}
-          <line 
-            x1={padX} y1={zeroY} x2={width - padX} y2={zeroY} 
-            stroke="currentColor" className="text-border" strokeWidth="1" 
+          <line
+            x1={padX} y1={zeroY} x2={width - padX} y2={zeroY}
+            stroke="currentColor" className="text-border" strokeWidth="1"
           />
-          
+
           {/* Zero labels */}
           <text x={padX - 8} y={zeroY + 4} textAnchor="end" fontSize="10" fill="currentColor" className="text-muted-foreground/50">0</text>
-          
+
           {/* Max/Min labels */}
-          <text 
-            x={padX - 8} 
-            y={(isMomentDiagram ? height - padY : padY) + 4} 
+          <text
+            x={padX - 8}
+            y={(isMomentDiagram ? height - padY : padY) + 4}
             textAnchor="end" fontSize="10" fill="currentColor" className="text-primary font-bold"
           >
             {fmt(maxValue)}
           </text>
-          <text 
-            x={padX - 8} 
-            y={(isMomentDiagram ? padY : height - padY) + 4} 
+          <text
+            x={padX - 8}
+            y={(isMomentDiagram ? padY : height - padY) + 4}
             textAnchor="end" fontSize="10" fill="currentColor" className="text-destructive font-bold"
           >
             {fmt(minValue)}
@@ -111,19 +114,19 @@ export function MestreDiagram({
 
           {/* Area Fill */}
           <polygon points={areaPoints} fill={fillColor} className="transition-all duration-500" />
-          
+
           {/* Main Line */}
-          <polyline 
-            points={polyline} fill="none" stroke={color} 
-            strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" 
+          <polyline
+            points={polyline} fill="none" stroke={color}
+            strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
             className="transition-all duration-500"
           />
 
           {/* Critical Points dots */}
           {points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 10)) === 0 || i === points.length - 1).map((p, i) => (
-            <circle 
-              key={i} cx={xFor(p.x)} cy={yFor(p.y)} r="2" 
-              fill={color} className="opacity-0 group-hover:opacity-100 transition-opacity" 
+            <circle
+              key={i} cx={xFor(p.x)} cy={yFor(p.y)} r="2"
+              fill={color} className="opacity-0 group-hover:opacity-100 transition-opacity"
             />
           ))}
 
@@ -133,24 +136,24 @@ export function MestreDiagram({
             const isUp = r.value >= 0;
             const arrowY1 = zeroY;
             const arrowY2 = isUp ? zeroY - 30 : zeroY + 30;
-            
+
             return (
               <g key={`reaction-${i}`} className="animate-in fade-in zoom-in duration-700 delay-300">
-                <line 
-                  x1={rx} y1={arrowY1} x2={rx} y2={arrowY2} 
-                  stroke="currentColor" className="text-primary" strokeWidth="2" 
+                <line
+                  x1={rx} y1={arrowY1} x2={rx} y2={arrowY2}
+                  stroke="currentColor" className="text-primary" strokeWidth="2"
                   markerEnd="url(#arrowhead-beam)"
                 />
-                <text 
-                  x={rx} y={isUp ? arrowY2 - 8 : arrowY2 + 15} 
-                  textAnchor="middle" fontSize="10" fontWeight="bold" 
+                <text
+                  x={rx} y={isUp ? arrowY2 - 8 : arrowY2 + 15}
+                  textAnchor="middle" fontSize="10" fontWeight="bold"
                   fill="currentColor" className="text-primary bg-background/80"
                 >
                   {fmt(Math.abs(r.value))}
                 </text>
-                <text 
-                  x={rx} y={isUp ? arrowY2 - 20 : arrowY2 + 27} 
-                  textAnchor="middle" fontSize="8" fontWeight="black" 
+                <text
+                  x={rx} y={isUp ? arrowY2 - 20 : arrowY2 + 27}
+                  textAnchor="middle" fontSize="8" fontWeight="black"
                   fill="currentColor" className="text-muted-foreground uppercase tracking-tighter"
                 >
                   {r.label || `R${i+1}`}
@@ -212,7 +215,7 @@ export function MestreFiberMap({ fibers, b, h, title }: MestreFiberMapProps) {
   const size = 300;
   const pad = 20;
   const innerSize = size - pad * 2;
-  
+
   // Encontrar limites de tensão para o color map
   const stresses = fibers.map(f => f.sig_MPa);
   const maxSig = Math.max(...stresses, 0.1);
@@ -233,20 +236,23 @@ export function MestreFiberMap({ fibers, b, h, title }: MestreFiberMapProps) {
   };
 
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
-        <div className="flex gap-2 text-[9px] font-black uppercase text-muted-foreground">
-          <span>MAX σ: {maxSig.toFixed(1)} MPa</span>
+    <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</span>
+          <h4 className="text-sm font-bold text-foreground">Distribuição de Tensões (Fibras)</h4>
+        </div>
+        <div className="bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full">
+          <span className="text-[10px] font-mono font-black text-primary">MAX σ: {maxSig.toFixed(1)} MPa</span>
         </div>
       </div>
 
       <div className="flex justify-center">
         <svg viewBox={`0 0 ${size} ${size}`} className="w-64 h-64 drop-shadow-sm">
           {/* Section Outline */}
-          <rect 
-            x={pad} y={pad} width={innerSize} height={innerSize} 
-            fill="none" stroke="currentColor" className="text-border" strokeWidth="1" 
+          <rect
+            x={pad} y={pad} width={innerSize} height={innerSize}
+            fill="none" stroke="currentColor" className="text-border" strokeWidth="1"
           />
 
           {/* Fibers */}
@@ -269,12 +275,12 @@ export function MestreFiberMap({ fibers, b, h, title }: MestreFiberMapProps) {
   );
 }
 
-export function MestreInteractionDiagram({ 
-  envelope, 
-  solicitant, 
-  title, 
-  unitM = "kNm", 
-  unitN = "kN" 
+export function MestreInteractionDiagram({
+  envelope,
+  solicitant,
+  title,
+  unitM = "kNm",
+  unitN = "kN"
 }: {
   envelope: { n: number; m: number }[];
   solicitant: { n: number; m: number };
@@ -290,7 +296,7 @@ export function MestreInteractionDiagram({
 
   const nValues = envelope.map(p => p.n);
   const mValues = envelope.map(p => p.m);
-  
+
   const minN = Math.min(...nValues, solicitant.n);
   const maxN = Math.max(...nValues, solicitant.n);
   const maxM = Math.max(...mValues.map(Math.abs), Math.abs(solicitant.m), 0.1);
@@ -310,12 +316,19 @@ export function MestreInteractionDiagram({
   const solY = yFor(solicitant.n);
 
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
-        <div className="flex gap-3 text-[9px] font-black uppercase text-muted-foreground">
-          <span className="text-primary">Nd: {solicitant.n.toFixed(0)} {unitN}</span>
-          <span className="text-primary">Md: {solicitant.m.toFixed(1)} {unitM}</span>
+    <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</span>
+          <h4 className="text-sm font-bold text-foreground">Diagrama de Interação N-M</h4>
+        </div>
+        <div className="flex gap-2">
+          <div className="bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full">
+            <span className="text-[10px] font-mono font-black text-primary">Nd: {solicitant.n.toFixed(0)} {unitN}</span>
+          </div>
+          <div className="bg-primary/5 border border-primary/10 px-3 py-1.5 rounded-full">
+            <span className="text-[10px] font-mono font-black text-primary">Md: {solicitant.m.toFixed(1)} {unitM}</span>
+          </div>
         </div>
       </div>
 
@@ -326,8 +339,8 @@ export function MestreInteractionDiagram({
           <line x1={pad} y1={yFor(0)} x2={pad + innerSize} y2={yFor(0)} stroke="currentColor" className="text-border" strokeWidth="1" />
 
           {/* Envelope */}
-          <polyline 
-            points={polyline} fill="rgba(37, 99, 235, 0.1)" stroke="rgb(37, 99, 235)" 
+          <polyline
+            points={polyline} fill="rgba(37, 99, 235, 0.1)" stroke="rgb(37, 99, 235)"
             strokeWidth="2" strokeLinejoin="round" className="transition-all duration-500"
           />
 
@@ -353,18 +366,13 @@ interface SystemNode {
   dz?: number;
 }
 
-interface SystemMember {
-  node_i: number;
-  node_j: number;
-}
-
 interface MestreSystemDiagramProps {
   nodes: SystemNode[];
-  members: any[];
+  members: { node_i: number; node_j: number; id: string | number }[];
   title: string;
   deformedScale?: number;
   reactions?: Record<string, number[]>;
-  efforts?: Record<string, any>;
+  efforts?: Record<string, { i?: { N?: number }; j?: { N?: number } }>;
 }
 
 export function MestreSystemDiagram({
@@ -403,17 +411,17 @@ export function MestreSystemDiagram({
   const zFor = (z: number) => height - pad - (z - minZ) * scale;
 
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="w-3.5 h-3.5 text-primary" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{title}</span>
+    <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+      <div className="flex justify-between items-center mb-6 px-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</span>
+          <h4 className="text-sm font-bold text-foreground">Deformada & Esforços do Sistema</h4>
         </div>
         {Object.keys(efforts).length > 0 && (
-          <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Tração</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Compressão</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400" /> Nulo</span>
+          <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-wider">
+            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-full">Tração</span>
+            <span className="bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 px-2.5 py-1 rounded-full">Compressão</span>
+            <span className="bg-slate-400/10 border border-slate-400/20 text-slate-500 px-2.5 py-1 rounded-full">Nulo</span>
           </div>
         )}
       </div>
@@ -443,7 +451,7 @@ export function MestreSystemDiagram({
             const ni = nodes.find(n => n.id === m.node_i);
             const nj = nodes.find(n => n.id === m.node_j);
             if (!ni || !nj) return null;
-            
+
             const xi = ni.x + (ni.dx || 0) * deformedScale;
             const zi = ni.z + (ni.dz || 0) * deformedScale;
             const xj = nj.x + (nj.dx || 0) * deformedScale;
@@ -454,7 +462,7 @@ export function MestreSystemDiagram({
 
             let strokeColor = "#007AFF"; // Default blue
             let strokeWidth = "3";
-            
+
             if (force !== null) {
               if (force > 0.01) {
                 strokeColor = "#10B981"; // Emerald for tension
@@ -522,22 +530,22 @@ export function MestreSystemDiagram({
           {Object.entries(reactions).map(([nid, rVec]) => {
             const n = nodes.find(node => String(node.id) === nid);
             if (!n) return null;
-            
+
             const nx = xFor(n.x);
             const nz = zFor(n.z);
-            
+
             // Fz is vertical in our mapping (zFor)
             // Rx is horizontal (xFor)
             const rx_val = rVec[0];
             const rz_val = rVec[2]; // Fz is usually index 2 in 3D frame [Rx, Ry, Rz, Mx, My, Mz]
-            
+
             return (
               <g key={`sys-reaction-${nid}`} className="text-primary animate-in fade-in zoom-in duration-700">
                 {/* Vertical Reaction */}
                 {Math.abs(rz_val) > 0.01 && (
                   <g>
-                    <line 
-                      x1={nx} y1={nz} x2={nx} y2={nz - (rz_val > 0 ? 40 : -40)} 
+                    <line
+                      x1={nx} y1={nz} x2={nx} y2={nz - (rz_val > 0 ? 40 : -40)}
                       stroke="currentColor" strokeWidth="2" markerEnd="url(#arrowhead-system)"
                     />
                     <text x={nx + 5} y={nz - (rz_val > 0 ? 25 : -25)} fontSize="9" fontWeight="bold" fill="currentColor">
@@ -548,8 +556,8 @@ export function MestreSystemDiagram({
                 {/* Horizontal Reaction */}
                 {Math.abs(rx_val) > 0.01 && (
                   <g>
-                    <line 
-                      x1={nx} y1={nz} x2={nx + (rx_val > 0 ? 40 : -40)} y2={nz} 
+                    <line
+                      x1={nx} y1={nz} x2={nx + (rx_val > 0 ? 40 : -40)} y2={nz}
                       stroke="currentColor" strokeWidth="2" markerEnd="url(#arrowhead-system)"
                     />
                     <text x={nx + (rx_val > 0 ? 20 : -20)} y={nz - 5} textAnchor="middle" fontSize="9" fontWeight="bold" fill="currentColor">

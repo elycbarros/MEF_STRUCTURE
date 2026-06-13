@@ -14,7 +14,6 @@ import { useMestreStore } from '@/lib/store-mestre';
 import { solveCross } from '@/lib/vigacross/engine';
 import type { BeamInput, CrossSolveResult, SpanLoad, SupportType } from '@/lib/vigacross/types';
 import type { MestreStep } from '@/lib/mestre-types';
-import { MestreDiagram } from './MestreDiagram';
 import { StructuralDiagram } from './StructuralDiagram';
 
 const SUPPORT_LABELS: Record<string, string> = {
@@ -168,7 +167,7 @@ export function BeamCrossPlayground() {
 
   const getStructuralDiagramData = (type: 'shear' | 'moment' | 'deflection') => {
     if (!results?.diagrams) return null;
-    
+
     return {
       type,
       unit: type === 'shear' ? 'kN' : type === 'moment' ? 'kNm' : 'mm',
@@ -513,7 +512,7 @@ export function BeamCrossPlayground() {
               const shearData = getStructuralDiagramData('shear');
               const momentData = getStructuralDiagramData('moment');
               const deflectionData = getStructuralDiagramData('deflection');
-              
+
               return (
                 <>
                   {shearData && <StructuralDiagram data={shearData as any} />}

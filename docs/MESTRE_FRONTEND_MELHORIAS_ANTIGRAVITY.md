@@ -111,116 +111,24 @@ Estado atual:
 - Apoios e cargas customizadas do frontend chegam ao solver.
 - O playground de vigas possui presets de balanço.
 
-### Ordem Atual Do Que Falta Fazer
+### Ordem Atual Do Que Falta Fazer (Foco em Refinamento)
 
-Esta é a ordem recomendada a partir do estado atual, já considerando que a sugestão 1 foi executada visualmente.
+Todos os playgrounds principais (incluindo Vento, Pórticos, Treliças, Tension Pro, SPT, Estabilidade γz e Radier Avançado) foram migrados com sucesso e estão integrados no registro único de módulos `mestre-modules.ts`. As prioridades de desenvolvimento agora são focadas no refinamento técnico e experiência de engenharia:
 
-1. Criar registro único de módulos no frontend.
+1. Padronizar diagramas em módulos estruturais:
+   - Garantir que todos os diagramas sigam a mesma identidade gráfica do Viga Cross, com linha zero, indicações de nós, valores máximos e área sombreada bem visíveis.
 
-Objetivo:
+2. Melhorar o módulo Pilar com ideias do P-Calc:
+   - Implementar o diagrama de interação `N-M` no pilar (flexo-compressão normal e oblíqua), posicionando o ponto solicitante em relação à curva resistente da seção.
 
-- retirar a definição manual duplicada entre `MestreSidebar.tsx` e `page.tsx`;
-- preparar a entrada segura de SPT, γz, vento, Tension Pro, pórticos, treliças e radier avançado;
-- transformar os placeholders `breve` em itens declarados no mesmo registro.
+3. Refinamento de Lajes e Radier (Winkler / Branson / Punção):
+   - Adicionar a visualização de pressões de solo e cálculo de perda de contato solo-radier (*tensionless*) no Radier Avançado.
+   - Implementar verificação de flechas diferidas fissuradas pelo modelo de Branson.
 
-Arquivos prováveis:
+4. Infraestrutura de casos de carga, combinações normativas (NBR 8681) e envoltórias.
 
-```text
-mef_frontend/src/lib/mestre-modules.ts
-mef_frontend/src/lib/mestre-types.ts
-mef_frontend/src/app/(app)/mestre/page.tsx
-mef_frontend/src/app/(app)/mestre/components/MestreSidebar.tsx
-```
+5. Biblioteca de apoios avançados (molas elásticas, apoios inclinados, recalque imposto).
 
-2. Recuperar módulos pequenos com backend pronto: SPT e Estabilidade γz.
-
-Objetivo:
-
-- criar `SptPlayground.tsx`;
-- criar `StabilityPlayground.tsx`;
-- ativar os itens atualmente desabilitados na sidebar;
-- preencher memorial à direita e `calculation_trace`.
-
-Rotas prováveis:
-
-```text
-/api/mestre/calculate/spt
-/api/mestre/calculate/stability-mestre
-```
-
-3. Padronizar diagramas em módulos estruturais.
-
-Objetivo:
-
-- usar o padrão recém-aplicado no `Viga Cross` como referência;
-- garantir linha zero, nós/vãos, unidades, valores extremos e área/curva legíveis.
-
-Prioridade:
-
-```text
-Viga Isolada
-Pilar
-Laje/Radier simplificado
-Pórticos, quando migrados
-Treliças, quando migradas
-```
-
-4. Melhorar o módulo Pilar com ideias do P-Calc.
-
-Objetivo:
-
-- adicionar diagrama de interação `N-M`;
-- destacar ponto solicitante;
-- mostrar se está dentro/fora da envoltória resistente;
-- reforçar esbeltez, segunda ordem e momentos mínimos.
-
-5. Recuperar Vento / NBR 6123.
-
-Objetivo:
-
-- criar tela de vento;
-- ligar com `routes/wind.py`;
-- exibir perfil de pressão/força e, se aplicável, resultado de estabilidade.
-
-6. Criar infraestrutura de casos de carga, combinações e envoltórias.
-
-Objetivo:
-
-- aproximar a experiência de ferramentas como FTool;
-- permitir ELU, ELS e envelopes sem duplicar lógica em cada módulo.
-
-7. Criar biblioteca de apoios avançados.
-
-Objetivo:
-
-- apoio inclinado;
-- mola vertical/horizontal/rotacional;
-- recalque imposto;
-- rotação imposta.
-
-8. Recuperar Tension Pro / Protensão.
-
-Objetivo:
-
-- confirmar rota Rust ativa;
-- criar `TensionProPlayground.tsx`;
-- ligar memorial e `calculation_trace`.
-
-9. Recuperar Pórticos e Treliças.
-
-Objetivo:
-
-- criar módulos em `Sistemas`;
-- usar visual 2D/3D próprio;
-- evitar misturar com Viga Isolada.
-
-10. Reabrir Radier/Lajes avançado.
-
-Objetivo:
-
-- criar módulo próprio;
-- não misturar com `SlabPlayground` atual;
-- recuperar editor visual, pilares, furos, apoios, mapa de solo, detalhamento e relatório.
 
 ### 1. Separar O Mestre Em Categorias Claras
 
