@@ -260,111 +260,123 @@ async def optimize_design_core(input_data: DesignOptimizationInput):
                         engine = SlabEngineWrapper(cfg)
                         res = engine.run_analysis()
                         checks = res.get('sanity_checks', {})
-                        valid = checks.get('flecha_ok', True) and checks.get('puncao_ok', True) and checks.get('geometria_ok', True)
+                        valid = (
+                            checks.get('flecha_ok', True)
+                            and checks.get('puncao_ok', True)
+                            and checks.get('geometria_ok', True)
+                        )
                         steel_kg = res.get('master', {}).get('consumption', {}).get('steel_kg', 0.0)
                         max_w = res.get('master', {}).get('mef_summary', {}).get('w_max_mm', 0.0)
                     else:
-                        from radier_lab_v24 import run_deterministic_fem, run_design_checks
+                        from radier_lab_v24 import run_design_checks, run_deterministic_fem
+
                         radier_cfg = RadierEngine(cfg).config
                         det_file = run_deterministic_fem(radier_cfg)
                         det = read_json(det_file)
                         design_res = run_design_checks(radier_cfg)
-                        
+
                         q_max = det.get('qsoil_max_kPa', 0.0)
                         valid_pressao = q_max <= (input_data.target_sigma or cfg.sigma_adm_kPa)
                         puncao_ok = True
                         if 'punching_check_file' in design_res:
                             import pandas as pd
+
                             df_punch = pd.read_csv(design_res['punching_check_file'])
                             if not df_punch.empty and 'atende' in df_punch.columns:
                                 puncao_ok = bool(df_punch['atende'].all())
-                        
+
                         recalque_max = det.get('w_max_mm', 0.0)
                         flecha_ok = recalque_max <= 50.0
                         valid = valid_pressao and puncao_ok and flecha_ok
                         steel_kg = design_res.get('reinforcement_metrics', {}).get('peso_total_aco_kg', 0.0)
                         max_w = recalque_max
-                    
+
                     return {
                         'valid': valid,
                         'steel_kg': steel_kg,
                         'max_displacement_mm': max_w,
                         'reliability_beta': 4.0 if valid else 0.0,
-                        'failure_probability': 0.0 if valid else 1.0
+                        'failure_probability': 0.0 if valid else 1.0,
                     }
                 except Exception:
                     return {'valid': False, 'steel_kg': 99999.0}
             else:
                 import numpy as np
                 from scipy.stats import norm
-                
+
                 n_samples = 15
                 failures = 0
                 displacement_list = []
                 steel_list = []
-                
+
                 rng = np.random.default_rng(12345)
-                
+
                 for _ in range(n_samples):
                     sim_kv = max(1e5, float(rng.normal(config.kv, config.kv * input_data.kv_cov)))
                     sim_q = max(0.0, float(rng.normal(config.q, config.q * input_data.q_cov)))
-                    
+
                     cfg = config.model_copy(update={'h': h, 'fck': fck, 'kv': sim_kv, 'q': sim_q})
                     try:
                         if is_laje:
                             engine = SlabEngineWrapper(cfg)
                             res = engine.run_analysis()
                             checks = res.get('sanity_checks', {})
-                            is_valid = checks.get('flecha_ok', True) and checks.get('puncao_ok', True) and checks.get('geometria_ok', True)
+                            is_valid = (
+                                checks.get('flecha_ok', True)
+                                and checks.get('puncao_ok', True)
+                                and checks.get('geometria_ok', True)
+                            )
                             steel_kg = res.get('master', {}).get('consumption', {}).get('steel_kg', 0.0)
                             max_w = res.get('master', {}).get('mef_summary', {}).get('w_max_mm', 0.0)
                         else:
-                            from radier_lab_v24 import run_deterministic_fem, run_design_checks
+                            from radier_lab_v24 import run_design_checks, run_deterministic_fem
+
                             radier_cfg = RadierEngine(cfg).config
                             det_file = run_deterministic_fem(radier_cfg)
                             det = read_json(det_file)
                             design_res = run_design_checks(radier_cfg)
-                            
+
                             q_max = det.get('qsoil_max_kPa', 0.0)
                             valid_pressao = q_max <= (input_data.target_sigma or cfg.sigma_adm_kPa)
                             puncao_ok = True
                             if 'punching_check_file' in design_res:
                                 import pandas as pd
+
                                 df_punch = pd.read_csv(design_res['punching_check_file'])
                                 if not df_punch.empty and 'atende' in df_punch.columns:
                                     puncao_ok = bool(df_punch['atende'].all())
-                            
+
                             recalque_max = det.get('w_max_mm', 0.0)
                             flecha_ok = recalque_max <= 50.0
                             is_valid = valid_pressao and puncao_ok and flecha_ok
                             steel_kg = design_res.get('reinforcement_metrics', {}).get('peso_total_aco_kg', 0.0)
                             max_w = recalque_max
-                            
+
                         if not is_valid:
                             failures += 1
                         displacement_list.append(max_w)
                         steel_list.append(steel_kg)
                     except Exception:
                         failures += 1
-                
+
                 p_failure = failures / n_samples
                 p_adj = max(1e-5, min(1.0 - 1e-5, p_failure))
                 try:
                     beta = float(-norm.ppf(p_adj))
                 except Exception:
                     beta = 0.0
-                
+
                 is_valid_reliability = beta >= input_data.target_reliability_beta
-                
+
                 mean_steel = float(np.mean(steel_list)) if steel_list else 0.0
                 mean_w = float(np.mean(displacement_list)) if displacement_list else 0.0
-                
+
                 return {
                     'valid': is_valid_reliability,
                     'steel_kg': mean_steel,
                     'max_displacement_mm': mean_w,
                     'reliability_beta': round(beta, 3),
-                    'failure_probability': round(p_failure, 4)
+                    'failure_probability': round(p_failure, 4),
                 }
 
         # Instancia e roda o otimizador genético (pop_size=8, generations=5 para manter rápido via API)
@@ -385,7 +397,7 @@ async def optimize_design_core(input_data: DesignOptimizationInput):
             'max_displacement_mm': round(best.metadata.get('max_displacement_mm', 0.0), 3) if best.metadata else 0.0,
             'reliability_index_beta': best.metadata.get('reliability_beta', 0.0) if best.metadata else 0.0,
             'failure_probability': best.metadata.get('failure_probability', 0.0) if best.metadata else 0.0,
-            'status': 'optimized' if best.valid else 'no_valid_configuration_found'
+            'status': 'optimized' if best.valid else 'no_valid_configuration_found',
         }
 
     except Exception as e:
