@@ -6,6 +6,8 @@ class ConfigInput(BaseModel):
     Lx: float = Field(32.5, gt=0.5, le=500.0, description="Comprimento X do radier/laje (m)")
     Ly: float = Field(24.8, gt=0.5, le=500.0, description="Comprimento Y do radier/laje (m)")
     h: float = Field(1.15, gt=0.05, le=5.0, description="Espessura do radier/laje (m)")
+    nx: int = Field(21, ge=5, le=100, description="Número de divisões em X")
+    ny: int = Field(21, ge=5, le=100, description="Número de divisões em Y")
     kv: float = Field(22.1e6, ge=1.0e5, le=1.0e9, description="Coeficiente de reação vertical do solo (N/m³)")
     q: float = Field(140e3, ge=0.0, le=5.0e6, description="Carga distribuída vertical (Pa = N/m²)")
     sigma_adm_kPa: float = Field(200.0, gt=1.0, le=5000.0, description="Tensão admissível do solo (kPa)")
@@ -74,6 +76,11 @@ class DesignOptimizationInput(BaseModel):
     current_h: float
     target_sigma: float
     config: Optional[ConfigInput] = None
+    enable_reliability_mode: bool = False
+    target_reliability_beta: float = 3.0
+    kv_cov: float = 0.15
+    q_cov: float = 0.10
+    enable_surrogate_acceleration: bool = False
 
 class AnalyticalComparisonResult(BaseModel):
     success: bool

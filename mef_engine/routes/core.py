@@ -157,6 +157,18 @@ router = APIRouter(tags=['Mestre - Core'])
 async def calculate_radier(input_data: ConfigInput):
     """Main structural analysis engine for Radier foundations."""
     try:
+        # Resolve presets de usabilidade
+        from presets import resolve_presets
+        presets_data = resolve_presets(
+            input_data.soil_preset_id,
+            input_data.purpose_preset_id,
+            input_data.num_floors
+        )
+        if presets_data:
+            input_data = input_data.model_copy(update={
+                k: v for k, v in presets_data.items() if k in ["kv", "q", "sigma_adm_kPa"]
+            })
+
         is_laje = input_data.system_type == 'laje'
         if is_laje:
             engine = SlabEngineWrapper(input_data)
@@ -244,6 +256,19 @@ async def optimize_design_core(input_data: DesignOptimizationInput):
         from structural_optimizer import GeneticOptimizer
 
         config = input_data.config or ConfigInput(Lx=6.0, Ly=6.0, h=input_data.current_h)
+        
+        # Resolve presets de usabilidade
+        from presets import resolve_presets
+        presets_data = resolve_presets(
+            config.soil_preset_id,
+            config.purpose_preset_id,
+            config.num_floors
+        )
+        if presets_data:
+            config = config.model_copy(update={
+                k: v for k, v in presets_data.items() if k in ["kv", "q", "sigma_adm_kPa"]
+            })
+
         is_laje = config.system_type == 'laje'
         area_m2 = config.Lx * config.Ly
 

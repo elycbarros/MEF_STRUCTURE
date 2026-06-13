@@ -105,6 +105,33 @@ class TestOptimizeAPI(unittest.TestCase):
         # Deve retornar o índice obtido maior ou igual a zero
         self.assertGreaterEqual(data['reliability_index_beta'], 0.0)
 
+    def test_optimize_design_with_presets(self):
+        payload = {
+            'current_h': 0.30,
+            'target_sigma': 150.0,
+            'config': {
+                'Lx': 5.0,
+                'Ly': 5.0,
+                'h': 0.30,
+                'system_type': 'radier',
+                'soil_preset_id': 'argila_rija',
+                'purpose_preset_id': 'residencial',
+                'num_floors': 1,
+                'pillars': [
+                    {'id': 'P1', 'x': 1.0, 'y': 1.0, 'p_kN': 30.0},
+                    {'id': 'P2', 'x': 4.0, 'y': 1.0, 'p_kN': 30.0},
+                    {'id': 'P3', 'x': 4.0, 'y': 4.0, 'p_kN': 30.0},
+                    {'id': 'P4', 'x': 1.0, 'y': 4.0, 'p_kN': 30.0},
+                ],
+            },
+        }
+        response = self.client.post('/api/mestre/optimize_design', json=payload)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('success'))
+        self.assertIn('suggested_h', data)
+        self.assertIn('suggested_fck', data)
+
 
 if __name__ == '__main__':
     unittest.main()
