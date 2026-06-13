@@ -111,23 +111,28 @@ Estado atual:
 - Apoios e cargas customizadas do frontend chegam ao solver.
 - O playground de vigas possui presets de balanço.
 
+### Feito
+
+1. Separação visual da sidebar por famílias.
+2. Viga Cross recuperada.
+3. Vigas com balanços.
+4. **Padronizar diagramas em módulos estruturais**:
+   - Garantido que os diagramas (`StructuralDiagram`, `MestreDiagram`, `MestreInteractionDiagram` e `WindTowerDiagram`) usem a mesma identidade gráfica premium, com linha zero, indicações de nós, valores máximos e área sombreada bem visíveis.
+
 ### Ordem Atual Do Que Falta Fazer (Foco em Refinamento)
 
 Todos os playgrounds principais (incluindo Vento, Pórticos, Treliças, Tension Pro, SPT, Estabilidade γz e Radier Avançado) foram migrados com sucesso e estão integrados no registro único de módulos `mestre-modules.ts`. As prioridades de desenvolvimento agora são focadas no refinamento técnico e experiência de engenharia:
 
-1. Padronizar diagramas em módulos estruturais:
-   - Garantir que todos os diagramas sigam a mesma identidade gráfica do Viga Cross, com linha zero, indicações de nós, valores máximos e área sombreada bem visíveis.
-
-2. Melhorar o módulo Pilar com ideias do P-Calc:
+1. **[PRÓXIMO PASSO] Melhorar o módulo Pilar com ideias do P-Calc**:
    - Implementar o diagrama de interação `N-M` no pilar (flexo-compressão normal e oblíqua), posicionando o ponto solicitante em relação à curva resistente da seção.
 
-3. Refinamento de Lajes e Radier (Winkler / Branson / Punção):
+2. **Refinamento de Lajes e Radier (Winkler / Branson / Punção)**:
    - Adicionar a visualização de pressões de solo e cálculo de perda de contato solo-radier (*tensionless*) no Radier Avançado.
    - Implementar verificação de flechas diferidas fissuradas pelo modelo de Branson.
 
-4. Infraestrutura de casos de carga, combinações normativas (NBR 8681) e envoltórias.
+3. **Infraestrutura de casos de carga, combinações normativas (NBR 8681) e envoltórias**.
 
-5. Biblioteca de apoios avançados (molas elásticas, apoios inclinados, recalque imposto).
+4. **Biblioteca de apoios avançados (molas elásticas, apoios inclinados, recalque imposto)**.
 
 
 ### 1. Separar O Mestre Em Categorias Claras
