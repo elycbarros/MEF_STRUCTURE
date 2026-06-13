@@ -292,18 +292,18 @@ function WindTowerDiagram({
   });
 
   return (
-    <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-          <Wind className="w-3.5 h-3.5 text-primary" />
-          Ação Física & Deformada Qualitativa da Torre
-        </h4>
-        <div className="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/5 px-2 py-0.5 rounded-md border border-primary/10">
+    <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500 space-y-6">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">AÇÃO NORMATIVA</span>
+          <h4 className="text-sm font-bold text-foreground">Ação Física & Deformada Qualitativa da Torre</h4>
+        </div>
+        <div className="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/5 px-3 py-1.5 rounded-full border border-primary/10">
           Rajada Dinâmica (G) = {fmt(summary?.g_dynamic ?? 1.0)}
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-6 items-center justify-center bg-background/20 rounded-xl p-3 border border-border/30">
+      <div className="flex flex-col sm:flex-row gap-6 items-center justify-center bg-background/50 dark:bg-background/20 rounded-xl p-4 border border-border/30">
         <div className="relative w-full max-w-[280px]">
           <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-auto overflow-visible select-none">
             <defs>

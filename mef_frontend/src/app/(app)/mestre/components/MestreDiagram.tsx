@@ -130,6 +130,20 @@ export function MestreDiagram({
             />
           ))}
 
+          {/* Node Indicators on Zero Line for Reactions */}
+          {reactions.map((r, i) => (
+            <circle
+              key={`node-circle-${i}`}
+              cx={xFor(r.x)}
+              cy={zeroY}
+              r="4"
+              fill="white"
+              stroke={color}
+              strokeWidth="2.5"
+              className="drop-shadow-sm"
+            />
+          ))}
+
           {/* Reactions Arrows and Labels */}
           {reactions.map((r, i) => {
             const rx = xFor(r.x);
@@ -141,13 +155,13 @@ export function MestreDiagram({
               <g key={`reaction-${i}`} className="animate-in fade-in zoom-in duration-700 delay-300">
                 <line
                   x1={rx} y1={arrowY1} x2={rx} y2={arrowY2}
-                  stroke="currentColor" className="text-primary" strokeWidth="2"
+                  stroke="currentColor" className="text-primary" strokeWidth="2.5"
                   markerEnd="url(#arrowhead-beam)"
                 />
                 <text
                   x={rx} y={isUp ? arrowY2 - 8 : arrowY2 + 15}
                   textAnchor="middle" fontSize="10" fontWeight="bold"
-                  fill="currentColor" className="text-primary bg-background/80"
+                  fill="currentColor" className="text-primary bg-background/80 font-mono"
                 >
                   {fmt(Math.abs(r.value))}
                 </text>
@@ -160,8 +174,8 @@ export function MestreDiagram({
                 </text>
 
                 {/* Support Graphic Symbol */}
-                <g transform={`translate(${rx}, ${zeroY})`} className="text-muted-foreground/40">
-                  {r.type === 'fixed' && (
+                <g transform={`translate(${rx}, ${zeroY})`} className="text-zinc-300 dark:text-zinc-700">
+                  {r.type === 'fixed' ? (
                     <g>
                       <line x1="-8" y1="-10" x2="-8" y2="10" stroke="currentColor" strokeWidth="2" />
                       <line x1="-12" y1="-8" x2="-8" y2="-4" stroke="currentColor" strokeWidth="1" />
@@ -169,14 +183,16 @@ export function MestreDiagram({
                       <line x1="-12" y1="0" x2="-8" y2="4" stroke="currentColor" strokeWidth="1" />
                       <line x1="-12" y1="4" x2="-8" y2="8" stroke="currentColor" strokeWidth="1" />
                     </g>
-                  )}
-                  {r.type === 'pinned' && (
-                    <path d="M-8,12 L8,12 L0,0 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                  )}
-                  {r.type === 'roller' && (
+                  ) : r.type === 'roller' ? (
                     <g>
                       <path d="M-8,8 L8,8 L0,0 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
                       <line x1="-8" y1="12" x2="8" y2="12" stroke="currentColor" strokeWidth="1.5" />
+                    </g>
+                  ) : (
+                    /* Default to Pinned Support Symbol */
+                    <g>
+                      <path d="M-8,12 L8,12 L0,0 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="-10" y1="14" x2="10" y2="14" stroke="currentColor" strokeWidth="1.5" />
                     </g>
                   )}
                 </g>

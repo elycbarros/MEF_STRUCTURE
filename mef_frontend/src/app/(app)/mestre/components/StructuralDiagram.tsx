@@ -45,7 +45,7 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
     return {
       minX, maxX, minY, maxY,
       width: 800,
-      height: 300, // Aumentado para legenda
+      height: 320,
       padding: 50
     };
   }, [series]);
@@ -57,10 +57,10 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
 
     // Convenção de Engenharia Estrutural: Momento Positivo para BAIXO
     if (type === 'moment') {
-      normalizedY = 1 - normalizedY; // Inverte a normalização
+      normalizedY = 1 - normalizedY;
     }
 
-    return height - padding - normalizedY * (height - 2 * padding) - 20;
+    return height - padding - 30 - normalizedY * (height - 2 * padding - 30);
   };
 
   const getPath = (points: Point[]) => {
@@ -78,10 +78,12 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
   };
 
   const defaultColors = {
-    shear: '#3b82f6',
-    moment: '#f97316',
-    deflection: '#10b981'
-  }[type] || '#3b82f6';
+    shear: 'hsl(217 91% 55%)',
+    moment: 'hsl(262 83% 58%)',
+    deflection: 'hsl(142 76% 45%)'
+  }[type] || 'hsl(217 91% 55%)';
+
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
   return (
     <div className="w-full bg-white dark:bg-zinc-950 rounded-2xl border border-border/50 p-6 shadow-md overflow-hidden animate-in fade-in zoom-in-95 duration-500">
@@ -97,8 +99,34 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
 
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-auto overflow-visible"
+        className="w-full h-auto overflow-visible select-none"
       >
+        {/* Support Graphic Symbols on Baseline */}
+        {data.reactions?.map((r, idx) => {
+          const rx = getX(r.x);
+          const ry = getY(0);
+          const sz = 8;
+          return (
+            <g key={`sup-sym-${idx}`} className="text-zinc-300 dark:text-zinc-700 animate-in fade-in duration-500">
+              <polygon
+                points={`${rx},${ry} ${rx - sz},${ry + sz * 1.5} ${rx + sz},${ry + sz * 1.5}`}
+                fill="currentColor"
+                fillOpacity="0.2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <line
+                x1={rx - sz * 1.3}
+                y1={ry + sz * 1.5 + 2}
+                x2={rx + sz * 1.3}
+                y2={ry + sz * 1.5 + 2}
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })}
+
         {/* Grids Horizontais (Eixos) */}
         <line
           x1={getX(minX)} y1={getY(minY)}
@@ -108,17 +136,17 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
         <line
           x1={getX(minX)} y1={getY(0)}
           x2={getX(maxX)} y2={getY(0)}
-          stroke="currentColor" strokeWidth="2" strokeOpacity="0.2"
-          strokeDasharray="4 4"
+          stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.4"
+          className="text-muted-foreground"
         />
 
         {series.map((s, idx) => {
           const color = s.color || defaultColors;
           return (
-            <g key={idx} className="transition-opacity hover:opacity-100 opacity-90">
-              {/* Área (apenas para a primeira série, geralmente MEF) */}
+            <g key={idx} className="transition-opacity hover:opacity-100 opacity-95">
+              {/* Área Sombreada */}
               {idx === 0 && (
-                <path d={getAreaPath(s.points)} fill={color} fillOpacity="0.05" />
+                <path d={getAreaPath(s.points)} fill={color} fillOpacity="0.06" />
               )}
               {/* Linha do Diagrama */}
               <path
@@ -139,7 +167,7 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
                   const pMax = s.points[maxIdx];
                   const yPos = getY(pMax.y);
                   const isPositive = pMax.y >= 0;
-                  // Se for momento, positivo é para baixo, então "fora" é somar no Y
+                  // Se for momento, positivo é para baixo, então offset inverte
                   const offset = type === 'moment'
                     ? (isPositive ? 25 : -15)
                     : (isPositive ? -15 : 25);
@@ -152,9 +180,9 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
                           x={getX(pMax.x)}
                           y={yPos + offset}
                           textAnchor="middle"
-                          className="fill-foreground text-[14px] font-black"
+                          className="fill-foreground text-[12px] font-black font-mono"
                         >
-                          {pMax.y.toFixed(2)}
+                          {fmt(pMax.y)} {unit}
                         </text>
                       )}
                     </g>
@@ -165,9 +193,27 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
           );
         })}
 
+        {/* Node Indicators on Zero Line */}
+        {data.reactions?.map((r, idx) => {
+          const rx = getX(r.x);
+          const ry = getY(0);
+          return (
+            <circle
+              key={`node-circle-${idx}`}
+              cx={rx}
+              cy={ry}
+              r="4"
+              fill="white"
+              stroke={defaultColors}
+              strokeWidth="2.5"
+              className="drop-shadow-sm"
+            />
+          );
+        })}
+
         {/* Eixo X - Comprimento */}
-        <text x={getX(minX)} y={getY(0) + 25} textAnchor="middle" className="fill-muted-foreground text-[12px] font-bold">0.0m</text>
-        <text x={getX(maxX)} y={getY(0) + 25} textAnchor="middle" className="fill-muted-foreground text-[12px] font-bold">{maxX.toFixed(1)}m</text>
+        <text x={getX(minX)} y={getY(0) - 10} textAnchor="start" className="fill-muted-foreground text-[10px] font-bold">0.0m</text>
+        <text x={getX(maxX)} y={getY(0) - 10} textAnchor="end" className="fill-muted-foreground text-[10px] font-bold">{maxX.toFixed(1)}m</text>
 
         {/* Reações de Apoio */}
         {data.reactions?.map((r, idx) => {
@@ -176,10 +222,8 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
           const isUp = r.value >= 0;
           const arrowLen = 35;
 
-          // Se for positivo (UP), a seta vem de baixo para cima (yBase + len -> yBase)
-          // Se for negativo (DOWN), a seta vem de cima para baixo (yBase - len -> yBase)
-          const y1 = yBase + (isUp ? arrowLen : -arrowLen);
-          const y2 = yBase;
+          const y1 = yBase + (isUp ? arrowLen + 15 : -arrowLen - 15);
+          const y2 = yBase + (isUp ? 15 : -15);
 
           return (
             <g key={idx} className="animate-in fade-in zoom-in-50 duration-1000 delay-300">
@@ -187,16 +231,16 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
               <line
                 x1={xPos} y1={y1}
                 x2={xPos} y2={y2}
-                stroke="#ef4444" strokeWidth="3"
+                stroke="#ef4444" strokeWidth="2.5"
                 markerEnd="url(#arrowhead)"
               />
               <text
                 x={xPos}
-                y={yBase + (isUp ? arrowLen + 15 : -arrowLen - 10)}
+                y={yBase + (isUp ? arrowLen + 28 : -arrowLen - 22)}
                 textAnchor="middle"
-                className="fill-red-500 text-[11px] font-black"
+                className="fill-red-500 text-[11px] font-black font-mono"
               >
-                {r.label}: {Math.abs(r.value).toFixed(1)} kN
+                {r.label}: {fmt(Math.abs(r.value))} kN
               </text>
             </g>
           );
@@ -225,3 +269,4 @@ export function StructuralDiagram({ data }: StructuralDiagramProps) {
     </div>
   );
 }
+
