@@ -1,0 +1,63 @@
+site_name: Atlas Structural Engine
+site_description: Motor MEF 3D de Alta Performance com Aceleração Rust — Documentação Técnica
+site_author: PhD Structural Lab
+repo_url: https://github.com/elycbarros/MEF-STRUCTURAL
+repo_name: MEF STRUCTURAL
+edit_uri: ""
+
+theme:
+  name: material
+  language: pt-BR
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Modo escuro
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Modo claro
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.expand
+    - navigation.indexes
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Início: index.md
+  - Arquitetura: architecture.md
+  - API:
+      - Visão Geral: api/overview.md
+      - Modo Mestre: api/mestre.md
+      - Modo UFO: api/ufo.md
+      - Módulos Elite: api/elite.md
+      - Estabilidade: api/stability.md
+      - Vento: api/wind.md
+      - Sismo: api/seismic.md
+      - Radier: api/radier.md
+      - Rust Core: api/rust.md
+      - Exportação: api/export.md
+  - Guias:
+      - Validação: guides/validation.md
+      - Relatório de Validação: guides/validation_report.md
+      - Testes: guides/testing.md
+  - Deployment: deployment.md

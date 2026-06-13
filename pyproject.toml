@@ -1,0 +1,66 @@
+[project]
+name = "mef-structural"
+version = "6.2.0"
+description = "Motor MEF 3D de Alta Performance com Aceleração Rust"
+requires-python = ">=3.12"
+authors = [
+    {name = "ATLAS Structural Engineering Lab"},
+]
+license = {text = "Proprietary"}
+dependencies = [
+    "numpy>=2.0,<3",
+    "pandas>=2.0,<3",
+    "scipy>=1.14,<2",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "pydantic>=2.0,<3",
+    "fpdf2>=2.8,<3",
+    "scikit-learn>=1.5,<2",
+    "ezdxf>=1.3,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+    "ruff>=0.8,<1",
+    "mypy>=1.14,<2",
+    "pre-commit>=4,<5",
+    "msgpack>=1.0,<2",
+    "hypothesis>=6.100,<7",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict = false
+disallow_untyped_defs = false
+warn_unused_ignores = true
+exclude = [
+    "reporting/",
+    "tests/",
+    "structural_core_rs/",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "mef_engine/tests",
+]
+python_files = ["*.py"]
+filterwarnings = [
+    "ignore::DeprecationWarning:ezdxf.*",
+    "ignore::UserWarning:ezdxf.*",
+]
+
+[tool.setuptools.packages.find]
+where = ["mef_engine"]
+include = ["mef_engine*"]
